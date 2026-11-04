@@ -13,10 +13,15 @@ describe('beta landing', () => {
     expect(html).toContain('Присоединиться к бета-тестированию');
   });
   it('does not offer a working connect button until acceptance passed', () => {
-    expect(connectAvailable(status)).toBe(false);
-    const html = landing(status);
+    const pending = withAll(status, 'NOT_RUN');
+    expect(connectAvailable(pending)).toBe(false);
+    const html = landing(pending);
     expect(html).toMatch(/<button class="btn" disabled/);
     expect(html).not.toContain('href="https://app.postun.org/"');
+  });
+  it('the published status opens connect only through features backed by recorded evidence', () => {
+    for (const f of status.features.filter((x) => x.status === 'PASS')) expect(f.evidence, f.id).toMatch(/\S/);
+    if (connectAvailable(status)) expect(landing(status)).toContain('href="https://app.postun.org/"');
   });
   it('enables connect only when registration is open and key flows passed', () => {
     expect(connectAvailable(withAll(status, 'PASS'))).toBe(true);
