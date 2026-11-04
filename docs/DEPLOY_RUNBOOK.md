@@ -45,6 +45,14 @@ Custom domains `postun.org`, `www.postun.org`, `app.postun.org` задаются
 
 Ключи шифрования (32 байта, base64url) генерируются локально и сразу передаются в `wrangler secret put` через stdin; резервная копия KEK — в хранилище владельца. Потеря KEK требует повторного подключения Telegram-аккаунтов.
 
+## 4a. Допуск тестеров при закрытой регистрации
+
+Пока `REGISTRATION_OPEN=false`, новые профили создаются только для числовых Telegram ID из необязательного секрета `BETA_TESTER_TELEGRAM_IDS` (через запятую; сверяется с claim `id`, не с `sub`). Некорректный список выключает вход целиком (503). Ввод: `scripts/ops/put-secret.sh auth BETA_TESTER_TELEGRAM_IDS`.
+
+## 4b. IDP для admin
+
+Проект `postun-admin` (роли `postun.viewer`/`postun.operator`/`postun.owner`, проверка роли при входе) и веб-приложение `postun-admin` (BASIC, code + refresh_token, роли в ID-токене) создаются напрямую через Management API служебным Org Owner, вне reconciler infra repo: он аддитивный и не трогает необъявленные проекты, но не умеет confidential-клиенты. Client secret из ответа API сразу передаётся в `wrangler secret bulk` через stdin. Повторный запуск пересоздаёт secret.
+
 ## 5. Проверка после выпуска
 
 - Внешний URL, точный commit SHA и deployment ID записываются в `docs/RELEASE_STATUS.md`.

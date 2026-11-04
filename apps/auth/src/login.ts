@@ -75,7 +75,7 @@ export async function handleCallback(env: Env, cfg: Config, req: Request, url: U
     db.prepare('SELECT principal_id, status FROM principals WHERE oidc_issuer = ?1 AND oidc_subject = ?2').bind(identity.issuer, identity.subject).first();
   let principal = await find();
   if (!principal) {
-    if (!cfg.registrationOpen) {
+    if (!cfg.registrationOpen && !cfg.betaTesterIds.has(identity.telegramId)) {
       return withClear(
         html(page('Бета пока закрыта', '<p>Регистрация в бета-тестировании Postun пока не открыта. Загляните позже.</p>'), 403)
       );

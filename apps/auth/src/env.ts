@@ -15,6 +15,8 @@ export interface Env {
   BETA_TERMS_VERSION: string;
   SESSION_IDLE_SECONDS?: string;
   SESSION_ABSOLUTE_SECONDS?: string;
+  /** Optional secret: comma-separated numeric Telegram IDs admitted while REGISTRATION_OPEN=false (invited beta testers). */
+  BETA_TESTER_TELEGRAM_IDS?: string;
   // secrets
   TELEGRAM_OIDC_CLIENT_ID: string;
   TELEGRAM_OIDC_CLIENT_SECRET: string;
@@ -29,6 +31,8 @@ export interface Config {
   publicSiteUrl: string;
   mcpResource: string;
   registrationOpen: boolean;
+  /** Numeric Telegram IDs (decimal strings) that may register while registration is closed. */
+  betaTesterIds: ReadonlySet<string>;
   requireNonce: boolean;
   termsVersion: string;
   sessionIdleSeconds: number;
@@ -48,6 +52,13 @@ function origin(value: string): string {
     throw new PostunError('CONFIG_MISSING');
   }
   return u.origin;
+}
+
+function testerIds(raw: string | undefined): ReadonlySet<string> {
+  const ids = (raw ?? '').split(',').map((x) => x.trim()).filter(Boolean);
+  // A malformed entry fails closed for the whole service instead of being silently skipped.
+  if (ids.some((x) => !/^[1-9][0-9]{0,15}$/.test(x) || !Number.isSafeInteger(Number(x)))) throw new PostunError('CONFIG_MISSING');
+  return new Set(ids);
 }
 
 function seconds(raw: string | undefined, fallback: number): number {
@@ -82,6 +93,7 @@ export function loadConfig(env: Env): Config {
       publicSiteUrl: origin(g('PUBLIC_SITE_URL')),
       mcpResource: g('MCP_RESOURCE'),
       registrationOpen: g('REGISTRATION_OPEN') === 'true',
+      betaTesterIds: testerIds(env.BETA_TESTER_TELEGRAM_IDS),
       requireNonce: g('TELEGRAM_OIDC_REQUIRE_NONCE') !== 'false',
       termsVersion: g('BETA_TERMS_VERSION'),
       sessionIdleSeconds: seconds(env.SESSION_IDLE_SECONDS, 7 * DAY),

@@ -9,5 +9,5 @@
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run"
   },
-  "dependencies": { "zod": "4.4.3" }
+  "dependencies": { "zod": "4.6.7" }
 }

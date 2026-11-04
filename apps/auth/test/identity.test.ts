@@ -170,6 +170,28 @@ describe('sessions, registration gate, config', () => {
     expect(await count('principals')).toBe(1);
   });
 
+  it('closed registration admits only invited tester Telegram IDs', async () => {
+    const other = await login(makeEnv({ REGISTRATION_OPEN: 'false', BETA_TESTER_TELEGRAM_IDS: '777, 888' }), tg);
+    expect(other.callback.status).toBe(403);
+    expect(await count('principals')).toBe(0);
+    const invited = await login(makeEnv({ REGISTRATION_OPEN: 'false', BETA_TESTER_TELEGRAM_IDS: '777,424242' }), tg);
+    expect(invited.callback.status).toBe(302);
+    expect(await count('principals')).toBe(1);
+  });
+
+  it('closed registration never matches the OIDC sub against the tester list', async () => {
+    const r = await login(makeEnv({ REGISTRATION_OPEN: 'false', BETA_TESTER_TELEGRAM_IDS: '555' }), tg, { claims: { sub: '555', id: 424242 } });
+    expect(r.callback.status).toBe(403);
+    expect(await count('principals')).toBe(0);
+  });
+
+  it('a malformed tester list fails closed with 503', async () => {
+    for (const bad of ['abc', '12,-5', '0', '1e3', '99999999999999999']) {
+      const r = await call(makeEnv({ BETA_TESTER_TELEGRAM_IDS: bad }), '/login');
+      expect(r.status).toBe(503);
+    }
+  });
+
   it('missing configuration returns 503 CONFIG_MISSING without defaults', async () => {
     const r = await call(makeEnv({ TELEGRAM_OIDC_CLIENT_SECRET: '' }), '/login');
     expect(r.status).toBe(503);
