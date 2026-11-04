@@ -1,0 +1,58 @@
+const enc = new TextEncoder();
+const dec = new TextDecoder();
+
+export const utf8 = (s: string): Uint8Array<ArrayBuffer> => enc.encode(s) as Uint8Array<ArrayBuffer>;
+export const fromUtf8 = (b: Uint8Array): string => dec.decode(b);
+
+export function toBase64Url(bytes: Uint8Array): string {
+  let bin = '';
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+export function fromBase64Url(s: string): Uint8Array<ArrayBuffer> {
+  if (!/^[A-Za-z0-9_-]*$/.test(s)) throw new TypeError('invalid base64url');
+  const b64 = s.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - (s.length % 4)) % 4);
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+/** Accepts standard base64 or base64url secrets. */
+export function decodeSecret(s: string): Uint8Array<ArrayBuffer> {
+  return fromBase64Url(s.trim().replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''));
+}
+
+export function randomBytes(n: number): Uint8Array<ArrayBuffer> {
+  const b = new Uint8Array(n);
+  crypto.getRandomValues(b);
+  return b;
+}
+
+export function randomToken(bytes = 32): string {
+  return toBase64Url(randomBytes(bytes));
+}
+
+export function concat(...parts: Uint8Array[]): Uint8Array<ArrayBuffer> {
+  const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+  let o = 0;
+  for (const p of parts) {
+    out.set(p, o);
+    o += p.length;
+  }
+  return out;
+}
+
+/** Constant-time comparison for equal-length secrets. */
+export function timingSafeEqual(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= (a[i] ?? 0) ^ (b[i] ?? 0);
+  return diff === 0;
+}
+
+export async function sha256(data: Uint8Array<ArrayBuffer> | string): Promise<Uint8Array<ArrayBuffer>> {
+  const bytes = typeof data === 'string' ? utf8(data) : data;
+  return new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
+}

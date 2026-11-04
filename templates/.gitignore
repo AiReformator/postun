@@ -1,0 +1,33 @@
+# Postun Beta safe defaults. Review before adopting in the live repository.
+node_modules/
+dist/
+build/
+.wrangler/
+coverage/
+test-results/
+playwright-report/
+.env
+.env.*
+!.env.example
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+*.session
+*.session-journal
+*.sqlite
+*.sqlite3
+*.db
+*.db-shm
+*.db-wal
+*.log
+*.pem
+*.key
+*.p12
+*.pfx
+secrets/
+private-ops/
+local-backups/
+.DS_Store
+# Real deployments use a separate protected inventory.
+deployment-inventory.local.json
+# Never ignore source migrations or dependency lockfiles.
