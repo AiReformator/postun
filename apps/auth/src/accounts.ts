@@ -9,7 +9,7 @@ const PENDING_TTL = 600;
 /** Browser-safe link state: never carries the Telegram id or the cleartext label of the vault. */
 export type PublicLinkState =
   | { state: 'waiting_scan'; qrUrl: string; expiresAt: string }
-  | { state: 'need_password'; hint: string | null }
+  | { state: 'need_password'; hint: string | null; invalidAttempts?: number }
   | { state: 'active' }
   | { state: 'failed'; code: 'EXPIRED' | 'PASSWORD_INVALID' | 'RATE_LIMITED' | 'UPSTREAM' | 'CANCELLED' | 'NOT_ALLOWED' };
 
@@ -117,7 +117,7 @@ async function settle(env: Env, cfg: Config | undefined, principalId: string, ac
     case 'waiting_scan':
       return { state: 'waiting_scan', qrUrl: state.qrUrl, expiresAt: state.expiresAt };
     case 'need_password':
-      return { state: 'need_password', hint: state.hint };
+      return state.invalidAttempts ? { state: 'need_password', hint: state.hint, invalidAttempts: state.invalidAttempts } : { state: 'need_password', hint: state.hint };
     case 'failed':
       await bestEffortDisconnect(env, principalId, accountId);
       await markDisconnected(env, accountId, state.code);

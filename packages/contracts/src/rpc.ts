@@ -15,7 +15,7 @@ import type { Scope } from './scopes';
 
 export type LinkState =
   | { state: 'waiting_scan'; qrUrl: string; expiresAt: string }
-  | { state: 'need_password'; hint: string | null }
+  | { state: 'need_password'; hint: string | null; invalidAttempts?: number }
   | { state: 'authorized'; telegramId: string; label: string } // pending: not usable by MCP until activate()
   | { state: 'failed'; code: 'EXPIRED' | 'PASSWORD_INVALID' | 'RATE_LIMITED' | 'UPSTREAM' | 'CANCELLED' }
   | { state: 'unknown' };

@@ -706,7 +706,7 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
       requestPassword: () =>
         new Promise<string>((resolve) => {
           rec.waiter = resolve;
-          this.setLinkState(rec, { state: 'need_password', hint: null });
+          this.setLinkState(rec, { state: 'need_password', hint: null, invalidAttempts: rec.invalid });
         }),
       onPasswordInvalid: () => {
         rec.invalid++;

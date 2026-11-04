@@ -17,7 +17,12 @@ import { mapTelegramError } from './errors';
 
 const ALIGN = 4096;
 
-function makeClient(apiId: number, apiHash: string): TelegramClient {
+/**
+ * `link`: the QR-login client keeps MTProto updates flowing (but without the high-level UpdatesManager), because
+ * signInQr detects the scan through `updateLoginToken`; with `disableUpdates: true` the scan is only noticed when
+ * the ~30 s login token is re-exported. Data sessions keep updates disabled.
+ */
+function makeClient(apiId: number, apiHash: string, link = false): TelegramClient {
   return new TelegramClient({
     apiId,
     apiHash,
@@ -25,7 +30,7 @@ function makeClient(apiId: number, apiHash: string): TelegramClient {
     crypto: new WebCryptoProvider({ wasmInput: wasmModule }),
     transport: new WebSocketTransport(),
     logLevel: 0,
-    disableUpdates: true
+    ...(link ? { disableUpdates: false, updates: false as const } : { disableUpdates: true })
   });
 }
 
@@ -287,7 +292,7 @@ export class MtcuteAdapter implements TelegramAdapter {
   constructor(private readonly apiId: number, private readonly apiHash: string) {}
 
   startQrLink(hooks: LinkHooks): LinkRun {
-    const tg = makeClient(this.apiId, this.apiHash);
+    const tg = makeClient(this.apiId, this.apiHash, true);
     const ac = new AbortController();
     const done = (async (): Promise<LinkResult> => {
       try {

@@ -199,6 +199,9 @@ describe('account linking', () => {
     vault.link = { state: 'need_password', hint: 'pet' };
     const r = await post(e, `/api/accounts/${accountId}/password`, { password: 'correct horse' }, who);
     expect(await r.json()).toEqual({ state: 'need_password', hint: 'pet' });
+    vault.link = { state: 'need_password', hint: null, invalidAttempts: 2 };
+    const again = await post(e, `/api/accounts/${accountId}/password`, { password: 'wrong' }, who);
+    expect(await again.json()).toEqual({ state: 'need_password', hint: null, invalidAttempts: 2 });
     expect(vault.calls).toContain(`submitPassword:${accountId}`);
     const dump = JSON.stringify(await db().prepare('SELECT * FROM linked_accounts').all());
     expect(dump).not.toContain('correct horse');

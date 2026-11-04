@@ -48,8 +48,9 @@ describe('QR link flow', () => {
       st = await stub.linkStatus(principalId, accountId);
     }
     expect(st.state).toBe('need_password');
+    expect(st).toEqual({ state: 'need_password', hint: null, invalidAttempts: 0 });
     st = await stub.submitPassword(principalId, accountId, 'SYNTH-WRONG-PASSWORD');
-    expect(st.state).toBe('need_password');
+    expect(st).toEqual({ state: 'need_password', hint: null, invalidAttempts: 1 });
     st = await stub.submitPassword(principalId, accountId, 'synthetic-password');
     expect(st.state).toBe('authorized');
     const dump = await runInDurableObject(stub, (_i, s) => JSON.stringify(s.storage.sql.exec('SELECT * FROM accounts').toArray()));

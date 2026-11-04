@@ -185,7 +185,7 @@ async function pollLink(accountId, state) {
       return;
     }
     if (state.state === 'need_password') {
-      await askPassword(accountId, state.hint);
+      await askPassword(accountId, state.hint, state.invalidAttempts || 0);
       return;
     }
     if (state.state === 'waiting_scan' && state.qrUrl !== lastQr) {
@@ -198,11 +198,25 @@ async function pollLink(accountId, state) {
       );
     }
     await new Promise((r) => setTimeout(r, 2000));
-    state = await api(`/api/accounts/${accountId}/link-status`).catch((e) => ({ state: 'failed', code: e.code }));
+    state = await pollOnce(accountId);
   }
 }
 
-function askPassword(accountId, hint) {
+// A single failed poll (network blip, 5xx, upstream hiccup) must not abort a QR link that is still running
+// server-side; give up only after several consecutive failures or on a definite answer.
+const TRANSIENT = new Set([undefined, 'UPSTREAM_UNAVAILABLE', 'INTERNAL', 'RATE_LIMITED']);
+async function pollOnce(accountId) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await api(`/api/accounts/${accountId}/link-status`);
+    } catch (e) {
+      if (!TRANSIENT.has(e.code) || attempt >= 5) return { state: 'failed', code: e.code };
+      await new Promise((r) => setTimeout(r, 2000 * attempt));
+    }
+  }
+}
+
+function askPassword(accountId, hint, invalidAttempts = 0) {
   return new Promise((resolve) => {
     const input = el('input', { type: 'password', autocomplete: 'off', 'aria-label': 'Пароль двухэтапной проверки' });
     const form = el('form', {
@@ -217,6 +231,7 @@ function askPassword(accountId, hint) {
     show(
       el('h2', {}, 'Двухэтапная проверка'),
       el('p', {}, 'Введите облачный пароль Telegram. Он используется один раз и не сохраняется.'),
+      invalidAttempts ? el('p', { class: 'err' }, `Пароль не подошёл (попыток: ${invalidAttempts} из 5). Попробуйте ещё раз.`) : '',
       hint ? el('p', { class: 'note' }, `Подсказка: ${hint}`) : '',
       form
     );
