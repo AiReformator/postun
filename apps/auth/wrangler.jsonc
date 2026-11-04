@@ -25,7 +25,7 @@
     "APP_ORIGIN": "https://app.postun.org",
     "PUBLIC_SITE_URL": "https://postun.org",
     "MCP_RESOURCE": "https://mcp.postun.org/mcp",
-    "REGISTRATION_OPEN": "false",
+    "REGISTRATION_OPEN": "true",
     "TELEGRAM_OIDC_REQUIRE_NONCE": "true",
     "BETA_TERMS_VERSION": "2026-11-04"
   },
