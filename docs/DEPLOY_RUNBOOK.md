@@ -23,19 +23,21 @@
 scripts/ops/wrangler-keychain.sh d1 create postun-control
 scripts/ops/wrangler-keychain.sh d1 create postun-admin-meta
 scripts/ops/wrangler-keychain.sh kv namespace create OAUTH_KV
-scripts/ops/wrangler-keychain.sh pages project create postun-web --production-branch main
 ```
+
+Публичный сайт развёртывается как Workers static assets (`apps/web/wrangler.jsonc`: без кода и привязок, логи выключены, без `workers.dev`/preview). С wrangler 4.15x `pages project create` сам создаёт Worker со static assets и включает observability — не используйте его; используйте конфиг из репозитория.
 
 ID записываются в приватный inventory и подставляются в `wrangler.jsonc` при deploy (не коммитятся). Production и staging используют разные ресурсы и разные секреты.
 
 ## 3. Pages (B3 — публичный beta-лендинг)
 
 ```bash
-npm run build -w @postun/web
-scripts/ops/wrangler-keychain.sh pages deploy apps/web/dist --project-name postun-web --branch main
+cd apps/web
+npm run build            # из чистого дерева: в /status.json попадёт commit и dirty=false
+../../scripts/ops/wrangler-keychain.sh deploy --message "Postun Beta site <sha>"
 ```
 
-Затем custom domains проекта: `postun.org`, `www.postun.org`, `app.postun.org` (официальная привязка Pages, не просто CNAME). До прохождения B2/B4 `status.json` держит `registration_open: false`, и кнопка подключения неактивна.
+Custom domains `postun.org`, `www.postun.org`, `app.postun.org` задаются в `routes` конфига; конфликтующие DNS-записи (старый A/CNAME) удаляются заранее, после резервной копии и переноса почты. До прохождения B2/B4 `status.json` держит `registration_open: false`, и кнопка подключения неактивна.
 
 ## 4. Workers (B2)
 
