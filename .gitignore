@@ -31,3 +31,6 @@ local-backups/
 # Real deployments use a separate protected inventory.
 deployment-inventory.local.json
 # Never ignore source migrations or dependency lockfiles.
+
+# Private deploy configs with real resource IDs (generated from wrangler.jsonc, never committed)
+wrangler.private.jsonc
