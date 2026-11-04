@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { landing, privacy, terms, cabinet } from './src/pages.mjs';
 import { validateStatus } from './src/render.mjs';
 import { build as esbuild } from 'esbuild';
+import { execFileSync } from 'node:child_process';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const out = join(here, 'dist');
@@ -19,7 +20,17 @@ for (const [file, html] of Object.entries(pages)) {
   mkdirSync(dirname(join(out, file)), { recursive: true });
   writeFileSync(join(out, file), html);
 }
-writeFileSync(join(out, 'status.json'), JSON.stringify(status, null, 2));
+// Record exactly which source commit this site was built from (public, non-secret).
+const git = (...a) => {
+  try {
+    return execFileSync('git', a, { cwd: here, encoding: 'utf8' }).trim();
+  } catch {
+    return null;
+  }
+};
+const dirty = git('status', '--porcelain');
+const build = { commit: git('rev-parse', 'HEAD'), dirty: dirty === null ? null : dirty.length > 0 };
+writeFileSync(join(out, 'status.json'), JSON.stringify({ ...status, build }, null, 2));
 
 // Cabinet client bundle (single file, no inline scripts; CSP script-src 'self').
 await esbuild({

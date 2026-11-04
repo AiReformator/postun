@@ -1,10 +1,9 @@
 {
   "$comment": "Single source of truth for feature status shown on the site. Only values backed by a recorded acceptance run may be PASS. Allowed: PASS, FAIL, NOT_RUN, UNSUPPORTED, BLOCKED.",
   "updated": "2026-11-04",
-  "deployment_sha": null,
   "registration_open": false,
   "features": [
-    { "id": "landing", "title": "Публичный сайт беты", "status": "PASS", "evidence": "this page" },
+    { "id": "landing", "title": "Публичный сайт беты", "status": "PASS", "evidence": "https://postun.org — HTTPS 200, verified externally 2026-11-04" },
     { "id": "telegram_login", "title": "Вход через Telegram (OIDC)", "status": "NOT_RUN" },
     { "id": "mtproto_link", "title": "Подключение аккаунта по QR и 2FA", "status": "NOT_RUN" },
     { "id": "mcp_chatgpt", "title": "ChatGPT: подключение MCP", "status": "NOT_RUN" },
