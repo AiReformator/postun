@@ -16,6 +16,8 @@ export function fromBase64Url(s: string): Uint8Array<ArrayBuffer> {
   const bin = atob(b64);
   const out = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  // Reject non-canonical encodings (non-zero padding bits) so one value has exactly one string form.
+  if (toBase64Url(out) !== s) throw new TypeError('non-canonical base64url');
   return out;
 }
 

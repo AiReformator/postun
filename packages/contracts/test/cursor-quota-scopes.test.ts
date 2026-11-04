@@ -24,7 +24,15 @@ describe('cursor', () => {
     const c = await encodeCursor(key, binding, 'o', 0);
     await expect(decodeCursor(key, binding, c)).rejects.toBeInstanceOf(PostunError);
     const fresh = await encodeCursor(key, binding, 'o');
-    await expect(decodeCursor(key, binding, fresh.replace(/.$/, (ch) => (ch === 'A' ? 'B' : 'A')))).rejects.toBeInstanceOf(PostunError);
+    const [body, mac] = fresh.split('.') as [string, string];
+    const mid = Math.floor(mac.length / 2);
+    const flipped = mac.slice(0, mid) + (mac[mid] === 'A' ? 'B' : 'A') + mac.slice(mid + 1);
+    await expect(decodeCursor(key, binding, `${body}.${flipped}`)).rejects.toBeInstanceOf(PostunError);
+    // Changing only the padding bits of the last character must not yield an accepted alias.
+    const last = mac[mac.length - 1] as string;
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+    const alias = alphabet[(alphabet.indexOf(last) ^ 1)] as string;
+    await expect(decodeCursor(key, binding, `${body}.${mac.slice(0, -1)}${alias}`)).rejects.toBeInstanceOf(PostunError);
     await expect(decodeCursor(key, binding, 'garbage')).rejects.toBeInstanceOf(PostunError);
   });
 });
