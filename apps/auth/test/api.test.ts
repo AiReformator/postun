@@ -103,6 +103,29 @@ describe('account linking', () => {
     expect((await post(e, '/api/accounts/link', {}, who)).status).toBe(409);
   });
 
+  it('parallel link requests create at most one pending account and never exceed the cap', async () => {
+    const vault = new FakeVault();
+    const e = makeEnv({}, vault);
+    const who = await login(e, tg);
+    await acceptTerms(e, who);
+    const rs = await Promise.all(Array.from({ length: 6 }, () => post(e, '/api/accounts/link', {}, who)));
+    const codes = rs.map((r) => r.status).sort();
+    expect(codes.filter((c) => c === 201)).toHaveLength(1);
+    expect(codes.filter((c) => c === 409)).toHaveLength(5);
+    expect((await db().prepare("SELECT COUNT(*) AS n FROM linked_accounts WHERE status = 'pending'").first<{ n: number }>())?.n).toBe(1);
+
+    // cap: fill to MAX_ACCOUNTS-1 active rows, then race again -> exactly one more is allowed
+    const pid = (await db().prepare('SELECT principal_id FROM principals').first<{ principal_id: string }>())?.principal_id as string;
+    await db().prepare("UPDATE linked_accounts SET status = 'active'").run();
+    const t = Math.floor(Date.now() / 1000);
+    for (let i = 0; i < 8; i++) {
+      await db().prepare("INSERT INTO linked_accounts (account_id, principal_id, status, operation_id, created_at, updated_at) VALUES (?1, ?2, 'active', ?3, ?4, ?4)").bind(`acc-${i}`, pid, `op-${i}`, t).run();
+    }
+    const more = await Promise.all(Array.from({ length: 5 }, () => post(e, '/api/accounts/link', {}, who)));
+    expect(more.filter((r) => r.status === 201)).toHaveLength(1);
+    expect((await db().prepare("SELECT COUNT(*) AS n FROM linked_accounts WHERE status != 'disconnected'").first<{ n: number }>())?.n).toBe(10);
+  });
+
   it('activates only after the uniqueness reservation, never exposes the telegram id, and is resumable', async () => {
     const vault = new FakeVault();
     const e = makeEnv({}, vault);

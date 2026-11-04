@@ -7,9 +7,10 @@
 import { DurableObject } from 'cloudflare:workers';
 import {
   AdminProjectionSchema, fromBase64Url, fromUtf8, hmac, HTTP_STATUS, jsonResponse, normalizeScopes, openSession, PostunError, randomToken,
-  retainedMonths, sealSession, sha256, timingSafeEqual, toBase64Url, toSafeError, TOOL_SCOPE, utcMonth, utf8,
+  retainedMonths, rewrapSession, sealSession, sha256, timingSafeEqual, toBase64Url, toSafeError, TOOL_SCOPE, utcMonth, utf8,
   type ErrorCode, type GrantRecord, type LinkState, type SessionEnvelope, type ToolName, type UsageView
 } from '@postun/contracts';
+import { signFileCapability } from '../capability';
 import type { Config, Keys } from '../config';
 import { loadConfig, loadKeys } from '../config';
 import type { Env } from '../env';
@@ -28,7 +29,16 @@ const LINK_TTL_MS = 5 * 60 * 1000;
 const LOCK_WAIT_MS = 30_000;
 const REVOCATION_GIVE_UP_MS = 7 * 24 * 60 * 60 * 1000;
 const ALARM_PERIOD_MS = 30 * 60 * 1000;
+const SWEEP_PERIOD_MS = 6 * 60 * 60 * 1000;
+const MAX_REVOKE_BACKOFF_MS = 6 * 60 * 60 * 1000;
 const MAX_LIVE_INTENTS = 50;
+/**
+ * Idempotency semantics (docs/03 section 6, docs/05 Q-02). A committed operation_id may be replayed against Telegram
+ * (results are never stored) for at most FREE_REPLAYS further calls within the TTL; those are not counted again.
+ * Every replay beyond that is a fresh, counted operation, and a replay is never free once the monthly quota is
+ * exhausted. So one key can never produce unlimited uncounted work.
+ */
+const FREE_REPLAYS = 1;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export interface ToolCallRequest {
@@ -103,24 +113,39 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
   private readonly links = new Map<string, LinkRec>();
   private readonly transfers = new Map<string, string>(); // transfer key -> account id
   private principal: string | null = null;
-  private alarmScheduled = false;
+  private alarmAt: number | null = null;
+  private schemaReady = false;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
-    ctx.blockConcurrencyWhile(async () => {
-      this.migrate();
-    });
+    // Schema is created lazily on first real use, so an object that is only addressed (never bound) stays empty.
   }
 
   // ------------------------------------------------------------------ storage helpers
 
   private migrate(): void {
     for (const stmt of SCHEMA) this.ctx.storage.sql.exec(stmt);
+    try {
+      this.ctx.storage.sql.exec('ALTER TABLE idem ADD COLUMN replays INTEGER NOT NULL DEFAULT 0');
+    } catch {
+      // column already present (new schema or already migrated)
+    }
+    this.schemaReady = true;
+  }
+  private ensureSchema(): void {
+    if (!this.schemaReady) this.migrate();
+  }
+  /** True when this object was ever initialised; does not create anything. */
+  private hasSchema(): boolean {
+    if (this.schemaReady) return true;
+    return this.ctx.storage.sql.exec("SELECT 1 AS x FROM sqlite_master WHERE type = 'table' AND name = 'meta'").toArray().length > 0;
   }
   private q<T extends Record<string, SqlStorageValue>>(sql: string, ...b: SqlStorageValue[]): T[] {
+    this.ensureSchema();
     return this.ctx.storage.sql.exec<T>(sql, ...b).toArray();
   }
   private run(sql: string, ...b: SqlStorageValue[]): void {
+    this.ensureSchema();
     this.ctx.storage.sql.exec(sql, ...b);
   }
   private getMeta(k: string): string | null {
@@ -149,10 +174,23 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
     if (this.getMeta('deleted') === '1') throw new PostunError('FORBIDDEN');
   }
 
-  private ensureAlarm(): void {
-    if (this.alarmScheduled) return;
-    this.alarmScheduled = true;
-    void this.ctx.storage.setAlarm(Date.now() + ALARM_PERIOD_MS);
+  /** Same binding rule, but a deleted principal is allowed through (only deletePrincipal retries use it). */
+  private bindAllowDeleted(principalId: string): void {
+    if (!UUID_RE.test(principalId)) throw new PostunError('INVALID_INPUT');
+    this.principal ??= this.getMeta('principal');
+    if (this.principal === null) {
+      this.setMeta('principal', principalId);
+      this.principal = principalId;
+    } else if (this.principal !== principalId) {
+      throw new PostunError('FORBIDDEN');
+    }
+  }
+
+  private ensureAlarm(delayMs: number = ALARM_PERIOD_MS): void {
+    const at = Date.now() + delayMs;
+    if (this.alarmAt !== null && this.alarmAt <= at) return; // an earlier alarm is already armed
+    this.alarmAt = at;
+    void this.ctx.storage.setAlarm(at);
   }
 
   // ------------------------------------------------------------------ projection
@@ -217,6 +255,21 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
     }
   }
 
+  /**
+   * KEK rotation: an envelope under an older (still configured) KEK version is rewrapped to the current one,
+   * so removing SESSION_KEK_PREVIOUS later cannot strand it. Failure is non-fatal.
+   */
+  private async rewrapIfStale(accountId: string, envelope: string, keys: Keys): Promise<void> {
+    try {
+      const parsed = JSON.parse(envelope) as SessionEnvelope;
+      if (parsed.kv === keys.kekVersion || !keys.keks.has(parsed.kv)) return;
+      const next = await rewrapSession(parsed, { principalId: this.principal ?? '', accountId }, keys.keks, keys.kek, keys.kekVersion);
+      this.run('UPDATE accounts SET envelope = ? WHERE account_id = ? AND envelope = ?', JSON.stringify(next), accountId, envelope);
+    } catch {
+      // keep the old envelope; it is still readable while the previous KEK is configured
+    }
+  }
+
   // ------------------------------------------------------------------ authorisation + quota
 
   private authorize(
@@ -251,13 +304,29 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
   private reserve(cfg: Config, op: string | null, reqHash: string | null): Reservation {
     const now = Date.now();
     const month = utcMonth(new Date(now));
+    let carriedReplays = 0;
+    let carriedExpiry = now + IDEMPOTENCY_TTL_MS;
     if (op !== null) {
-      const row = this.q<{ state: string; req_hash: string; expires_at: number }>('SELECT state, req_hash, expires_at FROM idem WHERE operation_id = ?', op)[0];
+      const row = this.q<{ state: string; req_hash: string; expires_at: number; replays: number }>(
+        'SELECT state, req_hash, expires_at, replays FROM idem WHERE operation_id = ?', op
+      )[0];
       if (row && row.expires_at > now) {
         if (row.req_hash !== reqHash) throw new PostunError('CONFLICT');
-        if (row.state === 'committed') return { counted: false, month, op };
-        if (this.inflight.has(op)) throw new PostunError('CONFLICT');
-        // stale 'reserved' row from before a restart: take it over
+        if (row.state === 'committed') {
+          // A replay never bypasses the quota, even though it is not counted again.
+          const used = this.usageRow(month).success_count + (this.reserved.get(month) ?? 0);
+          if (used >= cfg.quota.monthlySuccessLimit) throw new PostunError('QUOTA_EXCEEDED');
+          if (row.replays < FREE_REPLAYS) {
+            this.run('UPDATE idem SET replays = replays + 1 WHERE operation_id = ?', op);
+            return { counted: false, month, op };
+          }
+          // Free replays used up: this call is a fresh counted operation under the same key (keeps the replay count and expiry).
+          carriedReplays = row.replays;
+          carriedExpiry = row.expires_at;
+        } else if (this.inflight.has(op)) {
+          throw new PostunError('CONFLICT');
+        }
+        // else: stale 'reserved' row from before a restart: take it over
       }
       if (row) this.run('DELETE FROM idem WHERE operation_id = ?', op);
     }
@@ -266,7 +335,10 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
     if (u.success_count + held >= cfg.quota.monthlySuccessLimit) throw new PostunError('QUOTA_EXCEEDED');
     this.reserved.set(month, held + 1);
     if (op !== null) {
-      this.run("INSERT INTO idem(operation_id, month, state, req_hash, expires_at) VALUES(?, ?, 'reserved', ?, ?)", op, month, reqHash ?? '', now + IDEMPOTENCY_TTL_MS);
+      this.run(
+        "INSERT INTO idem(operation_id, month, state, req_hash, expires_at, replays) VALUES(?, ?, 'reserved', ?, ?, ?)",
+        op, month, reqHash ?? '', carriedExpiry, carriedReplays
+      );
       this.inflight.add(op);
       this.ensureAlarm();
     }
@@ -355,7 +427,7 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
                 cursorKey: keys.cursor,
                 cfg,
                 globalSearchAllowed: this.chatAllowlist(grant) === null,
-                issueMedia: (peerId, messageId, size) => this.issueIntent(grant.grant_id, accId, peerId, messageId, size)
+                issueMedia: (peerId, messageId, size) => this.issueIntent(grant.grant_id, accId, peerId, messageId, size, keys)
               },
               req.tool as Exclude<ToolName, 'list_accounts'>,
               req.args
@@ -398,8 +470,10 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
     try {
       payload = await this.unseal(accountId, acc.envelope, keys);
     } catch {
+      // Undecryptable (e.g. the KEK version was removed): refuse use, never treat it as revoked.
       throw new PostunError('ACCOUNT_NOT_ACTIVE');
     }
+    await this.rewrapIfStale(accountId, acc.envelope, keys);
     const adapter = await selectAdapter(this.env);
     let session: TelegramSession;
     try {
@@ -424,7 +498,7 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
 
   // ------------------------------------------------------------------ download intents and streaming
 
-  private async issueIntent(grantId: string, accountId: string, peerId: string, messageId: number, size: number): Promise<{ intentId: string; capability: string; expiresAt: string }> {
+  private async issueIntent(grantId: string, accountId: string, peerId: string, messageId: number, size: number, keys: Keys): Promise<{ intentId: string; capability: string; expiresAt: string }> {
     const now = Date.now();
     this.run('DELETE FROM transfers WHERE expires_at <= ?', now);
     if ((this.q<{ n: number }>('SELECT COUNT(*) AS n FROM transfers')[0]?.n ?? 0) >= MAX_LIVE_INTENTS) throw new PostunError('RATE_LIMITED', 60);
@@ -437,7 +511,7 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
       intentId, hash, grantId, accountId, peerId, messageId, size, expires
     );
     this.ensureAlarm();
-    return { intentId, capability: `${this.principal}.${secret}`, expiresAt: new Date(expires).toISOString() };
+    return { intentId, capability: await signFileCapability(keys.cursor, this.principal ?? '', intentId, secret), expiresAt: new Date(expires).toISOString() };
   }
 
   /** Re-checks everything that can revoke a transfer. Throws a PostunError when it must stop. */
@@ -482,7 +556,10 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
     try {
       const cfg = loadConfig(this.env);
       keys = await loadKeys(this.env);
+      // An object that was never bound has nothing to serve: answer without creating any schema.
+      if (!this.hasSchema()) throw new PostunError('NOT_FOUND');
       this.principal ??= this.getMeta('principal');
+      if (this.getMeta('deleted') === '1') throw new PostunError('FORBIDDEN');
       if (!UUID_RE.test(principalId) || this.principal !== principalId || !/^[A-Za-z0-9_-]{16,64}$/.test(intentId) || !/^[A-Za-z0-9_-]{32,64}$/.test(secret)) {
         throw new PostunError('NOT_FOUND');
       }
@@ -706,6 +783,7 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
 
   async activateAccount(principalId: string, accountId: string): Promise<{ ok: true }> {
     this.bind(principalId);
+    this.ensureAlarm(SWEEP_PERIOD_MS); // periodic KEK rotation sweep
     const acc = this.account(accountId);
     if (!acc) throw new PostunError('NOT_FOUND');
     if (acc.status === 'active') return { ok: true };
@@ -745,19 +823,29 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
     }
   }
 
+  /** Keeps the original status_at of an already pending account so the give-up deadline is not pushed out. */
+  private markRevocationPending(accountId: string): void {
+    this.run(
+      "UPDATE accounts SET status = 'revocation_pending', status_at = CASE WHEN status = 'revocation_pending' THEN status_at ELSE ? END WHERE account_id = ? AND envelope IS NOT NULL",
+      Date.now(), accountId
+    );
+  }
+
   /** Logs out on Telegram and drops the envelope. false = Telegram unreachable, envelope kept for retry. */
   private async tryLogout(accountId: string, envelope: string): Promise<boolean> {
     let session: string;
     try {
       session = (await this.unseal(accountId, envelope, await loadKeys(this.env))).s;
     } catch {
-      // Undecryptable ciphertext is useless; drop it.
-      this.run("UPDATE accounts SET envelope = NULL, status = 'disconnected', status_at = ? WHERE account_id = ?", Date.now(), accountId);
+      // Undecryptable now (KEK version missing / config) does NOT mean revoked: the authorisation may still be live
+      // on Telegram. Keep the envelope as revocation_pending (use is refused) and retry until the give-up deadline.
+      this.markRevocationPending(accountId);
       return false;
     }
     try {
       await (await selectAdapter(this.env)).logOut(session);
     } catch {
+      this.markRevocationPending(accountId);
       return false;
     }
     this.run("UPDATE accounts SET envelope = NULL, status = 'disconnected', status_at = ? WHERE account_id = ?", Date.now(), accountId);
@@ -802,35 +890,71 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
     return { ok: true };
   }
 
-  async deletePrincipal(principalId: string): Promise<{ ok: true }> {
-    this.bind(principalId);
+  /**
+   * Profile deletion (docs/03 section 3). The principal is marked deleted first: no MCP call, link, transfer or
+   * grant can succeed from then on. Every Telegram session is logged out; an envelope whose logout fails is the only
+   * handle to revoke a live authorisation, so it alone survives as revocation_pending and the alarm retries with
+   * backoff until logout succeeds or REVOCATION_GIVE_UP_MS passes. Everything else is wiped immediately.
+   */
+  async deletePrincipal(principalId: string): Promise<{ ok: true; revocationPending: boolean }> {
+    this.bindAllowDeleted(principalId);
     this.setMeta('deleted', '1'); // every new operation is refused from here on
     for (const rec of this.links.values()) rec.run?.cancel();
     this.links.clear();
+    this.run('DELETE FROM transfers');
     const rows = this.q<AccountRow>('SELECT account_id, status, label, envelope, created_at, status_at FROM accounts WHERE envelope IS NOT NULL');
-    const keys = await loadKeys(this.env).catch(() => null);
-    if (keys) {
-      await Promise.allSettled(
-        rows.map(async (r) => {
-          const unlock = await this.locks.acquire(r.account_id, 5000).catch(() => null);
-          try {
-            if (r.envelope) await this.tryLogout(r.account_id, r.envelope);
-          } finally {
-            unlock?.();
-          }
-        })
-      );
+    // Not usable from this moment, and in-flight work cannot re-seal over it.
+    for (const r of rows) this.markRevocationPending(r.account_id);
+    await Promise.allSettled(
+      rows.map(async (r) => {
+        const unlock = await this.locks.acquire(r.account_id, 5000).catch(() => null);
+        if (!unlock) return; // busy: stays pending, the alarm retries
+        try {
+          const cur = this.account(r.account_id);
+          if (cur?.envelope) await this.tryLogout(r.account_id, cur.envelope);
+        } finally {
+          unlock();
+        }
+      })
+    );
+    const pending = this.hasPendingEnvelopes();
+    if (pending) {
+      this.wipeExceptEnvelopes();
+      this.ensureAlarm(ALARM_PERIOD_MS);
+    } else {
+      await this.finalizeDeletion();
     }
+    this.emitProjection();
+    return { ok: true, revocationPending: pending };
+  }
+
+  private hasPendingEnvelopes(): boolean {
+    return (this.q<{ n: number }>('SELECT COUNT(*) AS n FROM accounts WHERE envelope IS NOT NULL')[0]?.n ?? 0) > 0;
+  }
+
+  /** Drops all user data except the envelopes that still need a Telegram logout (and the deleted tombstone). */
+  private wipeExceptEnvelopes(): void {
+    this.ctx.storage.transactionSync(() => {
+      this.run('DELETE FROM grants');
+      this.run('DELETE FROM usage');
+      this.run('DELETE FROM idem');
+      this.run('DELETE FROM transfers');
+      this.run('DELETE FROM accounts WHERE envelope IS NULL');
+      this.run("UPDATE accounts SET label = '' WHERE envelope IS NOT NULL");
+      this.run("DELETE FROM meta WHERE k NOT IN ('principal', 'deleted', 'revision', 'revoke_attempts')");
+    });
+  }
+
+  /** Full wipe leaving a tombstone without user data: keeps the object bound to this principal and refusing work. */
+  private async finalizeDeletion(): Promise<void> {
     const principal = this.principal;
     await this.ctx.storage.deleteAlarm();
     await this.ctx.storage.deleteAll();
-    this.alarmScheduled = false;
+    this.alarmAt = null;
+    this.schemaReady = false;
     this.migrate();
-    // Tombstone without user data: keeps the object bound to this principal and refusing new work.
     if (principal) this.setMeta('principal', principal);
     this.setMeta('deleted', '1');
-    this.emitProjection();
-    return { ok: true };
   }
 
   async getUsage(principalId: string): Promise<UsageView> {
@@ -844,7 +968,7 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
   // ------------------------------------------------------------------ retention
 
   override async alarm(): Promise<void> {
-    this.alarmScheduled = false;
+    this.alarmAt = null;
     const now = Date.now();
     this.run('DELETE FROM idem WHERE expires_at <= ?', now);
     this.run('DELETE FROM transfers WHERE expires_at <= ?', now);
@@ -854,12 +978,35 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
     for (const [id, rec] of this.links) {
       if (rec.state.state === 'failed') this.links.delete(id);
     }
+    // KEK rotation sweep: move envelopes still under an older (configured) KEK to the current one.
+    const keys = await loadKeys(this.env).catch(() => null);
+    if (keys) {
+      for (const r of this.q<AccountRow>('SELECT account_id, status, label, envelope, created_at, status_at FROM accounts WHERE envelope IS NOT NULL')) {
+        let kv: string;
+        try {
+          kv = (JSON.parse(r.envelope as string) as SessionEnvelope).kv;
+        } catch {
+          continue;
+        }
+        if (kv === keys.kekVersion || !keys.keks.has(kv)) continue;
+        const unlock = await this.locks.acquire(r.account_id, 5000).catch(() => null);
+        if (!unlock) continue;
+        try {
+          const cur = this.account(r.account_id);
+          if (cur?.envelope) await this.rewrapIfStale(r.account_id, cur.envelope, keys);
+        } finally {
+          unlock();
+        }
+      }
+    }
     for (const r of this.q<AccountRow>("SELECT account_id, status, label, envelope, created_at, status_at FROM accounts WHERE status = 'revocation_pending'")) {
       if (!r.envelope) continue;
       const unlock = await this.locks.acquire(r.account_id, 5000).catch(() => null);
       if (!unlock) continue;
       try {
-        const ok = await this.tryLogout(r.account_id, r.envelope);
+        const cur = this.account(r.account_id);
+        if (!cur?.envelope) continue;
+        const ok = await this.tryLogout(r.account_id, cur.envelope);
         if (!ok && r.status_at + REVOCATION_GIVE_UP_MS <= now) {
           this.run("UPDATE accounts SET envelope = NULL, status = 'disconnected', status_at = ? WHERE account_id = ?", now, r.account_id);
         }
@@ -867,10 +1014,25 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
         unlock();
       }
     }
+    const deleted = this.getMeta('deleted') === '1';
+    if (deleted && !this.hasPendingEnvelopes()) {
+      await this.finalizeDeletion();
+      return;
+    }
+    const revoking = (this.q<{ n: number }>("SELECT COUNT(*) AS n FROM accounts WHERE status = 'revocation_pending'")[0]?.n ?? 0) > 0;
+    if (revoking) {
+      // Exponential backoff between logout retries, capped.
+      const attempts = Math.min(Number(this.getMeta('revoke_attempts') ?? '0') + 1, 16);
+      this.setMeta('revoke_attempts', String(attempts));
+      this.ensureAlarm(Math.min(ALARM_PERIOD_MS * 2 ** (attempts - 1), MAX_REVOKE_BACKOFF_MS));
+      return;
+    }
+    if (this.getMeta('revoke_attempts') !== null) this.run("DELETE FROM meta WHERE k = 'revoke_attempts'");
     const open =
       (this.q<{ n: number }>(
-        "SELECT (SELECT COUNT(*) FROM idem) + (SELECT COUNT(*) FROM transfers) + (SELECT COUNT(*) FROM accounts WHERE status IN ('pending','revocation_pending')) AS n"
+        "SELECT (SELECT COUNT(*) FROM idem) + (SELECT COUNT(*) FROM transfers) + (SELECT COUNT(*) FROM accounts WHERE status = 'pending') AS n"
       )[0]?.n ?? 0) > 0;
     if (open) this.ensureAlarm();
+    else if (!deleted && this.hasPendingEnvelopes()) this.ensureAlarm(SWEEP_PERIOD_MS);
   }
 }

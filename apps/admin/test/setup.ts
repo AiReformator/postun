@@ -10,5 +10,5 @@ beforeAll(async () => {
 
 // Do not rely on automatic storage isolation: start every test from empty tables.
 beforeEach(async () => {
-  for (const t of ['login_states', 'admin_sessions', 'admin_blocked_subjects', 'admin_audit', 'projections', 'admin_settings']) await e.ADMIN_DB.prepare(`DELETE FROM ${t}`).run();
+  for (const t of ['login_states', 'consumed_login_states', 'admin_sessions', 'admin_blocked_subjects', 'admin_audit', 'projections', 'admin_settings']) await e.ADMIN_DB.prepare(`DELETE FROM ${t}`).run();
 });

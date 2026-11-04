@@ -1,0 +1,20 @@
+// Postun Beta public site: static assets only (Cloudflare Pages now runs on Workers static assets).
+// No Worker code, no bindings, no secrets. Logs/traces disabled (docs/03 §4). No workers.dev or preview origins.
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "postun-web",
+  "compatibility_date": "2026-11-01",
+  "workers_dev": false,
+  "preview_urls": false,
+  "observability": { "enabled": false, "logs": { "enabled": false, "invocation_logs": false } },
+  "assets": {
+    "directory": "dist",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "none"
+  },
+  "routes": [
+    { "pattern": "postun.org", "custom_domain": true },
+    { "pattern": "www.postun.org", "custom_domain": true },
+    { "pattern": "app.postun.org", "custom_domain": true }
+  ]
+}

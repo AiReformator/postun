@@ -81,6 +81,8 @@ export async function runTool(env: ToolEnv, tool: Exclude<ToolName, 'list_accoun
     }
     case 'get_channel_posts': {
       const a = parseToolArgs('get_channel_posts', rawArgs);
+      // channels:read must never reach DMs or groups (those need messages:read): channel peers only.
+      if (!a.channel.startsWith('c:')) throw new PostunError('FORBIDDEN');
       const r = await paged(env, tool, a.channel, a.cursor, (o) => s.getChannelPosts({ peerId: a.channel, limit: a.limit, offset: o }));
       return { notice: UNTRUSTED_NOTICE, messages: r.items as unknown as JsonValue, nextCursor: r.nextCursor };
     }

@@ -192,6 +192,43 @@ describe('MCP OAuth', () => {
     expect((await post(e, `/api/grants/${grantId}/revoke`, {}, other)).status).toBe(404);
   });
 
+  it('does not expire a fresh grant_reference whose library grant is not written yet (grace window)', async () => {
+    const { e, who, accA } = await setup();
+    const pid = (await db().prepare('SELECT principal_id FROM principals').first<{ principal_id: string }>())?.principal_id as string;
+    const t = Math.floor(Date.now() / 1000);
+    const ins = (id: string, created: number) =>
+      db().prepare("INSERT INTO grant_reference (grant_id, principal_id, client_id, accounts_json, scopes_json, version, status, created_at, updated_at) VALUES (?1, ?2, 'cX', ?3, '[\"accounts:read\"]', 1, 'active', ?4, ?4)").bind(id, pid, JSON.stringify([accA]), created).run();
+    await ins('fresh-grant', t);
+    await ins('old-grant', t - 3600);
+    const list = (await (await get(e, '/api/grants', who)).json()) as { grants: unknown[] };
+    expect(list.grants).toEqual([]); // neither has a library grant, so neither is shown
+    const st = async (id: string) => (await db().prepare('SELECT status FROM grant_reference WHERE grant_id = ?1').bind(id).first<{ status: string }>())?.status;
+    expect(await st('fresh-grant')).toBe('active'); // still revocable / replaceable
+    expect(await st('old-grant')).toBe('expired');
+  });
+
+  it('expired rows are still shrunk on disconnect, denied on client replacement, and re-activated when the library grant exists', async () => {
+    const { e, vault, who, accA } = await setup();
+    const { grantId, clientId } = await connectClient(e, who, [accA]);
+    const pid = (await db().prepare('SELECT principal_id FROM principals').first<{ principal_id: string }>())?.principal_id as string;
+    const setStatus = (status: string) => db().prepare('UPDATE grant_reference SET status = ?2 WHERE grant_id = ?1').bind(grantId, status).run();
+    const status = async () => (await db().prepare('SELECT status FROM grant_reference WHERE grant_id = ?1').bind(grantId).first<{ status: string }>())?.status;
+
+    // library grant exists -> an erroneously expired row comes back
+    await setStatus('expired');
+    const list = (await (await get(e, '/api/grants', who)).json()) as { grants: { grantId: string }[] };
+    expect(list.grants.map((g) => g.grantId)).toEqual([grantId]);
+    expect(await status()).toBe('active');
+
+    // expired row is still found for per-client replacement and for disconnect
+    await setStatus('expired');
+    const { activeGrantIdsForClient } = await import('../src/grants');
+    expect(await activeGrantIdsForClient(e, pid, clientId)).toEqual([grantId]);
+    vault.calls.length = 0;
+    expect((await post(e, `/api/accounts/${accA}/disconnect`, {}, who)).status).toBe(200);
+    expect(vault.calls).toContain(`putGrant:${grantId}@2`); // the expired row was still shrunk before the vault disconnect
+  });
+
   it('rejects an authorization POST without CSRF or with a foreign Origin, and a handle is single use', async () => {
     const { e, who, accA } = await setup();
     const clientId = await register(e);

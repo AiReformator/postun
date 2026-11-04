@@ -28,7 +28,8 @@ export const SCHEMA: readonly string[] = [
      month TEXT NOT NULL,
      state TEXT NOT NULL CHECK (state IN ('reserved','committed')),
      req_hash TEXT NOT NULL,
-     expires_at INTEGER NOT NULL
+     expires_at INTEGER NOT NULL,
+     replays INTEGER NOT NULL DEFAULT 0
    )`,
   `CREATE TABLE IF NOT EXISTS transfers(
      intent_id TEXT PRIMARY KEY,

@@ -37,7 +37,10 @@ describe('CI-02 migration on non-empty synthetic data', () => {
     await expect(acc('a2', 'p2', 'dup', 'o2')).rejects.toThrow(/UNIQUE/);
     await expect(acc('a3', 'p2', null, 'o1')).rejects.toThrow(/UNIQUE/);
     await acc('a4', 'p2', null, 'o4');
-    await acc('a5', 'p2', null, 'o5'); // NULL hmac values (pending) do not collide
+    // NULL hmac values do not collide on telegram_id_hmac; a second pending row of one principal is rejected by 0002
+    await expect(acc('a5', 'p2', null, 'o5')).rejects.toThrow(/UNIQUE/);
+    await db().prepare("UPDATE linked_accounts SET status = 'disconnected' WHERE account_id = 'a4'").run();
+    await acc('a5', 'p2', null, 'o5');
     await expect(db().prepare("INSERT INTO principals (principal_id, oidc_issuer, oidc_subject, created_at) VALUES ('p3','iss','s1',?1)").bind(t).run()).rejects.toThrow(/UNIQUE/);
     // tombstones (NULL issuer/subject) never collide with each other
     await db().prepare("INSERT INTO principals (principal_id, status, created_at, deleted_at) VALUES ('t1','deleted',?1,?1),('t2','deleted',?1,?1)").bind(t).run();

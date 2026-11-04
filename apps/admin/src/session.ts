@@ -33,12 +33,12 @@ interface Row {
   refresh_enc: string | null;
 }
 
-async function seal(key: CryptoKey, plain: string, aad: string): Promise<string> {
+export async function seal(key: CryptoKey, plain: string, aad: string): Promise<string> {
   const iv = randomBytes(12);
   const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv, additionalData: utf8(aad) }, key, utf8(plain)));
   return `${toBase64Url(iv)}.${toBase64Url(ct)}`;
 }
-async function open(key: CryptoKey, sealed: string, aad: string): Promise<string> {
+export async function open(key: CryptoKey, sealed: string, aad: string): Promise<string> {
   const [iv, ct] = sealed.split('.');
   const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: fromBase64Url(iv ?? ''), additionalData: utf8(aad) }, key, fromBase64Url(ct ?? ''));
   return new TextDecoder().decode(pt);

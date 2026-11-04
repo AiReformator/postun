@@ -1,7 +1,8 @@
 import { OAuthResourceServer } from '@cloudflare/workers-oauth-provider';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/server';
 import { GrantPropsSchema, HTTP_STATUS, jsonResponse, PostunError, toSafeError, withSecurityHeaders, type ErrorCode, type GrantProps } from '@postun/contracts';
-import { loadConfig, type Config } from './config';
+import { FILE_CAP_RE, verifyFileCapabilityMac } from './capability';
+import { loadConfig, loadKeys, type Config } from './config';
 import type { Env } from './env';
 import { createMcpServer } from './mcp';
 
@@ -54,12 +55,20 @@ function resourceServer(cfg: Config): OAuthResourceServer<Env, GrantProps> {
   return s;
 }
 
-/** GET /files/:intentId with `Authorization: Bearer <principalId>.<secret>`; never a query-string token. */
+/** GET /files/:intentId with `Authorization: Bearer <principalId>.<secret>.<mac>`; never a query-string token. */
 async function handleFile(request: Request, env: Env, intentId: string): Promise<Response> {
   if (request.method !== 'GET') return errorResponse('INVALID_INPUT', { allow: 'GET' });
-  const m = /^Bearer ([0-9a-f-]{36})\.([A-Za-z0-9_-]{32,64})$/i.exec(request.headers.get('authorization') ?? '');
+  const m = FILE_CAP_RE.exec(request.headers.get('authorization') ?? '');
   if (!m) return errorResponse('UNAUTHENTICATED', { 'www-authenticate': 'Bearer' });
   const principalId = m[1] as string;
+  // Stateless proof before any Durable Object is addressed: a forged bearer must not instantiate an object per principal.
+  let valid: boolean;
+  try {
+    valid = await verifyFileCapabilityMac((await loadKeys(env)).cursor, principalId, intentId, m[2] as string, m[3] as string);
+  } catch {
+    return errorResponse('CONFIG_MISSING');
+  }
+  if (!valid) return errorResponse('UNAUTHENTICATED', { 'www-authenticate': 'Bearer' });
   const res = await env.SESSIONS.get(env.SESSIONS.idFromName(principalId)).openFile(principalId, intentId, m[2] as string, request.headers.get('range'));
   return withSecurityHeaders(res);
 }

@@ -38,7 +38,7 @@ export class VaultControl extends WorkerEntrypoint<Env> implements VaultControlR
   setSuspended(principalId: string, suspended: boolean): Promise<{ ok: true }> {
     return this.stub(principalId).setSuspended(principalId, suspended);
   }
-  deletePrincipal(principalId: string): Promise<{ ok: true }> {
+  deletePrincipal(principalId: string): Promise<{ ok: true; revocationPending: boolean }> {
     return this.stub(principalId).deletePrincipal(principalId);
   }
   getUsage(principalId: string): Promise<UsageView> {

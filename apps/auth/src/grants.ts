@@ -40,9 +40,12 @@ async function libraryGrantIds(oauth: OAuthHelpers, principalId: string): Promis
   return out;
 }
 
+/** A fresh grant_reference exists before the library grant is written (completeAuthorization); never expire it inside this window. */
+export const LIBRARY_GRANT_GRACE = 300;
+
 export async function listGrants(env: Env, oauth: OAuthHelpers, principalId: string): Promise<GrantView[]> {
   const rs = await env.CONTROL_DB.prepare(
-    "SELECT grant_id, client_id, client_name, accounts_json, scopes_json, version, status, created_at FROM grant_reference WHERE principal_id = ?1 AND status = 'active' ORDER BY created_at DESC"
+    "SELECT grant_id, client_id, client_name, accounts_json, scopes_json, version, status, created_at FROM grant_reference WHERE principal_id = ?1 AND status IN ('active', 'expired') ORDER BY created_at DESC"
   )
     .bind(principalId)
     .all<GrantRow>();
@@ -51,9 +54,16 @@ export async function listGrants(env: Env, oauth: OAuthHelpers, principalId: str
   const out: GrantView[] = [];
   for (const r of rs.results) {
     if (!live.has(r.grant_id)) {
-      // Refresh token lifetime ended (or library record gone): tokens cannot work any more.
-      await env.CONTROL_DB.prepare("UPDATE grant_reference SET status = 'expired', updated_at = ?2 WHERE grant_id = ?1 AND status = 'active'").bind(r.grant_id, now()).run();
+      // Refresh token lifetime ended (or library record gone): tokens cannot work any more. Only after the grace window,
+      // otherwise a row created by decide() before completeAuthorization finished would be hidden while its grant goes live.
+      if (r.status === 'active' && now() - r.created_at > LIBRARY_GRANT_GRACE) {
+        await env.CONTROL_DB.prepare("UPDATE grant_reference SET status = 'expired', updated_at = ?2 WHERE grant_id = ?1 AND status = 'active'").bind(r.grant_id, now()).run();
+      }
       continue;
+    }
+    if (r.status === 'expired') {
+      // The library grant exists after all: bring the row back so it can be shown, replaced and revoked.
+      await env.CONTROL_DB.prepare("UPDATE grant_reference SET status = 'active', updated_at = ?2 WHERE grant_id = ?1 AND status = 'expired'").bind(r.grant_id, now()).run();
     }
     out.push({
       grantId: r.grant_id,
@@ -122,7 +132,7 @@ export async function revokeGrant(env: Env, oauth: OAuthHelpers, principalId: st
 }
 
 export async function revokeAllGrants(env: Env, oauth: OAuthHelpers, principalId: string): Promise<void> {
-  const rs = await env.CONTROL_DB.prepare("SELECT grant_id FROM grant_reference WHERE principal_id = ?1 AND status IN ('active', 'revoking')").bind(principalId).all<{ grant_id: string }>();
+  const rs = await env.CONTROL_DB.prepare("SELECT grant_id FROM grant_reference WHERE principal_id = ?1 AND status IN ('active', 'revoking', 'expired')").bind(principalId).all<{ grant_id: string }>();
   for (const r of rs.results) await revokeGrant(env, oauth, principalId, r.grant_id);
   // Library grants without a D1 reference (should not exist) are removed too.
   let cursor: string | undefined;
@@ -135,6 +145,6 @@ export async function revokeAllGrants(env: Env, oauth: OAuthHelpers, principalId
 }
 
 export async function activeGrantIdsForClient(env: Env, principalId: string, clientId: string): Promise<string[]> {
-  const rs = await env.CONTROL_DB.prepare("SELECT grant_id FROM grant_reference WHERE principal_id = ?1 AND client_id = ?2 AND status IN ('active', 'revoking')").bind(principalId, clientId).all<{ grant_id: string }>();
+  const rs = await env.CONTROL_DB.prepare("SELECT grant_id FROM grant_reference WHERE principal_id = ?1 AND client_id = ?2 AND status IN ('active', 'revoking', 'expired')").bind(principalId, clientId).all<{ grant_id: string }>();
   return rs.results.map((r) => r.grant_id);
 }

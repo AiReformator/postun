@@ -1,3 +1,4 @@
+import { toBase64Url } from '@postun/contracts';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { call, callback, CLIENT, db, installIdP, login, makeEnv, ORG, ownerRoles, PROJECT, sessionCount, startClock, startLogin, type IdP, ORIGIN, ISSUER } from './helpers';
 
@@ -45,6 +46,78 @@ describe('GET /login', () => {
   it('discovery failure closes the admin with 503', async () => {
     z.discoveryDown = true;
     expect((await call(makeEnv(), '/login')).status).toBe(503);
+  });
+});
+
+describe('stateless pre-login flow', () => {
+  const tables = ['login_states', 'consumed_login_states', 'admin_sessions', 'admin_audit', 'admin_blocked_subjects', 'projections', 'admin_settings'];
+  const rows = async (): Promise<number[]> => Promise.all(tables.map(async (t) => (await db.prepare(`SELECT COUNT(*) AS n FROM ${t}`).first<{ n: number }>())!.n));
+  const flowValue = (f: { flowCookie: string }): string => f.flowCookie.slice('__Host-postun_admin_flow='.length);
+
+  it('2000 sequential anonymous GET /login create zero D1 rows, fetch discovery once and do not block a legitimate login', async () => {
+    const env = makeEnv();
+    for (let i = 0; i < 2000; i++) {
+      const res = await call(env, '/login');
+      expect(res.status).toBe(303);
+    }
+    expect(await rows()).toEqual(tables.map(() => 0));
+    const discoveryFetches = vi.mocked(globalThis.fetch).mock.calls.filter((a) => String(a[0] instanceof Request ? a[0].url : a[0]).endsWith('/.well-known/openid-configuration')).length;
+    expect(discoveryFetches).toBe(1);
+    expect(await login(env, z)).toMatch(/^__Host-postun_admin=/);
+    expect(await sessionCount()).toBe(1);
+  });
+  it('the flow cookie is opaque: it contains neither state, nonce nor verifier in clear', async () => {
+    const f = await startLogin(makeEnv(), z);
+    const v = decodeURIComponent(flowValue(f));
+    expect(v).not.toContain(f.state);
+    expect(v).not.toContain(f.nonce);
+    expect(f.flowCookie.length).toBeLessThan(1024);
+  });
+  it('a tampered flow cookie is rejected', async () => {
+    const env = makeEnv();
+    const f = await startLogin(env, z);
+    const v = flowValue(f);
+    const i = v.indexOf('.') + 5;
+    const tampered = `__Host-postun_admin_flow=${v.slice(0, i)}${v[i] === 'A' ? 'B' : 'A'}${v.slice(i + 1)}`;
+    const res = await callback(env, f, 'code-1', { cookie: tampered });
+    expect(res.status).toBe(400);
+    expect(z.calls.token).toBe(0);
+    expect(await sessionCount()).toBe(0);
+  });
+  it('garbage and truncated flow cookies are rejected', async () => {
+    const env = makeEnv();
+    const f = await startLogin(env, z);
+    for (const c of ['x', 'a.b', '.', flowValue(f).slice(0, 20), 'A'.repeat(5000)]) expect((await callback(env, f, 'code-1', { cookie: `__Host-postun_admin_flow=${c}` })).status).toBe(400);
+    expect(z.calls.token).toBe(0);
+  });
+  it('an expired flow cookie is rejected without touching the token endpoint', async () => {
+    const env = makeEnv();
+    const f = await startLogin(env, z);
+    vi.mocked(Date.now).mockReturnValue(Date.now() + 10 * 60_000 + 1);
+    expect((await callback(env, f)).status).toBe(400);
+    expect(z.calls.token).toBe(0);
+  });
+  it('a flow cookie from one login cannot complete with the state of another login', async () => {
+    const env = makeEnv();
+    const a = await startLogin(env, z, 'code-a');
+    const b = await startLogin(env, z, 'code-b');
+    expect((await callback(env, b, 'code-b', { cookie: a.flowCookie })).status).toBe(400);
+    expect((await callback(env, a, 'code-a', { cookie: b.flowCookie })).status).toBe(400);
+    expect(z.calls.token).toBe(0);
+    expect(await sessionCount()).toBe(0);
+  });
+  it('a flow blob sealed with a different key is rejected', async () => {
+    const f = await startLogin(makeEnv({ ADMIN_SESSION_KEY: toBase64Url(new Uint8Array(32).fill(9)) }), z);
+    expect((await callback(makeEnv(), f)).status).toBe(400);
+  });
+  it('a successful callback clears the flow cookie and records only the hash of the consumed state', async () => {
+    const env = makeEnv();
+    const f = await startLogin(env, z);
+    const res = await callback(env, f);
+    expect(res.headers.getSetCookie().some((c) => c.startsWith('__Host-postun_admin_flow=;') && c.includes('Max-Age=0'))).toBe(true);
+    const r = await db.prepare('SELECT * FROM consumed_login_states').all<{ state_hash: string }>();
+    expect(r.results).toHaveLength(1);
+    expect(JSON.stringify(r.results)).not.toContain(f.state);
   });
 });
 

@@ -39,10 +39,15 @@ export function safeDisposition(name: string | null): string {
   const base = (name ?? 'file').split(/[\\/]/).pop() ?? 'file';
   const cleaned = Array.from(base)
     .filter((c) => c.codePointAt(0)! >= 0x20 && c.codePointAt(0)! !== 0x7f)
-    .join('')
-    .slice(0, 120);
+    .slice(0, 120) // by code points, never in the middle of a surrogate pair
+    .join('');
   const ascii = cleaned.replace(/[^A-Za-z0-9._-]/g, '_').replace(/^\.+/, '_') || 'file';
-  const utf = encodeURIComponent(cleaned || 'file').replace(/['()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
+  let utf: string;
+  try {
+    utf = encodeURIComponent(cleaned || 'file').replace(/['()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
+  } catch {
+    utf = 'file'; // lone surrogate in the source name: never fail the download over a file name
+  }
   return `attachment; filename="${ascii}"; filename*=UTF-8''${utf}`;
 }
 

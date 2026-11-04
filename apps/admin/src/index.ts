@@ -2,13 +2,12 @@ import { clearHostCookie, hostCookie, originAllowed, randomToken, readCookie, ti
 import { loadCfg, type Cfg } from './config';
 import type { Env } from './env';
 import { authorizationUrl, completeLogin, Denied, discover, endSessionUrl, IdpUnavailable, newLoginParams } from './oidc';
+import { FLOW_TTL_MS, openFlow, sealFlow, stateMatches } from './flow';
 import { audit, authenticate, COOKIE, createSession, destroySession, FLOW_COOKIE, hashOf, isBlocked, ABSOLUTE_MS, type Session } from './session';
 import { dashboard, flashText, loginPage, messagePage, type DashData } from './views';
 
 export { ProjectionSink } from './projection';
 
-const LOGIN_TTL_MS = 10 * 60_000;
-const MAX_PENDING_LOGINS = 1000;
 const AUDIT_RETENTION_MS = 30 * 24 * 3600_000;
 const PAGE_SIZE = 50;
 const QUOTA_KEY = 'beta_monthly_success_limit_desired';
@@ -45,31 +44,32 @@ function deny(c: Ctx, status: 'none' | 'blocked' | 'unavailable', write: boolean
 }
 
 async function login(c: Ctx): Promise<Response> {
+  // Stateless: nothing is written to D1 for an unauthenticated request; discovery is cached per isolate (oidc.ts).
   const as = await discover(c.cfg);
-  const pending = await c.env.ADMIN_DB.prepare('SELECT COUNT(*) AS n FROM login_states WHERE expires_at > ?').bind(c.now).first<{ n: number }>();
-  if ((pending?.n ?? 0) >= MAX_PENDING_LOGINS) return msg(c, 429, 'Слишком много попыток', 'Повторите через несколько минут.');
   const p = newLoginParams();
-  const flow = randomToken(32);
-  await c.env.ADMIN_DB.prepare('INSERT INTO login_states (state_hash, binding_hash, nonce, code_verifier, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?)')
-    .bind(await hashOf(p.state), await hashOf(flow), p.nonce, p.verifier, c.now, c.now + LOGIN_TTL_MS)
-    .run();
-  return redirect(c, await authorizationUrl(c.cfg, as, p), [hostCookie(FLOW_COOKIE, flow, { maxAge: 600 })]);
+  const sealed = await sealFlow(c.cfg.sessionKey, p, c.now);
+  return redirect(c, await authorizationUrl(c.cfg, as, p), [hostCookie(FLOW_COOKIE, sealed, { maxAge: FLOW_TTL_MS / 1000 })]);
 }
 
 async function callback(c: Ctx): Promise<Response> {
   const clearFlow = clearHostCookie(FLOW_COOKIE);
   const fail = (status: number, text: string): Response => msg(c, status, 'Вход не выполнен', text, { 'set-cookie': clearFlow });
   const state = c.url.searchParams.get('state');
-  const flow = readCookie(c.req, FLOW_COOKIE);
-  if (!state || !flow || state.length > 256) return fail(400, 'Недействительный запрос входа.');
-  // Single use: the row is consumed even if validation below fails.
-  const row = await c.env.ADMIN_DB.prepare('DELETE FROM login_states WHERE state_hash = ? RETURNING binding_hash, nonce, code_verifier, expires_at')
-    .bind(await hashOf(state))
-    .first<{ binding_hash: string; nonce: string; code_verifier: string; expires_at: number }>();
-  if (!row || row.expires_at <= c.now || row.binding_hash !== (await hashOf(flow))) return fail(400, 'Запрос входа устарел или уже использован. Начните вход заново.');
+  const blob = readCookie(c.req, FLOW_COOKIE);
+  if (!state || !blob || state.length > 256) return fail(400, 'Недействительный запрос входа.');
+  const flow = await openFlow(c.cfg.sessionKey, blob, c.now);
+  if (!flow || !stateMatches(state, flow.state)) return fail(400, 'Запрос входа устарел или уже использован. Начните вход заново.');
+  const stateHash = await hashOf(flow.state);
+  // Read-only pre-check; the authoritative single-use marker is written after a successful code exchange.
+  if (await c.env.ADMIN_DB.prepare('SELECT 1 AS x FROM consumed_login_states WHERE state_hash = ? AND expires_at > ?').bind(stateHash, c.now).first()) {
+    return fail(400, 'Запрос входа устарел или уже использован. Начните вход заново.');
+  }
   try {
     const as = await discover(c.cfg);
-    const r = await completeLogin(c.cfg, as, c.url, { state, nonce: row.nonce, verifier: row.code_verifier });
+    const r = await completeLogin(c.cfg, as, c.url, { state: flow.state, nonce: flow.nonce, verifier: flow.verifier });
+    // Authenticated path only: atomically mark the state consumed; a concurrent/replayed callback loses here.
+    const mark = await c.env.ADMIN_DB.prepare('INSERT OR IGNORE INTO consumed_login_states (state_hash, expires_at) VALUES (?, ?)').bind(stateHash, c.now + FLOW_TTL_MS).run();
+    if (mark.meta.changes === 0) return fail(400, 'Запрос входа устарел или уже использован. Начните вход заново.');
     if (await isBlocked(c.env.ADMIN_DB, r.issuer, r.subject)) {
       await audit(c.env.ADMIN_DB, c.now, r.subject, 'login', null, 'blocked');
       return fail(403, 'Доступ для этой учётной записи заблокирован.');
@@ -204,12 +204,13 @@ export default {
     }
   },
 
-  /** Hourly retention purge: audit 30 days, expired login states and sessions. */
+  /** Hourly retention purge: audit 30 days, expired consumed-state markers (and legacy login states) and sessions. */
   async scheduled(_c: ScheduledController, env: Env): Promise<void> {
     const now = Date.now();
     await env.ADMIN_DB.batch([
       env.ADMIN_DB.prepare('DELETE FROM admin_audit WHERE ts < ?').bind(now - AUDIT_RETENTION_MS),
       env.ADMIN_DB.prepare('DELETE FROM login_states WHERE expires_at < ?').bind(now),
+      env.ADMIN_DB.prepare('DELETE FROM consumed_login_states WHERE expires_at < ?').bind(now),
       env.ADMIN_DB.prepare('DELETE FROM admin_sessions WHERE created_at < ? OR last_seen < ?').bind(now - 60 * 60_000, now - 15 * 60_000)
     ]);
   }

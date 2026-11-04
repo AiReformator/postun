@@ -43,6 +43,8 @@ export default defineConfig({
           FEATURE_CHANNELS: 'on',
           SESSION_KEK: key(),
           SESSION_KEK_VERSION: 'test-k1',
+          SESSION_KEK_PREVIOUS: key(),
+          SESSION_KEK_PREVIOUS_VERSION: 'test-k0',
           CURSOR_HMAC_KEY: key()
         },
         workers: [

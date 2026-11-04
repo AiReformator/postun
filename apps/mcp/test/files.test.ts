@@ -1,5 +1,7 @@
 import { runInDurableObject } from 'cloudflare:test';
+import { env } from 'cloudflare:workers';
 import { describe, expect, it } from 'vitest';
+import { signFileCapability } from '../src/capability';
 import { syntheticControl } from '../src/telegram/synthetic';
 import { callTool, errCode, fetchFile, parseDownload, principalStub, setupWorld, type World } from './helpers';
 
@@ -105,9 +107,17 @@ describe('get_media and the download endpoint', () => {
     const d = parseDownload(await issue(a));
     const [, secret] = d.capability.split('.') as [string, string];
     expect((await fetchFile(d.intentId, `${a.principalId}.${'A'.repeat(43)}`)).status).toBe(401);
-    // Principal B presenting A's intent and secret finds nothing in its own object.
-    expect((await fetchFile(d.intentId, `${b.principalId}.${secret}`)).status).toBe(404);
-    expect((await fetchFile('Zm9yZ2VkLWludGVudC1pZA', d.capability)).status).toBe(404);
+    // Principal B presenting A's intent and secret without a valid tag is refused at the edge.
+    expect((await fetchFile(d.intentId, `${b.principalId}.${secret}`)).status).toBe(401);
+    // With a validly signed capability, B still finds nothing of A's in its own object.
+    const { loadKeys } = await import('../src/config');
+    const forged = await signFileCapability((await loadKeys(env)).cursor, b.principalId, d.intentId, secret);
+    expect((await fetchFile(d.intentId, forged)).status).toBe(404);
+    // The tag is bound to the intent id: the same capability on another intent is refused at the edge.
+    expect((await fetchFile('Zm9yZ2VkLWludGVudC1pZA', d.capability)).status).toBe(401);
+    // A validly signed capability for an intent that does not exist finds nothing.
+    const unknown = await signFileCapability((await loadKeys(env)).cursor, a.principalId, 'Zm9yZ2VkLWludGVudC1pZA', secret);
+    expect((await fetchFile('Zm9yZ2VkLWludGVudC1pZA', unknown)).status).toBe(404);
     expect((await fetchFile(d.intentId, 'not-a-capability')).status).toBe(401);
     // The legitimate holder still works.
     expect((await fetchFile(d.intentId, d.capability, 'bytes=0-9')).status).toBe(206);

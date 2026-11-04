@@ -74,20 +74,32 @@ function upstream(): PostunError {
 export async function startLink(env: Env, principalId: string, label: unknown): Promise<{ accountId: string; link: PublicLinkState }> {
   const db = env.CONTROL_DB;
   const t = now();
-  const open = await db.prepare("SELECT account_id, status, created_at FROM linked_accounts WHERE principal_id = ?1 AND status != 'disconnected'").bind(principalId).all<{ account_id: string; status: string; created_at: number }>();
-  if (open.results.length >= MAX_ACCOUNTS) throw new PostunError('CONFLICT');
-  for (const r of open.results) {
-    if (r.status !== 'pending') continue;
-    if (t - r.created_at < PENDING_TTL) throw new PostunError('CONFLICT'); // one fresh link attempt at a time
+  // Expire stale pending attempts first (they must not block a fresh one).
+  const stale = await db
+    .prepare("SELECT account_id FROM linked_accounts WHERE principal_id = ?1 AND status = 'pending' AND created_at <= ?2")
+    .bind(principalId, t - PENDING_TTL)
+    .all<{ account_id: string }>();
+  for (const r of stale.results) {
     await bestEffortDisconnect(env, principalId, r.account_id);
     await markDisconnected(env, r.account_id, 'EXPIRED');
   }
   const accountId = newId();
   // Reserve first: the (account_id, operation_id) pair exists in D1 before any vault side effect.
-  await db
-    .prepare("INSERT INTO linked_accounts (account_id, principal_id, status, label, operation_id, created_at, updated_at) VALUES (?1, ?2, 'pending', ?3, ?4, ?5, ?5)")
-    .bind(accountId, principalId, cleanLabel(label), newId(), t)
-    .run();
+  // One atomic statement enforces both the account cap and "one fresh pending link"; parallel requests cannot both pass.
+  const ins = await db
+    .prepare(
+      `INSERT INTO linked_accounts (account_id, principal_id, status, label, operation_id, created_at, updated_at)
+       SELECT ?1, ?2, 'pending', ?3, ?4, ?5, ?5
+       WHERE (SELECT COUNT(*) FROM linked_accounts WHERE principal_id = ?2 AND status != 'disconnected') < ?6
+         AND NOT EXISTS (SELECT 1 FROM linked_accounts WHERE principal_id = ?2 AND status = 'pending' AND created_at > ?7)`
+    )
+    .bind(accountId, principalId, cleanLabel(label), newId(), t, MAX_ACCOUNTS, t - PENDING_TTL)
+    .run()
+    .catch((err: unknown) => {
+      if (/UNIQUE/i.test(String(err))) return null; // the partial unique index (migration 0002) caught a concurrent pending insert
+      throw err;
+    });
+  if (!ins || ins.meta.changes !== 1) throw new PostunError('CONFLICT');
   try {
     const state = await env.VAULT.startLink(principalId, accountId);
     return { accountId, link: await settle(env, undefined, principalId, accountId, state) };
@@ -197,7 +209,7 @@ export async function disconnectAccount(env: Env, principalId: string, accountId
   const db = env.CONTROL_DB;
   await db.prepare("UPDATE linked_accounts SET status = 'revocation_pending', updated_at = ?3 WHERE account_id = ?1 AND principal_id = ?2").bind(accountId, principalId, now()).run();
   const grants = await db
-    .prepare("SELECT grant_id, accounts_json, scopes_json, version FROM grant_reference WHERE principal_id = ?1 AND status IN ('active', 'revoking')")
+    .prepare("SELECT grant_id, accounts_json, scopes_json, version FROM grant_reference WHERE principal_id = ?1 AND status IN ('active', 'revoking', 'expired')")
     .bind(principalId)
     .all<{ grant_id: string; accounts_json: string; scopes_json: string; version: number }>();
   try {

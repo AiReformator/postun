@@ -112,7 +112,8 @@ function boundedNumber(v: string | null): number | null {
   return n;
 }
 
-class MtcuteSession implements TelegramSession {
+/** Exported for tests. */
+export class MtcuteSession implements TelegramSession {
   constructor(private readonly tg: TelegramClient, private readonly initial: string) {}
 
   async listDialogs(limit: number, offset: string | null): Promise<Page<DialogDto>> {
@@ -194,7 +195,10 @@ class MtcuteSession implements TelegramSession {
     return out;
   }
 
-  getChannelPosts(q: { peerId: string; limit: number; offset: string | null }): Promise<Page<MessageDto>> {
+  async getChannelPosts(q: { peerId: string; limit: number; offset: string | null }): Promise<Page<MessageDto>> {
+    // Defence in depth: the resolved chat must be a broadcast channel, not a megagroup / supergroup / gigagroup.
+    const chat = await this.tg.getChat(decodePeer(q.peerId));
+    if (chat.chatType !== 'channel') throw new PostunError('FORBIDDEN');
     return this.getHistory({ ...q, fromDate: null, toDate: null });
   }
 
