@@ -18,8 +18,17 @@ export default tseslint.config(
     }
   },
   {
-    files: ['scripts/**/*.mjs', 'apps/web/public/**/*.js'],
-    languageOptions: { globals: { console: 'readonly', process: 'readonly', document: 'readonly', window: 'readonly', fetch: 'readonly', URL: 'readonly', location: 'readonly' } },
+    files: ['scripts/**/*.mjs', 'apps/web/build.mjs', 'apps/web/test/**/*.mjs', 'apps/web/vitest.config.mjs'],
+    languageOptions: { globals: { console: 'readonly', process: 'readonly', URL: 'readonly' } },
     rules: { 'no-console': 'off' }
+  },
+  {
+    files: ['apps/web/src/**/*.mjs', 'apps/web/public/**/*.js'],
+    languageOptions: {
+      globals: {
+        document: 'readonly', window: 'readonly', location: 'readonly', fetch: 'readonly', URL: 'readonly', Node: 'readonly',
+        DOMParser: 'readonly', setTimeout: 'readonly', confirm: 'readonly', alert: 'readonly', prompt: 'readonly'
+      }
+    }
   }
 );

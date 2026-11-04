@@ -1,0 +1,63 @@
+{
+  "name": "postun-auth",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-01",
+  // global_fetch_strictly_public: required by the OAuth library for SSRF-safe Client ID Metadata Document fetches.
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "workers_dev": false,
+  "observability": { "enabled": false },
+  // Production route template (enable at deploy time):
+  // "routes": [{ "pattern": "auth.postun.org", "custom_domain": true }],
+  "triggers": { "crons": ["17 * * * *"] },
+  "kv_namespaces": [{ "binding": "OAUTH_KV", "id": "REPLACE_WITH_KV_ID" }],
+  "d1_databases": [
+    {
+      "binding": "CONTROL_DB",
+      "database_name": "postun-control",
+      "database_id": "REPLACE_WITH_D1_ID",
+      "migrations_dir": "../../migrations/control"
+    }
+  ],
+  "services": [{ "binding": "VAULT", "service": "postun-mcp", "entrypoint": "VaultControl" }],
+  "vars": {
+    "APP_ENV": "production",
+    "AUTH_ISSUER": "https://auth.postun.org",
+    "APP_ORIGIN": "https://app.postun.org",
+    "PUBLIC_SITE_URL": "https://postun.org",
+    "MCP_RESOURCE": "https://mcp.postun.org/mcp",
+    "REGISTRATION_OPEN": "false",
+    "TELEGRAM_OIDC_REQUIRE_NONCE": "true",
+    "BETA_TERMS_VERSION": "2026-11-04"
+  },
+  // Secrets (wrangler secret put, never in this file): TELEGRAM_OIDC_CLIENT_ID, TELEGRAM_OIDC_CLIENT_SECRET,
+  // IDENTITY_INDEX_HMAC_KEY, IDENTITY_ENCRYPTION_KEY, WEB_SESSION_KEY.
+  "env": {
+    "staging": {
+      "name": "postun-auth-staging",
+      "workers_dev": false,
+      "observability": { "enabled": false },
+      // "routes": [{ "pattern": "auth.staging.postun.org", "custom_domain": true }],
+      "triggers": { "crons": ["17 * * * *"] },
+      "kv_namespaces": [{ "binding": "OAUTH_KV", "id": "REPLACE_WITH_STAGING_KV_ID" }],
+      "d1_databases": [
+        {
+          "binding": "CONTROL_DB",
+          "database_name": "postun-control-staging",
+          "database_id": "REPLACE_WITH_STAGING_D1_ID",
+          "migrations_dir": "../../migrations/control"
+        }
+      ],
+      "services": [{ "binding": "VAULT", "service": "postun-mcp-staging", "entrypoint": "VaultControl" }],
+      "vars": {
+        "APP_ENV": "staging",
+        "AUTH_ISSUER": "https://auth.staging.postun.org",
+        "APP_ORIGIN": "https://app.staging.postun.org",
+        "PUBLIC_SITE_URL": "https://staging.postun.org",
+        "MCP_RESOURCE": "https://mcp.staging.postun.org/mcp",
+        "REGISTRATION_OPEN": "false",
+        "TELEGRAM_OIDC_REQUIRE_NONCE": "true",
+        "BETA_TERMS_VERSION": "2026-11-04"
+      }
+    }
+  }
+}

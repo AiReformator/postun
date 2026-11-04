@@ -1,0 +1,39 @@
+{
+  // postun-admin: IDP OIDC BFF + admin UI. Bindings are limited to ADMIN_DB and CONTROL (docs/06 §5, AD-03).
+  "name": "postun-admin",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-01",
+  "workers_dev": false,
+  "observability": { "enabled": false },
+  // "routes": [{ "pattern": "admin.postun.org", "custom_domain": true }],
+  "triggers": { "crons": ["17 * * * *"] },
+  "vars": { "APP_ENV": "production", "ADMIN_ORIGIN": "https://admin.postun.org" },
+  "d1_databases": [
+    {
+      "binding": "ADMIN_DB",
+      "database_name": "postun-admin-meta",
+      "database_id": "REPLACE_WITH_ADMIN_D1_ID",
+      "migrations_dir": "../../migrations/admin"
+    }
+  ],
+  "services": [{ "binding": "CONTROL", "service": "postun-auth", "entrypoint": "AdminControl" }],
+  "env": {
+    "staging": {
+      "name": "postun-admin-staging",
+      "workers_dev": false,
+      "observability": { "enabled": false },
+      // "routes": [{ "pattern": "admin-staging.postun.org", "custom_domain": true }],
+      "triggers": { "crons": ["17 * * * *"] },
+      "vars": { "APP_ENV": "staging", "ADMIN_ORIGIN": "https://admin-staging.postun.org" },
+      "d1_databases": [
+        {
+          "binding": "ADMIN_DB",
+          "database_name": "postun-admin-meta-staging",
+          "database_id": "REPLACE_WITH_STAGING_ADMIN_D1_ID",
+          "migrations_dir": "../../migrations/admin"
+        }
+      ],
+      "services": [{ "binding": "CONTROL", "service": "postun-auth-staging", "entrypoint": "AdminControl" }]
+    }
+  }
+}

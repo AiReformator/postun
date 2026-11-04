@@ -5,7 +5,11 @@
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
-    "test": "vitest run",
+    "test": "vitest run --config vitest.config.mjs",
     "build": "node build.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "qr": "0.7.2"
   }
 }

@@ -61,7 +61,7 @@ describe('misc', () => {
   });
   it('validates telegram ids as decimal strings', () => {
     expect(isTelegramId('9007199254740993')).toBe(true);
-    expect(isTelegramId(9007199254740993)).toBe(false);
+    expect(isTelegramId(Number('9007199254740993'))).toBe(false);
     expect(isTelegramId('01')).toBe(false);
   });
   it('enforces __Host- cookies', () => {

@@ -1,0 +1,12 @@
+# Secrets for postun-mcp. Copy to .dev.vars for local dev; in deployed environments use `wrangler secret put`.
+# Never commit real values.
+TELEGRAM_API_ID=
+TELEGRAM_API_HASH=
+# 32 random bytes, base64url. SESSION_KEK_VERSION is an arbitrary label such as "k1".
+SESSION_KEK=
+SESSION_KEK_VERSION=
+# Optional, only during KEK rotation:
+SESSION_KEK_PREVIOUS=
+SESSION_KEK_PREVIOUS_VERSION=
+# >= 32 random bytes, base64url.
+CURSOR_HMAC_KEY=

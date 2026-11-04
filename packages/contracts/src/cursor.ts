@@ -30,12 +30,7 @@ export async function encodeCursor(key: CryptoKey, b: CursorBinding, offset: str
 export async function decodeCursor(key: CryptoKey, b: CursorBinding, cursor: string, now = Date.now()): Promise<string> {
   const [body, mac, extra] = cursor.split('.');
   if (!body || !mac || extra !== undefined || cursor.length > 2048) throw new PostunError('INVALID_CURSOR');
-  let ok = false;
-  try {
-    ok = await hmacVerify(key, fromBase64Url(mac), 'cursor-v1', b.principalId, b.accountId, b.tool, b.scope, body);
-  } catch {
-    ok = false;
-  }
+  const ok = await hmacVerify(key, fromBase64Url(mac), 'cursor-v1', b.principalId, b.accountId, b.tool, b.scope, body).catch(() => false);
   if (!ok) throw new PostunError('INVALID_CURSOR');
   const payload = JSON.parse(fromUtf8(fromBase64Url(body))) as CursorPayload;
   if (typeof payload.o !== 'string' || typeof payload.exp !== 'number' || payload.exp * 1000 < now) {

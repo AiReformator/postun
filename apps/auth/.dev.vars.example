@@ -1,0 +1,6 @@
+# Copy to .dev.vars for local `wrangler dev`. Never commit real values.
+TELEGRAM_OIDC_CLIENT_ID=
+TELEGRAM_OIDC_CLIENT_SECRET=
+IDENTITY_INDEX_HMAC_KEY=
+IDENTITY_ENCRYPTION_KEY=
+WEB_SESSION_KEY=

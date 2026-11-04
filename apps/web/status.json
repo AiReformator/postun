@@ -1,0 +1,17 @@
+{
+  "$comment": "Single source of truth for feature status shown on the site. Only values backed by a recorded acceptance run may be PASS. Allowed: PASS, FAIL, NOT_RUN, UNSUPPORTED, BLOCKED.",
+  "updated": "2026-11-04",
+  "deployment_sha": null,
+  "registration_open": false,
+  "features": [
+    { "id": "landing", "title": "Публичный сайт беты", "status": "PASS", "evidence": "this page" },
+    { "id": "telegram_login", "title": "Вход через Telegram (OIDC)", "status": "NOT_RUN" },
+    { "id": "mtproto_link", "title": "Подключение аккаунта по QR и 2FA", "status": "NOT_RUN" },
+    { "id": "mcp_chatgpt", "title": "ChatGPT: подключение MCP", "status": "NOT_RUN" },
+    { "id": "mcp_claude_code", "title": "Claude Code: remote HTTP MCP", "status": "NOT_RUN" },
+    { "id": "read_tools", "title": "Диалоги, история и поиск", "status": "NOT_RUN" },
+    { "id": "channels", "title": "Публичные каналы", "status": "NOT_RUN" },
+    { "id": "file_download", "title": "Скачивание оригинала файла", "status": "NOT_RUN" },
+    { "id": "file_attachment", "title": "Файл как вложение для ИИ", "status": "NOT_RUN" }
+  ]
+}

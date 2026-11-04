@@ -1,0 +1,52 @@
+{
+  "name": "postun-mcp",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "observability": { "enabled": false, "logs": { "enabled": false, "invocation_logs": false } },
+  // Template only; the operator fills in the real zone. No account/zone IDs live in the repository.
+  // "routes": [{ "pattern": "mcp.postun.org", "custom_domain": true }],
+  "rules": [{ "type": "CompiledWasm", "globs": ["**/*.wasm"], "fallthrough": true }],
+  "durable_objects": { "bindings": [{ "name": "SESSIONS", "class_name": "SessionAndQuotaDO" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["SessionAndQuotaDO"] }],
+  "services": [
+    { "binding": "AUTH", "service": "postun-auth" },
+    { "binding": "ADMIN_SINK", "service": "postun-admin", "entrypoint": "ProjectionSink" }
+  ],
+  "vars": {
+    "APP_ENV": "production",
+    "MCP_RESOURCE": "https://mcp.postun.org/mcp",
+    "AUTH_ISSUER": "https://auth.postun.org",
+    "BETA_MONTHLY_SUCCESS_LIMIT": "100",
+    "MAX_FILE_BYTES": "0",
+    "FEATURE_CHANNELS": "off",
+    "TELEGRAM_ADAPTER": "mtcute"
+  },
+  "env": {
+    "staging": {
+      "name": "postun-mcp-staging",
+      "workers_dev": false,
+      "preview_urls": false,
+      "observability": { "enabled": false, "logs": { "enabled": false, "invocation_logs": false } },
+      // "routes": [{ "pattern": "mcp-staging.postun.org", "custom_domain": true }],
+      "rules": [{ "type": "CompiledWasm", "globs": ["**/*.wasm"], "fallthrough": true }],
+      "durable_objects": { "bindings": [{ "name": "SESSIONS", "class_name": "SessionAndQuotaDO" }] },
+      "migrations": [{ "tag": "v1", "new_sqlite_classes": ["SessionAndQuotaDO"] }],
+      "services": [
+        { "binding": "AUTH", "service": "postun-auth-staging" },
+        { "binding": "ADMIN_SINK", "service": "postun-admin-staging", "entrypoint": "ProjectionSink" }
+      ],
+      "vars": {
+        "APP_ENV": "staging",
+        "MCP_RESOURCE": "https://mcp-staging.postun.org/mcp",
+        "AUTH_ISSUER": "https://auth-staging.postun.org",
+        "BETA_MONTHLY_SUCCESS_LIMIT": "100",
+        "MAX_FILE_BYTES": "0",
+        "FEATURE_CHANNELS": "off",
+        "TELEGRAM_ADAPTER": "mtcute"
+      }
+    }
+  }
+}

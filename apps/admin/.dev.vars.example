@@ -1,0 +1,11 @@
+# Copy to .dev.vars (git-ignored) for local dev, or set with `wrangler secret put`. Never commit real values.
+# Admin is disabled (503) until every value below is set.
+IDP_ISSUER=
+IDP_PROJECT_ID=
+IDP_ORG_ID=
+IDP_CLIENT_ID=
+IDP_CLIENT_SECRET=
+# 32 random bytes, base64/base64url (e.g. `openssl rand -base64 32`). Encrypts refresh tokens in admin D1.
+ADMIN_SESSION_KEY=
+# Optional tuning (plain vars): ADMIN_REQUIRE_MFA_AMR=true, ADMIN_MFA_AMR_VALUES=mfa,otp,hwk,swk,pop,
+# IDP_CLIENT_AUTH=basic|post, IDP_ID_TOKEN_ALG=RS256, IDP_SCOPES=<override full scope string>
