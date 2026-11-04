@@ -14,7 +14,10 @@ export function requireConfig<T extends Record<string, unknown>>(env: T, ...keys
 /** Security headers applied to every HTML/JSON response. */
 export const SECURITY_HEADERS: Readonly<Record<string, string>> = {
   'X-Content-Type-Options': 'nosniff',
-  'Referrer-Policy': 'no-referrer',
+  // Not 'no-referrer': with it browsers send `Origin: null` on same-origin form POSTs (Fetch spec, "append a
+  // request Origin header"), which breaks the exact-Origin CSRF check on server-rendered forms. 'same-origin'
+  // still sends nothing to other origins.
+  'Referrer-Policy': 'same-origin',
   'X-Frame-Options': 'DENY',
   'Cross-Origin-Opener-Policy': 'same-origin',
   'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
