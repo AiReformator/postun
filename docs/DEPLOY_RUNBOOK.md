@@ -76,6 +76,16 @@ Service bindings образуют цикл: `postun-admin` → `postun-auth` (`C
 
 Для staging добавьте `--env staging` и используйте staging-имена баз (`postun-control-staging`, `postun-admin-meta-staging`). Миграции выполняются отдельным шагом релиза, не из сборки UI; схему меняйте по схеме expand → совместимый код → backfill → проверка → contract (см. [04_DEPLOYMENT.md](04_DEPLOYMENT.md) §7). Откат Worker не откатывает D1/DO.
 
+### Выпуск через GitHub (основной путь)
+
+После первичной установки все релизы выполняет `.github/workflows/deploy.yml`. Настройка один раз:
+
+1. GitHub → Settings → Environments → `production`: Required reviewers — мейнтейнер; Deployment branches — только `main`. Создайте окружение до первого слияния workflow: GitHub создаёт отсутствующее окружение без защиты.
+2. Секреты окружения: `CLOUDFLARE_API_TOKEN` (узкий токен: Account — Workers Scripts Edit, D1 Edit, Account Settings Read; Zone `<your-domain>` — Workers Routes Edit, Zone Read; ограниченный срок), `CLOUDFLARE_ACCOUNT_ID`, `POSTUN_KV_OAUTH_ID`, `POSTUN_D1_CONTROL_ID`, `POSTUN_D1_ADMIN_ID`. Переменная окружения: `POSTUN_DOMAIN` (`<your-domain>`).
+3. Push в `main` выпускает Workers, изменённые с последнего успешного выпуска в `production` (по истории GitHub Deployments, `scripts/deploy/changed-apps.mjs`): изменения из отменённых, отклонённых или упавших запусков не теряются. Порядок: `auth` → `mcp` → `admin` → `web`; изменения RPC между Workers делайте совместимыми на один релиз (сначала добавить метод, затем использовать). Если вы разворачиваете на другом домене, замените адреса в `vars` всех `wrangler.jsonc`: сборка конфига откажет, если они не совпадают с `POSTUN_DOMAIN`. ручной запуск (Actions → deploy → Run workflow) позволяет выбрать `all` или один Worker. Каждый запуск ждёт подтверждения в окружении `production`.
+
+Выпуск `postun-mcp` прерывает незавершённые подключения по QR (состояние в памяти): подтверждайте его, когда никто не подключает аккаунт.
+
 Маршруты: в `wrangler.jsonc` каждого Worker закомментирован шаблон `routes` с `custom_domain: true`; раскомментируйте и подставьте свои имена `<your-domain>` перед deploy.
 
 ### Обязательные переменные (`vars`)

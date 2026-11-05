@@ -1,5 +1,6 @@
 # Secretless CI for every PR, including forks (docs/04 §5, CI-01).
 # No deploy, no remote D1, no Telegram, no production bindings. Never use pull_request_target here.
+# Production deploys live in deploy.yml (main only, protected environment).
 name: ci
 on:
   pull_request:
@@ -26,6 +27,7 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
+      - run: npm run test:scripts
       - run: npm run build
       - run: npm run check:secrets
       - run: npm run check:logging

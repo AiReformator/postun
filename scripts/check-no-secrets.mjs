@@ -24,6 +24,11 @@ for (const file of tracked) {
     console.error(`publication policy: marketing material must not be committed: ${file}`);
     bad++;
   }
+  // Deploy configs with real resource IDs are rendered in CI only (scripts/deploy/render-wrangler.mjs).
+  if (/(^|\/)wrangler\.(deploy\.json|private\.jsonc)$/.test(file)) {
+    console.error(`real deploy config must not be committed: ${file}`);
+    bad++;
+  }
 }
 for (const file of [...tracked, ...outputs]) {
   if (/\.(docx|png|jpg|wasm|ico)$/.test(file) || file.endsWith('package-lock.json')) continue;
