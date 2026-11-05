@@ -23,7 +23,12 @@ export function fromBase64Url(s: string): Uint8Array<ArrayBuffer> {
 
 /** Accepts standard base64 or base64url secrets. */
 export function decodeSecret(s: string): Uint8Array<ArrayBuffer> {
-  return fromBase64Url(s.trim().replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''));
+  const t = s.trim();
+  if (t.length > 1024) throw new TypeError('secret too long');
+  // Strip trailing '=' padding with a linear scan (a /=+$/ regex is polynomial on long '=' runs).
+  let end = t.length;
+  while (end > 0 && t.charCodeAt(end - 1) === 61) end--;
+  return fromBase64Url(t.slice(0, end).replace(/\+/g, '-').replace(/\//g, '_'));
 }
 
 export function randomBytes(n: number): Uint8Array<ArrayBuffer> {

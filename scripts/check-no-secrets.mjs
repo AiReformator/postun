@@ -1,6 +1,6 @@
 // Fails if tracked files or build outputs contain secret-looking values (PR-01, B3 "no secrets in bundle").
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { closeSync, existsSync, fstatSync, openSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 const patterns = [
@@ -20,8 +20,20 @@ const outputs = ['apps/web/dist', 'apps/auth/dist', 'apps/mcp/dist', 'apps/admin
 let bad = 0;
 for (const file of [...tracked, ...outputs]) {
   if (/\.(docx|png|jpg|wasm|ico)$/.test(file) || file.endsWith('package-lock.json')) continue;
-  if (!existsSync(file) || statSync(file).size > 5_000_000) continue;
-  const text = readFileSync(file, 'utf8');
+  // Open once and stat/read through the same descriptor (no check-then-read race on the path).
+  let fd;
+  try {
+    fd = openSync(file, 'r');
+  } catch {
+    continue;
+  }
+  let text;
+  try {
+    if (fstatSync(fd).size > 5_000_000) continue;
+    text = readFileSync(fd, 'utf8');
+  } finally {
+    closeSync(fd);
+  }
   for (const [re, what] of patterns) {
     if (re.test(text)) {
       console.error(`secret check: ${what} pattern in ${file}`);
