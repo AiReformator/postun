@@ -7,7 +7,7 @@
 import { DurableObject } from 'cloudflare:workers';
 import {
   AdminProjectionSchema, fromBase64Url, fromUtf8, hmac, HTTP_STATUS, jsonResponse, normalizeScopes, openSession, PostunError, randomToken,
-  retainedMonths, rewrapSession, sealSession, sha256, timingSafeEqual, toBase64Url, toSafeError, TOOL_SCOPE, utcMonth, utf8,
+  retainedDays, retainedMonths, rewrapSession, sealSession, sha256, timingSafeEqual, toBase64Url, toSafeError, TOOL_SCOPE, utcDay, utcMonth, utf8,
   type ErrorCode, type GrantRecord, type LinkState, type SessionEnvelope, type ToolName, type UsageView
 } from '@postun/contracts';
 import { signFileCapability } from '../capability';
@@ -85,6 +85,7 @@ interface IntentRow extends Record<string, SqlStorageValue> {
 interface Reservation {
   counted: boolean;
   month: string;
+  day: string;
   op: string | null;
 }
 
@@ -109,6 +110,7 @@ function stableJson(v: unknown): string {
 export class SessionAndQuotaDO extends DurableObject<Env> {
   private readonly locks = new KeyedLocks();
   private readonly reserved = new Map<string, number>();
+  private readonly reservedDay = new Map<string, number>();
   private readonly inflight = new Set<string>();
   private readonly links = new Map<string, LinkRec>();
   private readonly transfers = new Map<string, string>(); // transfer key -> account id
@@ -300,10 +302,22 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
     return { success_count: 0, out_bytes: 0 };
   }
 
+  private dayCount(day: string): number {
+    return this.q<{ success_count: number }>('SELECT success_count FROM usage_day WHERE day = ?', day)[0]?.success_count ?? 0;
+  }
+
+  /** True when the month or the day limit (if any) is reached, counting in-flight reservations. */
+  private overQuota(cfg: Config, month: string, day: string): boolean {
+    if (this.usageRow(month).success_count + (this.reserved.get(month) ?? 0) >= cfg.quota.monthlySuccessLimit) return true;
+    const daily = cfg.quota.dailySuccessLimit;
+    return daily !== null && this.dayCount(day) + (this.reservedDay.get(day) ?? 0) >= daily;
+  }
+
   /** Synchronous (no await inside): the check and the reservation are one atomic step. */
   private reserve(cfg: Config, op: string | null, reqHash: string | null): Reservation {
     const now = Date.now();
     const month = utcMonth(new Date(now));
+    const day = utcDay(new Date(now));
     let carriedReplays = 0;
     let carriedExpiry = now + IDEMPOTENCY_TTL_MS;
     if (op !== null) {
@@ -314,11 +328,10 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
         if (row.req_hash !== reqHash) throw new PostunError('CONFLICT');
         if (row.state === 'committed') {
           // A replay never bypasses the quota, even though it is not counted again.
-          const used = this.usageRow(month).success_count + (this.reserved.get(month) ?? 0);
-          if (used >= cfg.quota.monthlySuccessLimit) throw new PostunError('QUOTA_EXCEEDED');
+          if (this.overQuota(cfg, month, day)) throw new PostunError('QUOTA_EXCEEDED');
           if (row.replays < FREE_REPLAYS) {
             this.run('UPDATE idem SET replays = replays + 1 WHERE operation_id = ?', op);
-            return { counted: false, month, op };
+            return { counted: false, month, day, op };
           }
           // Free replays used up: this call is a fresh counted operation under the same key (keeps the replay count and expiry).
           carriedReplays = row.replays;
@@ -330,10 +343,9 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
       }
       if (row) this.run('DELETE FROM idem WHERE operation_id = ?', op);
     }
-    const u = this.usageRow(month);
-    const held = this.reserved.get(month) ?? 0;
-    if (u.success_count + held >= cfg.quota.monthlySuccessLimit) throw new PostunError('QUOTA_EXCEEDED');
-    this.reserved.set(month, held + 1);
+    if (this.overQuota(cfg, month, day)) throw new PostunError('QUOTA_EXCEEDED');
+    this.reserved.set(month, (this.reserved.get(month) ?? 0) + 1);
+    this.reservedDay.set(day, (this.reservedDay.get(day) ?? 0) + 1);
     if (op !== null) {
       this.run(
         "INSERT INTO idem(operation_id, month, state, req_hash, expires_at, replays) VALUES(?, ?, 'reserved', ?, ?, ?)",
@@ -342,12 +354,13 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
       this.inflight.add(op);
       this.ensureAlarm();
     }
-    return { counted: true, month, op };
+    return { counted: true, month, day, op };
   }
 
   private dropHeld(r: Reservation): void {
     if (!r.counted) return;
     this.reserved.set(r.month, Math.max(0, (this.reserved.get(r.month) ?? 1) - 1));
+    this.reservedDay.set(r.day, Math.max(0, (this.reservedDay.get(r.day) ?? 1) - 1));
     if (r.op !== null) this.inflight.delete(r.op);
   }
 
@@ -356,6 +369,7 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
     this.ctx.storage.transactionSync(() => {
       this.usageRow(r.month);
       this.run('UPDATE usage SET success_count = success_count + 1, revision = ? WHERE month = ?', this.nextRevision(), r.month);
+      this.run('INSERT INTO usage_day(day, success_count) VALUES(?, 1) ON CONFLICT(day) DO UPDATE SET success_count = success_count + 1', r.day);
       if (r.op !== null) this.run("UPDATE idem SET state = 'committed' WHERE operation_id = ?", r.op);
     });
     this.dropHeld(r);
@@ -937,6 +951,7 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
     this.ctx.storage.transactionSync(() => {
       this.run('DELETE FROM grants');
       this.run('DELETE FROM usage');
+      this.run('DELETE FROM usage_day');
       this.run('DELETE FROM idem');
       this.run('DELETE FROM transfers');
       this.run('DELETE FROM accounts WHERE envelope IS NULL');
@@ -961,8 +976,12 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
     this.bind(principalId);
     const cfg = loadConfig(this.env);
     const month = utcMonth();
+    const day = utcDay();
     const u = this.usageRow(month);
-    return { month, successCount: u.success_count, outBytes: u.out_bytes, monthlySuccessLimit: cfg.quota.monthlySuccessLimit };
+    return {
+      month, successCount: u.success_count, outBytes: u.out_bytes, monthlySuccessLimit: cfg.quota.monthlySuccessLimit,
+      day, daySuccessCount: this.dayCount(day), dailySuccessLimit: cfg.quota.dailySuccessLimit
+    };
   }
 
   // ------------------------------------------------------------------ retention
@@ -975,6 +994,8 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
     this.run("DELETE FROM accounts WHERE status = 'pending' AND envelope IS NULL AND created_at <= ?", now - PENDING_TTL_MS);
     const keep = retainedMonths(new Date(now));
     this.run(`DELETE FROM usage WHERE month NOT IN (${keep.map(() => '?').join(',')})`, ...keep);
+    const keepDays = retainedDays(new Date(now));
+    this.run(`DELETE FROM usage_day WHERE day NOT IN (${keepDays.map(() => '?').join(',')})`, ...keepDays);
     for (const [id, rec] of this.links) {
       if (rec.state.state === 'failed') this.links.delete(id);
     }

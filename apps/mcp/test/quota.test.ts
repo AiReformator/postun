@@ -6,7 +6,7 @@ import { syntheticControl } from '../src/telegram/synthetic';
 import { callTool, errCode, principalStub, setupWorld } from './helpers';
 
 describe('Q-01 atomic reservation', () => {
-  it('101 concurrent operations with limit 100 yield exactly 100 successes', async () => {
+  it('101 concurrent operations with daily limit 100 yield exactly 100 successes', async () => {
     const w = await setupWorld();
     syntheticControl.latencyMs = 5;
     const results = await Promise.all(Array.from({ length: 101 }, () => callTool(w.token, 'list_dialogs', { account_id: w.accountIds[0], limit: 1 })));
@@ -16,7 +16,9 @@ describe('Q-01 atomic reservation', () => {
     expect(rejected).toBe(1);
     const usage = await principalStub(w.principalId).getUsage(w.principalId);
     expect(usage.successCount).toBe(100);
-    expect(usage.monthlySuccessLimit).toBe(100);
+    expect(usage.daySuccessCount).toBe(100);
+    expect(usage.dailySuccessLimit).toBe(100); // the daily limit is the binding one in this config
+    expect(usage.monthlySuccessLimit).toBe(1000);
     // Quota exhausted: the next call is refused before Telegram.
     syntheticControl.opens = 0;
     expect(errCode(await callTool(w.token, 'list_dialogs', { account_id: w.accountIds[0] }))).toBe('QUOTA_EXCEEDED');
@@ -134,5 +136,21 @@ describe('configuration fails closed', () => {
     expect(() => assertFeatureEnabled('get_channel_posts', cfg)).toThrowError(/not enabled/);
     expect(() => assertFeatureEnabled('get_media', cfg)).toThrowError(/not enabled/);
     expect(() => assertFeatureEnabled('list_dialogs', cfg)).not.toThrow();
+  });
+});
+
+describe('daily counters', () => {
+  it('keep only today and two previous UTC days', async () => {
+    const w = await setupWorld();
+    await callTool(w.token, 'list_dialogs', { account_id: w.accountIds[0], limit: 1 });
+    const stub = principalStub(w.principalId);
+    await runInDurableObject(stub, (_i, state) => {
+      state.storage.sql.exec("INSERT INTO usage_day(day, success_count) VALUES('2020-01-01', 5)");
+    });
+    await runInDurableObject(stub, (_i, state) => state.storage.setAlarm(Date.now()));
+    await runDurableObjectAlarm(stub);
+    const days = await runInDurableObject(stub, (_i, state) => state.storage.sql.exec('SELECT day FROM usage_day').toArray().map((r) => String(r.day)));
+    expect(days).not.toContain('2020-01-01');
+    expect(days).toContain(new Date().toISOString().slice(0, 10));
   });
 });

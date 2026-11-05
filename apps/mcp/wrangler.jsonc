@@ -19,7 +19,8 @@
     "APP_ENV": "production",
     "MCP_RESOURCE": "https://mcp.postun.org/mcp",
     "AUTH_ISSUER": "https://auth.postun.org",
-    "BETA_MONTHLY_SUCCESS_LIMIT": "100",
+    "BETA_MONTHLY_SUCCESS_LIMIT": "310000",
+    "BETA_DAILY_SUCCESS_LIMIT": "10000",
     "MAX_FILE_BYTES": "512000000",
     "FEATURE_CHANNELS": "on",
     "TELEGRAM_ADAPTER": "mtcute"

@@ -109,7 +109,7 @@ async function renderDashboard() {
   sections.push(
     el('section', { class: 'card' },
       el('h2', {}, T('quotaTitle')),
-      u ? el('p', {}, T('quota', { month: u.month, used: u.successCount, limit: u.monthlySuccessLimit, bytes: u.outBytes })) : errorBox(usage.error)
+      u ? el('p', {}, T('quota', { day: u.day, used: u.daySuccessCount, limit: u.dailySuccessLimit ?? u.monthlySuccessLimit, monthUsed: u.successCount, bytes: u.outBytes })) : errorBox(usage.error)
     )
   );
 

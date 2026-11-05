@@ -23,8 +23,14 @@ describe('finding 1: a committed operation_id is not an unlimited free read', ()
     const w = await setupWorld();
     const args = { account_id: w.accountIds[0], limit: 1, operation_id: 'op-exhausted-1' };
     expect((await callTool(w.token, 'list_dialogs', args)).isError).toBe(false);
-    await sql(w, (s) => s.exec('UPDATE usage SET success_count = 100'));
+    // Daily limit exhausted (100 in the test config).
+    await sql(w, (s) => s.exec('UPDATE usage_day SET success_count = 100'));
     syntheticControl.opens = 0;
+    expect(errCode(await callTool(w.token, 'list_dialogs', args))).toBe('QUOTA_EXCEEDED');
+    expect(syntheticControl.opens).toBe(0);
+    // Monthly limit exhausted (1000) also refuses, independently of the daily counter.
+    await sql(w, (s) => s.exec('UPDATE usage_day SET success_count = 0'));
+    await sql(w, (s) => s.exec('UPDATE usage SET success_count = 1000'));
     expect(errCode(await callTool(w.token, 'list_dialogs', args))).toBe('QUOTA_EXCEEDED');
     expect(syntheticControl.opens).toBe(0);
   });

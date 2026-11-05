@@ -2,6 +2,7 @@
   "$comment": "Single source of truth for feature status shown on the site. Only values backed by a recorded acceptance run may be PASS. Allowed: PASS, FAIL, NOT_RUN, UNSUPPORTED, BLOCKED.",
   "updated": "2026-11-05",
   "registration_open": true,
+  "quota_daily_success": 10000,
   "features": [
     {
       "id": "landing",

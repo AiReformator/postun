@@ -26,6 +26,10 @@ export interface UsageView {
   successCount: number;
   outBytes: number;
   monthlySuccessLimit: number;
+  /** UTC day and its successful operations; dailySuccessLimit null = no daily limit. */
+  day: string;
+  daySuccessCount: number;
+  dailySuccessLimit: number | null;
 }
 
 /** Fixed-schema aggregate projection sent to the Admin Worker (docs/02 §2). */

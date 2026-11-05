@@ -23,6 +23,10 @@ export const SCHEMA: readonly string[] = [
      out_bytes INTEGER NOT NULL,
      revision INTEGER NOT NULL
    )`,
+  `CREATE TABLE IF NOT EXISTS usage_day(
+     day TEXT PRIMARY KEY,
+     success_count INTEGER NOT NULL
+   )`,
   `CREATE TABLE IF NOT EXISTS idem(
      operation_id TEXT PRIMARY KEY,
      month TEXT NOT NULL,

@@ -75,7 +75,7 @@ ${cta}
 <section>
 <h2>${t('landing.canTitle')}</h2>
 <p>${t('landing.can')}</p>
-<p>${t('landing.quota', { quota: String(status.quota_success ?? 100) })}</p>
+<p>${t('landing.quota', { quota: Number(status.quota_daily_success ?? 10000).toLocaleString(L.htmlLang) })}</p>
 </section>
 
 <section id="status">

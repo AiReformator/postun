@@ -15,6 +15,7 @@ export interface Env {
   AUTH_ISSUER: string;
   BETA_MONTHLY_SUCCESS_LIMIT: string;
   BETA_MONTHLY_BYTE_LIMIT?: string;
+  BETA_DAILY_SUCCESS_LIMIT?: string;
   MAX_FILE_BYTES: string;
   FEATURE_CHANNELS: string;
   TELEGRAM_ADAPTER: string;

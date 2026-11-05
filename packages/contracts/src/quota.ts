@@ -5,6 +5,18 @@ export interface QuotaPolicy {
   plan: PlanId;
   monthlySuccessLimit: number;
   monthlyByteLimit: number | null; // null = not enforced yet (measured separately)
+  /** Successful operations per UTC day; null = no daily limit. */
+  dailySuccessLimit: number | null;
+}
+
+/** Calendar day in UTC, e.g. "2026-11-05". */
+export function utcDay(now: Date = new Date()): string {
+  return now.toISOString().slice(0, 10);
+}
+
+/** Days retained for daily counters: today + 2 previous. */
+export function retainedDays(now: Date = new Date()): string[] {
+  return [0, 1, 2].map((i) => utcDay(new Date(now.getTime() - i * 86_400_000)));
 }
 
 /** Calendar month in UTC, e.g. "2026-11". */
@@ -30,12 +42,14 @@ function positiveInt(raw: string | undefined, name: string): number {
 }
 
 /** Fails closed: a missing success limit is a configuration error, not "unlimited". */
-export function quotaPolicyFromEnv(env: { BETA_MONTHLY_SUCCESS_LIMIT?: string; BETA_MONTHLY_BYTE_LIMIT?: string }): QuotaPolicy {
+export function quotaPolicyFromEnv(env: { BETA_MONTHLY_SUCCESS_LIMIT?: string; BETA_MONTHLY_BYTE_LIMIT?: string; BETA_DAILY_SUCCESS_LIMIT?: string }): QuotaPolicy {
   const byteRaw = env.BETA_MONTHLY_BYTE_LIMIT;
+  const dayRaw = env.BETA_DAILY_SUCCESS_LIMIT;
   return {
     plan: PLAN_BETA_FREE,
     monthlySuccessLimit: positiveInt(env.BETA_MONTHLY_SUCCESS_LIMIT, 'BETA_MONTHLY_SUCCESS_LIMIT'),
-    monthlyByteLimit: byteRaw === undefined || byteRaw === '' ? null : positiveInt(byteRaw, 'BETA_MONTHLY_BYTE_LIMIT')
+    monthlyByteLimit: byteRaw === undefined || byteRaw === '' ? null : positiveInt(byteRaw, 'BETA_MONTHLY_BYTE_LIMIT'),
+    dailySuccessLimit: dayRaw === undefined || dayRaw === '' ? null : positiveInt(dayRaw, 'BETA_DAILY_SUCCESS_LIMIT')
   };
 }
 

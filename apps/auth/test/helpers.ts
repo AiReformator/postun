@@ -18,7 +18,7 @@ export class FakeVault implements VaultControlRpc {
   failOn = new Set<string>();
   grants = new Map<string, GrantRecord>();
   link: LinkState = { state: 'waiting_scan', qrUrl: 'tg://login?token=abc', expiresAt: '2030-01-01T00:00:00.000Z' };
-  usage: UsageView = { month: '2026-11', successCount: 3, outBytes: 10, monthlySuccessLimit: 100 };
+  usage: UsageView = { month: '2026-11', successCount: 3, outBytes: 10, monthlySuccessLimit: 310000, day: '2026-11-05', daySuccessCount: 3, dailySuccessLimit: 10000 };
 
   private async rec(name: string, detail = ''): Promise<void> {
     this.calls.push(detail ? `${name}:${detail}` : name);
