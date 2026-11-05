@@ -41,6 +41,14 @@ const mcpPlugin = () =>
         BETA_DAILY_SUCCESS_LIMIT: "100",
         MAX_FILE_BYTES: "5000000",
         FEATURE_CHANNELS: "on",
+        // Pacing is effectively off for the general suite (it makes hundreds of calls in a burst); test/pacing.test.ts
+        // overrides these on the Durable Object's own env to exercise the real defaults and tight limits.
+        PACING_BURST: "1000000",
+        PACING_REFILL_MS: "1",
+        PACING_HOURLY_CAP: "100000000",
+        PACING_LOOKUP_PER_MIN: "1000000",
+        PACING_LOOKUP_PER_DAY: "100000000",
+        PACING_MESSAGES_PER_HOUR: "1000000000",
         SESSION_KEK: key(),
         SESSION_KEK_VERSION: "test-k1",
         SESSION_KEK_PREVIOUS: key(),
@@ -70,7 +78,7 @@ const mcpPlugin = () =>
 // @cloudflare/vitest-plugin). Once another file in the same project has transformed mtcute, a later file that
 // reaches it through selectAdapter's dynamic import gets a ~36 MB message, workerd answers 1009 "Message is too
 // large", and the whole shared workerd runtime (every running file) dies. Keep mtcute-importing files apart.
-const MTCUTE_FILES = ["test/mtcute-load.test.ts", "test/review-fixes.test.ts"];
+const MTCUTE_FILES = ["test/mtcute-load.test.ts", "test/review-fixes.test.ts", "test/flood-options.test.ts"];
 
 export default defineConfig({
   test: {

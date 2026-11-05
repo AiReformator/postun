@@ -25,6 +25,20 @@
     "BETA_DAILY_SUCCESS_LIMIT": "10000",
     "MAX_FILE_BYTES": "512000000",
     "FEATURE_CHANNELS": "on",
+    // Pacing and flood protection. Telegram publishes no numeric limits (only FLOOD_WAIT_X): every number below is an
+    // initial, tunable guess. See docs/02_ARCHITECTURE.md, "Pacing and Telegram flood protection".
+    "PACING_BURST": "60",
+    "PACING_REFILL_MS": "500",
+    "PACING_HOURLY_CAP": "5000",
+    "PACING_LOOKUP_PER_MIN": "60",
+    "PACING_LOOKUP_PER_DAY": "2000",
+    "PACING_LOOKUP_BURST": "3",
+    "PACING_MESSAGES_PER_HOUR": "0",
+    "PACING_MAX_SMOOTH_MS": "3000",
+    "PACING_FLOOD_MARGIN_SECONDS": "5",
+    "PACING_MAX_SKIP": "500",
+    "FLOOD_AUTO_SLEEP_SECONDS": "3",
+    "FLOOD_AUTO_RETRIES": "1",
     "TELEGRAM_ADAPTER": "mtcute"
   },
   "env": {
@@ -49,6 +63,20 @@
         "BETA_MONTHLY_SUCCESS_LIMIT": "100",
         "MAX_FILE_BYTES": "0",
         "FEATURE_CHANNELS": "off",
+        // Pacing and flood protection. Telegram publishes no numeric limits (only FLOOD_WAIT_X): every number below is an
+        // initial, tunable guess. See docs/02_ARCHITECTURE.md, "Pacing and Telegram flood protection".
+        "PACING_BURST": "60",
+        "PACING_REFILL_MS": "500",
+        "PACING_HOURLY_CAP": "5000",
+        "PACING_LOOKUP_PER_MIN": "60",
+        "PACING_LOOKUP_PER_DAY": "2000",
+        "PACING_LOOKUP_BURST": "3",
+        "PACING_MESSAGES_PER_HOUR": "0",
+        "PACING_MAX_SMOOTH_MS": "3000",
+        "PACING_FLOOD_MARGIN_SECONDS": "5",
+        "PACING_MAX_SKIP": "500",
+        "FLOOD_AUTO_SLEEP_SECONDS": "3",
+        "FLOOD_AUTO_RETRIES": "1",
         "TELEGRAM_ADAPTER": "mtcute"
       }
     }

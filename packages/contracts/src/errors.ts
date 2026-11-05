@@ -8,7 +8,7 @@ export const ERROR_CODES = {
   GRANT_REVOKED: 'This connection was revoked',
   ACCOUNT_NOT_IN_GRANT: 'Account is not available for this grant',
   ACCOUNT_NOT_ACTIVE: 'Telegram account is not connected',
-  QUOTA_EXCEEDED: 'Monthly beta quota exhausted',
+  QUOTA_EXCEEDED: 'Beta quota exhausted',
   INVALID_INPUT: 'Invalid input',
   INVALID_CURSOR: 'Invalid or expired cursor',
   FEATURE_DISABLED: 'This feature is not enabled in the current beta',
@@ -23,23 +23,62 @@ export const ERROR_CODES = {
 
 export type ErrorCode = keyof typeof ERROR_CODES;
 
+/**
+ * Machine-readable refinement of a code (for example why RATE_LIMITED). Fixed vocabulary, never derived from
+ * Telegram or user content.
+ */
+export type ErrorReason =
+  | 'FLOOD_WAIT'
+  | 'SLOWMODE_WAIT'
+  | 'LOCAL_PACING'
+  | 'HOURLY_CAP'
+  | 'LOOKUP_CAP'
+  | 'MESSAGE_BUDGET'
+  | 'DEEP_PAGING'
+  | 'DAILY_QUOTA'
+  | 'MONTHLY_QUOTA';
+
+/** Optional extras: all strings are fixed texts chosen by Postun code, never Telegram output. */
+export interface ErrorDetail {
+  reason?: ErrorReason;
+  hint?: string;
+  /** Replaces the default message of the code (still a fixed text). */
+  message?: string;
+}
+
 export class PostunError extends Error {
   readonly code: ErrorCode;
   readonly retryAfterSeconds: number | undefined;
-  constructor(code: ErrorCode, retryAfterSeconds?: number) {
-    super(ERROR_CODES[code]);
+  readonly reason: ErrorReason | undefined;
+  readonly hint: string | undefined;
+  constructor(code: ErrorCode, retryAfterSeconds?: number, detail?: ErrorDetail) {
+    super(detail?.message ?? ERROR_CODES[code]);
     this.name = 'PostunError';
     this.code = code;
     this.retryAfterSeconds = retryAfterSeconds;
+    this.reason = detail?.reason;
+    this.hint = detail?.hint;
   }
 }
 
+export interface SafeError {
+  code: ErrorCode;
+  message: string;
+  retryAfterSeconds?: number;
+  reason?: ErrorReason;
+  hint?: string;
+}
+
 /** Converts any thrown value into a safe public shape. Unknown errors become INTERNAL without details. */
-export function toSafeError(err: unknown): { code: ErrorCode; message: string; retryAfterSeconds?: number } {
+export function toSafeError(err: unknown): SafeError {
   if (err instanceof PostunError) {
-    return err.retryAfterSeconds === undefined
-      ? { code: err.code, message: err.message }
-      : { code: err.code, message: err.message, retryAfterSeconds: err.retryAfterSeconds };
+    return {
+      code: err.code,
+      message: err.message,
+      ...(err.retryAfterSeconds === undefined ? {} : { retryAfterSeconds: err.retryAfterSeconds }),
+      ...(err.reason === undefined ? {} : { reason: err.reason }),
+      ...(err.hint === undefined ? {} : { hint: err.hint })
+    };
   }
   return { code: 'INTERNAL', message: ERROR_CODES.INTERNAL };
 }

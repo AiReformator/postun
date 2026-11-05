@@ -47,3 +47,26 @@ describe('finding 8: mcp and auth agree on issuer and resource hostnames', () =>
     expect(mcp.env?.staging?.vars.MCP_RESOURCE).toBe('https://mcp.staging.postun.org/mcp');
   });
 });
+
+describe('pacing variables are present with the documented defaults', () => {
+  const DEFAULTS: Record<string, string> = {
+    PACING_BURST: '60',
+    PACING_REFILL_MS: '500',
+    PACING_HOURLY_CAP: '5000',
+    PACING_LOOKUP_PER_MIN: '60',
+    PACING_LOOKUP_BURST: '3',
+    PACING_LOOKUP_PER_DAY: '2000',
+    PACING_MESSAGES_PER_HOUR: '0',
+    PACING_MAX_SMOOTH_MS: '3000',
+    PACING_FLOOD_MARGIN_SECONDS: '5',
+    PACING_MAX_SKIP: '500',
+    FLOOD_AUTO_SLEEP_SECONDS: '3',
+    FLOOD_AUTO_RETRIES: '1'
+  };
+  it.each([
+    ['production', mcp.vars],
+    ['staging', mcp.env?.staging?.vars]
+  ])('%s: wrangler vars match the defaults in code', (_name, vars) => {
+    for (const [k, v] of Object.entries(DEFAULTS)) expect(vars?.[k], k).toBe(v);
+  });
+});

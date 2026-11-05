@@ -134,14 +134,15 @@ describe('MT-02 per-account serialization', () => {
 
 describe('PR-02 errors are mapped to safe codes', () => {
   it('FLOOD_WAIT becomes RATE_LIMITED with retry-after; revoked auth becomes ACCOUNT_NOT_ACTIVE', async () => {
-    const w = await setupWorld();
+    const w = await setupWorld({ accounts: 2 });
     syntheticControl.throwNext = Object.assign(new Error('Telegram API error 420: FLOOD_WAIT_17 RAW-SECRET'), { text: 'FLOOD_WAIT_17', code: 420 });
     const flood = await callTool(w.token, 'list_dialogs', { account_id: w.accountIds[0] });
     expect(errCode(flood)).toBe('RATE_LIMITED');
     expect((flood.data.error as { retryAfterSeconds: number }).retryAfterSeconds).toBe(17);
     expect(flood.raw).not.toContain('RAW-SECRET');
+    // The flooded account is now in a stored cooldown; the revoked-auth mapping is checked on the other account.
     syntheticControl.throwNext = Object.assign(new Error('x'), { text: 'AUTH_KEY_UNREGISTERED', code: 401 });
-    expect(errCode(await callTool(w.token, 'list_dialogs', { account_id: w.accountIds[0] }))).toBe('ACCOUNT_NOT_ACTIVE');
+    expect(errCode(await callTool(w.token, 'list_dialogs', { account_id: w.accountIds[1] }))).toBe('ACCOUNT_NOT_ACTIVE');
   });
 
   it('unknown SDK errors are reduced to INTERNAL without any detail', async () => {

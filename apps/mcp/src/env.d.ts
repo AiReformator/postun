@@ -21,6 +21,17 @@ export interface Env {
   MAX_FILE_BYTES: string;
   FEATURE_CHANNELS: string;
   TELEGRAM_ADAPTER: string;
+  // pacing and flood protection: initial tunable guesses, all optional (defaults in do/limiter.ts and telegram/mtcute.ts)
+  PACING_BURST?: string;
+  PACING_REFILL_MS?: string;
+  PACING_HOURLY_CAP?: string;
+  PACING_LOOKUP_PER_MIN?: string;
+  PACING_LOOKUP_PER_DAY?: string;
+  PACING_MESSAGES_PER_HOUR?: string;
+  PACING_FLOOD_MARGIN_SECONDS?: string;
+  PACING_MAX_SKIP?: string;
+  FLOOD_AUTO_SLEEP_SECONDS?: string;
+  FLOOD_AUTO_RETRIES?: string;
   // secrets (never in wrangler.jsonc; see .dev.vars.example)
   TELEGRAM_API_ID?: string;
   TELEGRAM_API_HASH?: string;

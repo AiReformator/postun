@@ -5,9 +5,15 @@ describe('service metric points', () => {
   it('mcp_call has a fixed shape', () => {
     expect(mcpCallPoint({ tool: 'search_messages', outcome: 'RATE_LIMITED', durationMs: 12.6, firstOfDay: true, firstOfMonth: false })).toEqual({
       indexes: ['mcp_call'],
-      blobs: ['v1', 'search_messages', 'RATE_LIMITED'],
-      doubles: [1, 13, 1, 0]
+      blobs: ['v1', 'search_messages', 'RATE_LIMITED', ''],
+      doubles: [1, 13, 1, 0, 0, 0]
     });
+    expect(mcpCallPoint({ tool: 'get_history', outcome: 'RATE_LIMITED', durationMs: 5, firstOfDay: false, firstOfMonth: false, reason: 'FLOOD_WAIT', items: 0, retryAfterSeconds: 12 })).toMatchObject({
+      blobs: ['v1', 'get_history', 'RATE_LIMITED', 'FLOOD_WAIT'],
+      doubles: [1, 5, 0, 0, 0, 12]
+    });
+    // reason is a fixed vocabulary: anything else is dropped, never stored
+    expect(mcpCallPoint({ tool: 'get_history', outcome: 'ok', durationMs: 1, firstOfDay: false, firstOfMonth: false, reason: 'some text', items: 50 }).blobs[3]).toBe('');
   });
 
   it('control_snapshot keeps the published column order and clamps bad numbers to 0', () => {
