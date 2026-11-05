@@ -186,6 +186,18 @@ describe('design system', () => {
     expect(live).toMatch(new RegExp(`ChatGPT <span class="pill ${st.mcp_chatgpt === 'PASS' ? 'pill-ok' : 'pill-warn'}"`));
     expect(live).toMatch(new RegExp(`Claude Code <span class="pill ${st.mcp_claude_code === 'PASS' ? 'pill-ok' : 'pill-warn'}"`));
   });
+  it('hero shows the MCP address before the call to action, in every locale and registration state', () => {
+    for (const s of [withAll(status, 'PASS'), { ...status, registration_open: false }]) {
+      for (const l of LOCALES) {
+        const hero = landing(s, l.code).match(/<section class="hero">([\s\S]*?)<\/section>/)[1];
+        const at = hero.indexOf('<code aria-labelledby="mcp-label">https://mcp.postun.org/mcp</code>');
+        expect(at, l.code).toBeGreaterThan(-1);
+        expect(at, l.code).toBeLessThan(hero.indexOf('class="btn-row"'));
+        // The copy button ships hidden and is revealed by host.js only where the Clipboard API exists.
+        expect(hero).toMatch(/<button type="button" class="btn btn-sm endpoint-copy" data-copy="https:\/\/mcp\.postun\.org\/mcp" data-copied="[^"]+" hidden>/);
+      }
+    }
+  });
   it('links to the legal documents appear only in the footer', () => {
     for (const l of LOCALES) {
       const html = landing(status, l.code);

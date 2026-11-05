@@ -58,6 +58,7 @@ export default {
     trust1: 'Not a bot',
     trust2: 'No API keys or code',
     trust3: 'Free during the beta',
+    mcpHint: 'Paste it into your AI client as a custom MCP connector. You sign in with Telegram and choose which accounts and data it can read.',
     flowLabel: 'How Postun connects Telegram to AI clients',
     flowYou: 'Your Telegram',
     flowYouNote: 'personal account, not a bot',
