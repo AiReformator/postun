@@ -53,8 +53,14 @@ export interface ToolCallRequest {
 
 /** `json` is the serialised result: keeps the RPC type shallow and the payload opaque to the transport. */
 export type ToolOutcome =
-  | { ok: true; json: string }
+  | { ok: true; json: string; usage?: FirstUse }
   | { ok: false; code: ErrorCode; message: string; retryAfterSeconds?: number };
+
+/** For aggregate service metrics only: whether a counted call was this principal's first in the UTC day / month. */
+export interface FirstUse {
+  firstOfDay: boolean;
+  firstOfMonth: boolean;
+}
 
 interface AccountRow extends Record<string, SqlStorageValue> {
   account_id: string;
@@ -364,16 +370,18 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
     if (r.op !== null) this.inflight.delete(r.op);
   }
 
-  private commit(r: Reservation): void {
-    if (!r.counted) return;
+  private commit(r: Reservation): FirstUse | undefined {
+    if (!r.counted) return undefined;
+    let first: FirstUse = { firstOfDay: false, firstOfMonth: false };
     this.ctx.storage.transactionSync(() => {
-      this.usageRow(r.month);
+      first = { firstOfDay: this.dayCount(r.day) === 0, firstOfMonth: this.usageRow(r.month).success_count === 0 };
       this.run('UPDATE usage SET success_count = success_count + 1, revision = ? WHERE month = ?', this.nextRevision(), r.month);
       this.run('INSERT INTO usage_day(day, success_count) VALUES(?, 1) ON CONFLICT(day) DO UPDATE SET success_count = success_count + 1', r.day);
       if (r.op !== null) this.run("UPDATE idem SET state = 'committed' WHERE operation_id = ?", r.op);
     });
     this.dropHeld(r);
     this.emitProjection();
+    return first;
   }
 
   private release(r: Reservation): void {
@@ -392,14 +400,15 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
 
   async callTool(req: ToolCallRequest): Promise<ToolOutcome> {
     try {
-      return { ok: true, json: JSON.stringify(await this.callToolInner(req)) };
+      const { data, usage } = await this.callToolInner(req);
+      return usage ? { ok: true, json: JSON.stringify(data), usage } : { ok: true, json: JSON.stringify(data) };
     } catch (e) {
       const s = toSafeError(e);
       return { ok: false, ...s };
     }
   }
 
-  private async callToolInner(req: ToolCallRequest): Promise<JsonValue> {
+  private async callToolInner(req: ToolCallRequest): Promise<{ data: JsonValue; usage?: FirstUse }> {
     const cfg = loadConfig(this.env);
     const keys = await loadKeys(this.env);
     if (!(req.tool in TOOL_INPUT)) throw new PostunError('INVALID_INPUT');
@@ -410,7 +419,7 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
 
     if (req.tool === 'list_accounts') {
       const g = this.authorize(auth);
-      return this.listAccounts(g, req.accounts);
+      return { data: this.listAccounts(g, req.accounts) };
     }
     assertFeatureEnabled(req.tool, cfg);
 
@@ -453,9 +462,9 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
       } finally {
         unlock();
       }
-      this.commit(reservation);
+      const usage = this.commit(reservation);
       committed = true;
-      return data;
+      return usage ? { data, usage } : { data };
     } finally {
       if (!committed) this.release(reservation);
     }

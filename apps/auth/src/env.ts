@@ -1,10 +1,12 @@
 import { PostunError, requireConfig } from '@postun/contracts';
-import type { VaultControlRpc } from '@postun/contracts';
+import type { MetricsDataset, VaultControlRpc } from '@postun/contracts';
 
 export interface Env {
   OAUTH_KV: KVNamespace;
   CONTROL_DB: D1Database;
   VAULT: VaultControlRpc;
+  /** Workers Analytics Engine dataset for aggregate service metrics; optional, writes are best effort. */
+  METRICS?: MetricsDataset;
   APP_ENV: string;
   AUTH_ISSUER: string;
   APP_ORIGIN: string;

@@ -14,6 +14,7 @@
 | D1 postun-admin-meta | Отдельная БД | Только псевдонимные административные проекции и admin sessions |
 | KV OAUTH_KV | Только auth | Поддерживаемое хранилище Workers OAuth Provider |
 | SQLite Durable Objects | Только mcp | Зашифрованные сессии, актуальные ограничения, атомарные счётчики |
+| Analytics Engine postun_metrics | auth и mcp, только запись | Агрегированные служебные метрики без идентификаторов ([03](03_SECURITY_PRIVACY.md), «Служебные метрики») |
 | OIDC-провайдер администраторов | Точный issuer задаёт оператор (ADMIN_OIDC_ISSUER) | Идентификация и роли администраторов; без Telegram-сессий |
 
 ```text
