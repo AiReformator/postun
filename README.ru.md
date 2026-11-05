@@ -99,11 +99,11 @@ claude mcp add --scope user --transport http postun https://mcp.postun.org/mcp
 
 ## Философия: открытость по замыслу (принцип Керкгоффса)
 
-Код полностью открыт, чтобы каждый мог проверить, как на самом деле работают шифрование, проверки доступа и правило «без логов». Согласно [принципу Керкгоффса](https://ru.wikipedia.org/wiki/Принцип_Керкгоффса), безопасность должна опираться только на секретность ключей, а не на сокрытие устройства системы. Настоящие ключи лежат в секретах Cloudflare и никогда не попадают в этот репозиторий; закрыты только ключи, токены, данные пользователей, конфигурация доступа нашего развёртывания и материалы закрытых инцидентов безопасности. Если вы не хотите доверять нашему развёртыванию, прочитайте код и запустите свой экземпляр (см. «Самостоятельная установка»).
+Код полностью открыт, чтобы каждый мог проверить, как на самом деле работают шифрование, проверки доступа и правило «без логов». Согласно [принципу Керкгоффса](https://ru.wikipedia.org/wiki/Принцип_Керкгоффса), безопасность должна опираться только на секретность ключей, а не на сокрытие устройства системы. Настоящие ключи лежат в секретах Cloudflare и никогда не попадают в этот репозиторий; закрыты только ключи, токены, данные пользователей, конфигурация доступа нашего развёртывания, внутренние рабочие материалы оператора (включая инструкции для ИИ-моделей) и материалы закрытых инцидентов безопасности. Если вы не хотите доверять нашему развёртыванию, прочитайте код и запустите свой экземпляр (см. «Самостоятельная установка»).
 
 ## Статус беты
 
-Статус берётся из [apps/web/status.json](apps/web/status.json) (обновлён 2026-11-05). «Проверено» отмечены только функции с записанной приёмкой на production. Подробные результаты: [docs/RELEASE_STATUS.md](docs/RELEASE_STATUS.md).
+Статус берётся из [apps/web/status.json](apps/web/status.json) (обновлён 2026-11-05). «Проверено» отмечены только функции с записанной приёмкой на production. Актуальный статус также виден на https://postun.org/#status.
 
 | Функция | Статус |
 |---|---|
@@ -142,7 +142,7 @@ npm run check:secrets
 npm run check:logging
 ```
 
-`npm run ci` запускает всю цепочку. Тесты используют синтетические данные и локальный Workers runtime (Miniflare/workerd); реальные Telegram, IDP и Cloudflare-ресурсы в CI не используются. Настоящие секреты задаются только через `wrangler secret put` в своём аккаунте Cloudflare; примеры переменных — в `apps/*/.dev.vars.example` и `templates/.env.example`.
+`npm run ci` запускает всю цепочку. Тесты используют синтетические данные и локальный Workers runtime (Miniflare/workerd); реальные Telegram, OIDC-провайдер администраторов и Cloudflare-ресурсы в CI не используются. Настоящие секреты задаются только через `wrangler secret put` в своём аккаунте Cloudflare; примеры переменных — в `apps/*/.dev.vars.example` и `templates/.env.example`.
 
 Структура репозитория:
 
@@ -150,7 +150,7 @@ npm run check:logging
 apps/web/            Cloudflare Workers (статические файлы): beta-лендинг, документы, кабинет (статический)
 apps/auth/           postun-auth: Telegram OIDC, web-сессия, MCP OAuth (authorization server), API кабинета
 apps/mcp/            postun-mcp: MCP resource server, SessionAndQuotaDO, Telegram (mtcute) adapter
-apps/admin/          postun-admin: IDP OIDC BFF, агрегаты, suspend/resume
+apps/admin/          postun-admin: OIDC BFF администраторов, агрегаты, suspend/resume
 packages/contracts/  общие схемы, scopes, шифрование envelope, курсоры, RPC-контракты
 migrations/control/  D1 postun-control (только auth)
 migrations/admin/    D1 postun-admin-meta (только admin)
@@ -167,10 +167,9 @@ migrations/admin/    D1 postun-admin-meta (только admin)
 | [docs/03_SECURITY_PRIVACY.md](docs/03_SECURITY_PRIVACY.md) | Шифрование, открытая и закрытая части |
 | [docs/04_DEPLOYMENT.md](docs/04_DEPLOYMENT.md) | GitHub, Cloudflare, секреты и обновления |
 | [docs/05_ACCEPTANCE.md](docs/05_ACCEPTANCE.md) | Проверяемые условия запуска беты |
-| [docs/06_IDP_ADMIN.md](docs/06_IDP_ADMIN.md) | Вход администраторов и матрица ролей |
+| [docs/06_ADMIN_OIDC.md](docs/06_ADMIN_OIDC.md) | Вход администраторов и матрица ролей |
 | [docs/07_SOURCES.md](docs/07_SOURCES.md) | Проверенные официальные источники |
-| [docs/08_AUDIT.md](docs/08_AUDIT.md) | Изменения документации и остаточные проверки |
-| [docs/RELEASE_STATUS.md](docs/RELEASE_STATUS.md) | Результаты приёмки (PASS / FAIL / NOT_RUN / BLOCKED) |
+| [docs/08_DESIGN_NOTES.md](docs/08_DESIGN_NOTES.md) | Проектные решения и устранённые противоречия |
 | [docs/DEPLOY_RUNBOOK.md](docs/DEPLOY_RUNBOOK.md) | Руководство по развёртыванию |
 | [docs/PUBLICATION_POLICY.md](docs/PUBLICATION_POLICY.md) | Что и где публикуется: код — на GitHub, юридические документы — на сайте, маркетинговые материалы — нигде |
 

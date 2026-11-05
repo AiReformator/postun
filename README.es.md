@@ -100,11 +100,11 @@ Detalles: [docs/03_SECURITY_PRIVACY.md](docs/03_SECURITY_PRIVACY.md).
 
 ## Filosofía: abierto por diseño (principio de Kerckhoffs)
 
-El código es totalmente abierto para que cualquiera pueda comprobar cómo funcionan realmente el cifrado, las comprobaciones de acceso y la regla de no guardar logs. Según el [principio de Kerckhoffs](https://es.wikipedia.org/wiki/Principio_de_Kerckhoffs), la seguridad debe depender solo del secreto de las claves, no de ocultar el diseño del sistema. Las claves reales viven en secretos de Cloudflare y nunca en este repositorio; solo permanecen cerrados las claves, los tokens, los datos de usuarios, la configuración de acceso de nuestro despliegue y el material de incidentes de seguridad cerrados. Si no quieres confiar en nuestro despliegue, lee el código y ejecuta el tuyo (ver Autoalojamiento).
+El código es totalmente abierto para que cualquiera pueda comprobar cómo funcionan realmente el cifrado, las comprobaciones de acceso y la regla de no guardar logs. Según el [principio de Kerckhoffs](https://es.wikipedia.org/wiki/Principio_de_Kerckhoffs), la seguridad debe depender solo del secreto de las claves, no de ocultar el diseño del sistema. Las claves reales viven en secretos de Cloudflare y nunca en este repositorio; solo permanecen cerrados las claves, los tokens, los datos de usuarios, la configuración de acceso de nuestro despliegue, el material interno de trabajo del operador (incluidas las instrucciones para modelos de IA) y el material de incidentes de seguridad cerrados. Si no quieres confiar en nuestro despliegue, lee el código y ejecuta el tuyo (ver Autoalojamiento).
 
 ## Estado de la beta
 
-El estado procede de [apps/web/status.json](apps/web/status.json) (actualizado el 2026-11-05). Solo se marcan como verificadas las funciones con una prueba de aceptación registrada en producción. Resultados detallados: [docs/RELEASE_STATUS.md](docs/RELEASE_STATUS.md).
+El estado procede de [apps/web/status.json](apps/web/status.json) (actualizado el 2026-11-05). Solo se marcan como verificadas las funciones con una prueba de aceptación registrada en producción. El estado en vivo también se muestra en https://postun.org/#status.
 
 | Función | Estado |
 |---|---|
@@ -143,7 +143,7 @@ npm run check:secrets
 npm run check:logging
 ```
 
-`npm run ci` ejecuta toda la cadena. Las pruebas usan datos sintéticos y un runtime local de Workers (Miniflare/workerd); en CI no se usan recursos reales de Telegram, IDP ni Cloudflare. Los secretos reales se definen solo con `wrangler secret put` en tu propia cuenta de Cloudflare; hay ejemplos de variables en `apps/*/.dev.vars.example` y `templates/.env.example`.
+`npm run ci` ejecuta toda la cadena. Las pruebas usan datos sintéticos y un runtime local de Workers (Miniflare/workerd); en CI no se usan recursos reales de Telegram, el proveedor OIDC de administradores ni Cloudflare. Los secretos reales se definen solo con `wrangler secret put` en tu propia cuenta de Cloudflare; hay ejemplos de variables en `apps/*/.dev.vars.example` y `templates/.env.example`.
 
 Estructura del repositorio:
 
@@ -151,7 +151,7 @@ Estructura del repositorio:
 apps/web/            Cloudflare Workers (assets estáticos): landing beta, docs, panel (estático)
 apps/auth/           postun-auth: Telegram OIDC, sesión web, MCP OAuth (authorization server), API del panel
 apps/mcp/            postun-mcp: MCP resource server, SessionAndQuotaDO, adaptador de Telegram (mtcute)
-apps/admin/          postun-admin: IDP OIDC BFF, agregados, suspend/resume
+apps/admin/          postun-admin: BFF OIDC de administradores, agregados, suspend/resume
 packages/contracts/  esquemas comunes, scopes, cifrado envelope, cursores, contratos RPC
 migrations/control/  D1 postun-control (solo auth)
 migrations/admin/    D1 postun-admin-meta (solo admin)
@@ -168,10 +168,9 @@ Guía para colaboradores: [CONTRIBUTING.md](CONTRIBUTING.md). Usa datos sintéti
 | [docs/03_SECURITY_PRIVACY.md](docs/03_SECURITY_PRIVACY.md) | Cifrado, qué es abierto y qué es cerrado |
 | [docs/04_DEPLOYMENT.md](docs/04_DEPLOYMENT.md) | GitHub, Cloudflare, secretos y actualizaciones |
 | [docs/05_ACCEPTANCE.md](docs/05_ACCEPTANCE.md) | Criterios verificables de lanzamiento |
-| [docs/06_IDP_ADMIN.md](docs/06_IDP_ADMIN.md) | Acceso de administradores y matriz de roles |
+| [docs/06_ADMIN_OIDC.md](docs/06_ADMIN_OIDC.md) | Acceso de administradores y matriz de roles |
 | [docs/07_SOURCES.md](docs/07_SOURCES.md) | Fuentes oficiales consultadas |
-| [docs/08_AUDIT.md](docs/08_AUDIT.md) | Cambios en la documentación y comprobaciones pendientes |
-| [docs/RELEASE_STATUS.md](docs/RELEASE_STATUS.md) | Resultados de aceptación (PASS / FAIL / NOT_RUN / BLOCKED) |
+| [docs/08_DESIGN_NOTES.md](docs/08_DESIGN_NOTES.md) | Decisiones de diseño y contradicciones resueltas |
 | [docs/DEPLOY_RUNBOOK.md](docs/DEPLOY_RUNBOOK.md) | Guía de despliegue |
 | [docs/PUBLICATION_POLICY.md](docs/PUBLICATION_POLICY.md) | Qué se publica y dónde: el código en GitHub, los documentos legales en el sitio, el material de marketing nunca |
 

@@ -4,18 +4,28 @@ Postun is an experimental project. No independent security audit, production SLA
 
 ## Reporting a vulnerability
 
-Do not publish exploit details, Telegram sessions, account identifiers, private conversations, OTPs, tokens or screenshots containing credentials in a public issue.
+Report vulnerabilities privately through GitHub Private Vulnerability Reporting:
 
-Use GitHub Private Vulnerability Reporting when it is enabled for this repository. The maintainer must enable and verify a private reporting channel before real beta onboarding. If the private report button is unavailable and no verified private contact is published, open only a minimal issue asking the maintainer to provide a private channel; do not include sensitive details.
+https://github.com/AiReformator/postun/security/advisories/new
 
-The existence or availability of private reporting is not confirmed by this documentation package. Never invent a security email address.
+Please do not open a public issue or pull request for a suspected vulnerability. Do not publish exploit details, Telegram sessions, account identifiers, private conversations, OTPs, tokens or screenshots containing credentials anywhere public. A good report contains the affected component (auth, mcp, admin, web), the version or commit, reproduction steps on synthetic data, and the impact you expect.
+
+What to expect: the maintainer aims to acknowledge a report within 7 days and to coordinate a fix and disclosure timing with you. This is a best-effort commitment for an experimental project, not an SLA. Fixes are published together with an advisory once users have had a reasonable chance to update.
+
+If you accidentally exposed a real credential while testing, revoke or rotate it first, then report.
+
+## Scope
+
+In scope: this repository's code, configuration templates and documented deployment steps, including the OAuth/OIDC flows, session encryption, per-account access checks, the admin application and its isolation from message data, and CI/supply-chain configuration.
+
+Out of scope: vulnerabilities in Cloudflare, Telegram or third-party services themselves (report these to the vendor), social engineering, denial of service by volume, and findings that require an already compromised operator account or Cloudflare account (the operator is part of the documented trust model).
 
 ## Supported versions
 
-Only the latest explicitly published beta release is intended to receive fixes. Before relying on a release, inspect its actual security advisories, dependency lockfile and known limitations. This package itself is documentation, not an application release.
+Only the latest published beta release (and the default branch) is intended to receive fixes. Before relying on a release, inspect its security advisories, dependency lockfile and known limitations.
 
 ## Deployment responsibilities
 
-Review source and dependencies. Use your own secrets. Do not reuse Postun SaaS credentials. Separate preview and production resources, restrict deploy privileges, rotate exposed credentials and confirm revocation. Keep message content and secrets out of diagnostics.
+If you self-host: review source and dependencies, use your own secrets, never reuse another deployment's credentials, separate preview and production resources, restrict deploy privileges, rotate exposed credentials and confirm revocation, and keep message content and secrets out of diagnostics.
 
-For the implementation contract and negative tests, read docs/03_SECURITY_PRIVACY.md and docs/05_ACCEPTANCE.md.
+For the implementation contract and negative tests, read [docs/03_SECURITY_PRIVACY.md](docs/03_SECURITY_PRIVACY.md) and [docs/05_ACCEPTANCE.md](docs/05_ACCEPTANCE.md).

@@ -111,7 +111,7 @@ export default {
     r9a: 'Phone number, username, file names',
     r9b: 'Not stored by default',
     p1: 'The Telegram ID is stored only as an HMAC index and an encrypted value. Sessions are encrypted with AES-256-GCM using a separate key per account. Keys are kept in Cloudflare secrets, not in the repository.',
-    p2: 'Cloudflare and IDP may keep their own infrastructure metadata; Postun does not promise that it is absent. The product administrator has no access to messages or sessions; the infrastructure administrator technically remains part of the trust model.',
+    p2: 'Cloudflare and the administrator sign-in provider may keep their own infrastructure metadata; Postun does not promise that it is absent. The product administrator has no access to messages or sessions; the infrastructure administrator technically remains part of the trust model.',
     p3: 'Cloudflare Workers logging (observability, logs, tail, logpush) is disabled for every Postun service and verified automatically on every build. The code never writes content to logs: only constant service messages without data are allowed.'
   },
   terms: {

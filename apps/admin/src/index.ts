@@ -38,7 +38,7 @@ async function readForm(req: Request): Promise<URLSearchParams | null> {
 /** Maps a non-ok authentication result to a response. */
 function deny(c: Ctx, status: 'none' | 'blocked' | 'unavailable', write: boolean): Response {
   if (status === 'blocked') return msg(c, 403, 'Доступ запрещён', 'Доступ для этой учётной записи заблокирован.', { 'set-cookie': clearHostCookie(COOKIE) });
-  if (status === 'unavailable') return msg(c, 503, 'Временно недоступно', 'Не удалось подтвердить полномочия в IDP. Повторите позже.');
+  if (status === 'unavailable') return msg(c, 503, 'Временно недоступно', 'Не удалось подтвердить полномочия у провайдера входа. Повторите позже.');
   const headers = { 'set-cookie': clearHostCookie(COOKIE) };
   return write ? msg(c, 401, 'Требуется вход', 'Сессия отсутствует или истекла.', headers) : html(c, 401, loginPage, headers);
 }
@@ -80,9 +80,9 @@ async function callback(c: Ctx): Promise<Response> {
   } catch (e) {
     if (e instanceof Denied) {
       await audit(c.env.ADMIN_DB, c.now, e.subject, 'login', null, e.reason);
-      return fail(403, e.reason === 'mfa_required' ? 'Требуется многофакторная аутентификация (MFA) в IDP.' : 'У вашей учётной записи нет роли Postun для этой организации.');
+      return fail(403, e.reason === 'mfa_required' ? 'Требуется многофакторная аутентификация (MFA).' : 'У вашей учётной записи нет роли Postun.');
     }
-    if (e instanceof IdpUnavailable) return fail(503, 'IDP временно недоступен.');
+    if (e instanceof IdpUnavailable) return fail(503, 'Провайдер входа временно недоступен.');
     return fail(400, 'Не удалось подтвердить вход.');
   }
 }
@@ -198,7 +198,7 @@ export default {
       return await route(c);
     } catch (e) {
       // Never log the error object: it may carry tokens or codes.
-      if (e instanceof IdpUnavailable) return msg(c, 503, 'Временно недоступно', 'IDP недоступен. Админка закрыта до восстановления.');
+      if (e instanceof IdpUnavailable) return msg(c, 503, 'Временно недоступно', 'Провайдер входа недоступен. Админка закрыта до восстановления.');
       console.error('admin: internal error');
       return msg(c, 500, 'Ошибка', 'Внутренняя ошибка.');
     }

@@ -1,11 +1,11 @@
 import { toBase64Url } from '@postun/contracts';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { call, callback, CLIENT, db, installIdP, login, makeEnv, ORG, ownerRoles, PROJECT, sessionCount, startClock, startLogin, type IdP, ORIGIN, ISSUER } from './helpers';
+import { call, callback, CLIENT, db, installIdp, login, makeEnv, ownerRoles, EXTRA_AUD, SCOPES, ROLES_CLAIM, TENANT, sessionCount, startClock, startLogin, type Idp, ORIGIN, ISSUER } from './helpers';
 
-let z: IdP;
+let z: Idp;
 beforeEach(async () => {
   startClock();
-  z = await installIdP();
+  z = await installIdp();
 });
 afterEach(() => vi.restoreAllMocks());
 
@@ -40,7 +40,7 @@ describe('GET /login', () => {
     expect(p.get('state')!.length).toBeGreaterThan(20);
     expect(p.get('nonce')!.length).toBeGreaterThan(20);
     const scopes = p.get('scope')!.split(' ');
-    expect(scopes).toEqual(expect.arrayContaining(['openid', 'profile', 'offline_access', `urn:idp:iam:org:project:id:${PROJECT}:aud`, 'urn:idp:iam:org:projects:roles', `urn:idp:iam:org:id:${ORG}`]));
+    expect(scopes).toEqual(SCOPES.split(' '));
     expect(f.flowCookie).toMatch(/^__Host-postun_admin_flow=/);
   });
   it('discovery failure closes the admin with 503', async () => {
@@ -149,14 +149,14 @@ describe('callback', () => {
     expect(res.headers.getSetCookie().some((c) => c.startsWith('__Host-postun_admin='))).toBe(false);
     expect(await sessionCount()).toBe(0);
   });
-  it('AD-01: role in another org is rejected (403)', async () => {
-    z.roles = { 'postun.owner': { 'other-org': 'x' } };
+  it('AD-01: role in another tenant is rejected (403)', async () => {
+    z.roles = { 'postun.owner': { 'other-tenant': 'x' } };
     const env = makeEnv();
     expect((await callback(env, await startLogin(env, z))).status).toBe(403);
     expect(await sessionCount()).toBe(0);
   });
-  it('AD-01: role of another project (claim for a different project id) is rejected', async () => {
-    z.idOverrides = { [`urn:idp:iam:org:project:${PROJECT}:roles`]: undefined, 'urn:idp:iam:org:project:other:roles': ownerRoles('postun.owner') };
+  it('AD-01: role in a different claim name is rejected', async () => {
+    z.idOverrides = { [ROLES_CLAIM]: undefined, 'https://idp.test.example/claims/other': ownerRoles('postun.owner') };
     z.rolesInIdToken = false;
     z.roles = undefined;
     const env = makeEnv();
@@ -167,6 +167,42 @@ describe('callback', () => {
     const env = makeEnv();
     expect((await callback(env, await startLogin(env, z))).status).toBe(403);
   });
+  it('extra audience is not required when ADMIN_OIDC_EXTRA_AUDIENCE is none', async () => {
+    z.idOverrides = { aud: [CLIENT] };
+    const env = makeEnv({ ADMIN_OIDC_EXTRA_AUDIENCE: 'none' });
+    expect((await callback(env, await startLogin(env, z))).status).toBe(303);
+  });
+  it('extra audience is enforced when set (token without it is rejected)', async () => {
+    z.idOverrides = { aud: [CLIENT] };
+    const env = makeEnv();
+    expect((await callback(env, await startLogin(env, z))).status).toBe(400);
+    expect(await sessionCount()).toBe(0);
+  });
+  it('roles from an array claim of role strings (no tenant restriction)', async () => {
+    z.roles = ['postun.operator'];
+    const env = makeEnv({ ADMIN_OIDC_ROLES_TENANT: 'none' });
+    expect((await callback(env, await startLogin(env, z))).status).toBe(303);
+  });
+  it('array of role strings is rejected when a tenant restriction is configured', async () => {
+    z.roles = ['postun.owner'];
+    const env = makeEnv();
+    expect((await callback(env, await startLogin(env, z))).status).toBe(403);
+  });
+  it('array claim with only unknown role names is rejected', async () => {
+    z.roles = ['admin', 'ORG_OWNER'];
+    const env = makeEnv({ ADMIN_OIDC_ROLES_TENANT: 'none' });
+    expect((await callback(env, await startLogin(env, z))).status).toBe(403);
+  });
+  it('roles from an object claim without tenant restriction (any value)', async () => {
+    z.roles = { 'postun.owner': { 'other-tenant': 'x' } };
+    const env = makeEnv({ ADMIN_OIDC_ROLES_TENANT: 'none' });
+    expect((await callback(env, await startLogin(env, z))).status).toBe(303);
+  });
+  it('roles from an object claim with tenant restriction (matching tenant accepted)', async () => {
+    z.roles = { 'postun.viewer': { [TENANT]: 'x' } };
+    const env = makeEnv();
+    expect((await callback(env, await startLogin(env, z))).status).toBe(303);
+  });
   it('reads roles from userinfo when the ID token does not carry them', async () => {
     z.rolesInIdToken = false;
     const env = makeEnv();
@@ -176,9 +212,9 @@ describe('callback', () => {
 
   it.each([
     ['wrong issuer', { iss: 'https://evil.example' }],
-    ['wrong audience (client id missing)', { aud: [PROJECT], azp: undefined }],
-    ['audience without project id', { aud: [CLIENT] }],
-    ['foreign azp', { aud: [CLIENT, PROJECT, 'other'], azp: 'other' }],
+    ['wrong audience (client id missing)', { aud: [EXTRA_AUD], azp: undefined }],
+    ['audience without the required extra audience', { aud: [CLIENT] }],
+    ['foreign azp', { aud: [CLIENT, EXTRA_AUD, 'other'], azp: 'other' }],
     ['wrong nonce', { nonce: 'attacker-nonce' }],
     ['expired token', { exp: 1000, iat: 900 }]
   ])('rejects %s', async (_n, over) => {
@@ -261,7 +297,7 @@ describe('callback', () => {
   });
 
   it('client authentication uses the secret (basic by default, post configurable)', async () => {
-    const env = makeEnv({ IDP_CLIENT_AUTH: 'post' });
+    const env = makeEnv({ ADMIN_OIDC_CLIENT_AUTH: 'post' });
     const res = await callback(env, await startLogin(env, z));
     expect(res.status).toBe(400); // mock requires Basic: confirms the setting is honoured
     expect(await login(makeEnv(), z)).toMatch(/^__Host-postun_admin=/);

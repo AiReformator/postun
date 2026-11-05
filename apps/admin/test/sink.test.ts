@@ -25,8 +25,8 @@ describe('ProjectionSink', () => {
     }
     expect(await row()).toBeNull();
   });
-  it('works even when IDP is not configured', async () => {
-    const s = new ProjectionSink(createExecutionContext(), makeEnv({ IDP_ISSUER: undefined }));
+  it('works even when the IdP is not configured', async () => {
+    const s = new ProjectionSink(createExecutionContext(), makeEnv({ ADMIN_OIDC_ISSUER: undefined }));
     expect(await s.upsert(proj())).toEqual({ applied: true });
   });
   it('is not reachable over HTTP', async () => {

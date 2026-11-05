@@ -1,5 +1,5 @@
 {
-  // postun-admin: IDP OIDC BFF + admin UI. Bindings are limited to ADMIN_DB and CONTROL (docs/06 §5, AD-03).
+  // postun-admin: generic OIDC BFF + admin UI. Bindings are limited to ADMIN_DB and CONTROL (docs/06 §7, AD-03).
   "name": "postun-admin",
   "main": "src/index.ts",
   "compatibility_date": "2026-11-01",

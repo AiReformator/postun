@@ -10,7 +10,7 @@ const patterns = [
   [/\b\d{8,10}:AA[A-Za-z0-9_-]{33}\b/, 'Telegram bot token'],
   [/\bsk-(?:ant-)?[A-Za-z0-9_-]{24,}/, 'API key'],
   [/\bAKIA[0-9A-Z]{16}\b/, 'AWS key'],
-  [/^(SESSION_KEK|CURSOR_HMAC_KEY|IDENTITY_INDEX_HMAC_KEY|IDENTITY_ENCRYPTION_KEY|WEB_SESSION_KEY|ADMIN_SESSION_KEY|TELEGRAM_API_HASH|TELEGRAM_OIDC_CLIENT_SECRET|IDP_CLIENT_SECRET)[ \t]*=[ \t]*[^\s#]+/m, 'non-empty secret assignment']
+  [/^(SESSION_KEK|CURSOR_HMAC_KEY|IDENTITY_INDEX_HMAC_KEY|IDENTITY_ENCRYPTION_KEY|WEB_SESSION_KEY|ADMIN_SESSION_KEY|TELEGRAM_API_HASH|[A-Z0-9_]*CLIENT_SECRET)[ \t]*=[ \t]*[^\s#]+/m, 'non-empty secret assignment']
 ];
 
 const tracked = execFileSync('git', ['ls-files', '-z'], { encoding: 'utf8' }).split('\0').filter(Boolean);

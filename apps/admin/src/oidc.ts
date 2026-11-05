@@ -1,13 +1,13 @@
 import * as o from 'oauth4webapi';
 import { parseRoles, type Cfg, type Role } from './config';
 
-/** Thrown for a successful IDP response that must not grant access (maps to HTTP 403). */
+/** Thrown for a successful identity provider response that must not grant access (maps to HTTP 403). */
 export class Denied extends Error {
   constructor(readonly reason: 'no_role' | 'mfa_required', readonly subject: string) {
     super(reason);
   }
 }
-/** IDP (discovery/token/JWKS) unreachable or malformed: admin stays closed (HTTP 503). */
+/** The identity provider (discovery/token/JWKS) unreachable or malformed: admin stays closed (HTTP 503). */
 export class IdpUnavailable extends Error {}
 
 let cache: { issuer: string; as: o.AuthorizationServer; exp: number } | undefined;
@@ -47,10 +47,9 @@ export async function authorizationUrl(cfg: Cfg, as: o.AuthorizationServer, p: {
 
 export const newLoginParams = () => ({ state: o.generateRandomState(), nonce: o.generateRandomNonce(), verifier: o.generateRandomCodeVerifier() });
 
-/** Roles come from the ID token when IDP asserts them there, otherwise from the userinfo endpoint. */
+/** Roles come from the ID token when the provider asserts them there, otherwise from the userinfo endpoint. */
 async function rolesFor(cfg: Cfg, as: o.AuthorizationServer, tokens: o.TokenEndpointResponse, claims: o.IDToken | undefined, sub: string): Promise<Role[]> {
-  const key = `urn:idp:iam:org:project:${cfg.projectId}:roles`;
-  if (claims && key in claims) return parseRoles(claims, cfg);
+  if (claims && Object.hasOwn(claims, cfg.rolesClaim)) return parseRoles(claims, cfg);
   const res = await o.userInfoRequest(as, client(cfg), tokens.access_token);
   return parseRoles(await o.processUserInfoResponse(as, client(cfg), sub, res), cfg);
 }
@@ -80,7 +79,7 @@ export async function completeLogin(cfg: Cfg, as: o.AuthorizationServer, url: UR
   await o.validateApplicationLevelSignature(as, response);
   const claims = o.getValidatedIdTokenClaims(tokens);
   if (!claims) throw new Error('no id token');
-  if (!([] as string[]).concat(claims.aud).includes(cfg.projectId)) throw new Error('audience lacks project id');
+  if (cfg.extraAudience && !([] as string[]).concat(claims.aud).includes(cfg.extraAudience)) throw new Error('audience lacks required value');
   const amr = Array.isArray(claims.amr) ? claims.amr.filter((x): x is string => typeof x === 'string') : [];
   const mfa = amr.some((v) => cfg.mfaAmr.has(v));
   if (cfg.requireMfa && !mfa) throw new Denied('mfa_required', claims.sub);

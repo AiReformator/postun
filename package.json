@@ -16,10 +16,10 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "build": "npm run build --workspaces --if-present",
-    "audit:docs": "python3 -I scripts/audit_docs.py .",
+    "check:docs": "node scripts/check-docs.mjs",
     "check:secrets": "node scripts/check-no-secrets.mjs",
     "check:logging": "node scripts/check-no-logging.mjs",
-    "ci": "npm run lint && npm run typecheck && npm run test && npm run build && npm run check:secrets && npm run check:logging"
+    "ci": "npm run lint && npm run typecheck && npm run test && npm run build && npm run check:secrets && npm run check:logging && npm run check:docs"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "5.20261104.1",

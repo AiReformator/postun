@@ -27,7 +27,7 @@ CREATE TABLE admin_sessions (
 ) STRICT;
 CREATE INDEX idx_admin_sessions_subject ON admin_sessions (issuer, subject);
 
--- Local block list, checked on every request, independent of IDP.
+-- Local block list, checked on every request, independent of the OIDC identity provider.
 CREATE TABLE admin_blocked_subjects (
   issuer      TEXT NOT NULL,
   subject     TEXT NOT NULL,

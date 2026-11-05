@@ -29,4 +29,4 @@ jobs:
       - run: npm run build
       - run: npm run check:secrets
       - run: npm run check:logging
-      - run: python3 -I scripts/audit_docs.py .
+      - run: npm run check:docs

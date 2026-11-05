@@ -99,11 +99,11 @@ Details: [docs/03_SECURITY_PRIVACY.md](docs/03_SECURITY_PRIVACY.md).
 
 ## Philosophy: open by design (Kerckhoffs's principle)
 
-The code is fully open so that anyone can check how encryption, access checks and the no-logs rule actually work. Following [Kerckhoffs's principle](https://en.wikipedia.org/wiki/Kerckhoffs%27s_principle), security must rely only on the secrecy of keys, not on hiding the system's design. Real keys live in Cloudflare secrets and never in this repository; what stays closed is only keys, tokens, user data, access configuration of our deployment and material of closed security incidents. If you do not want to trust our deployment, read the code and run your own (see Self-hosting).
+The code is fully open so that anyone can check how encryption, access checks and the no-logs rule actually work. Following [Kerckhoffs's principle](https://en.wikipedia.org/wiki/Kerckhoffs%27s_principle), security must rely only on the secrecy of keys, not on hiding the system's design. Real keys live in Cloudflare secrets and never in this repository; what stays closed is only keys, tokens, user data, access configuration of our deployment, the operator's internal working material (including instructions to AI models) and material of closed security incidents. If you do not want to trust our deployment, read the code and run your own (see Self-hosting).
 
 ## Beta status
 
-Status comes from [apps/web/status.json](apps/web/status.json) (updated 2026-11-05). Only features with a recorded acceptance run on production are marked verified. Detailed results: [docs/RELEASE_STATUS.md](docs/RELEASE_STATUS.md).
+Status comes from [apps/web/status.json](apps/web/status.json) (updated 2026-11-05). Only features with a recorded acceptance run on production are marked verified. Live status is also shown at https://postun.org/#status.
 
 | Feature | Status |
 |---|---|
@@ -142,7 +142,7 @@ npm run check:secrets
 npm run check:logging
 ```
 
-`npm run ci` runs the whole chain. Tests use synthetic data and a local Workers runtime (Miniflare/workerd); real Telegram, IDP and Cloudflare resources are not used in CI. Real secrets are set only with `wrangler secret put` in your own Cloudflare account; variable examples are in `apps/*/.dev.vars.example` and `templates/.env.example`.
+`npm run ci` runs the whole chain. Tests use synthetic data and a local Workers runtime (Miniflare/workerd); real Telegram, OIDC identity provider and Cloudflare resources are not used in CI. Real secrets are set only with `wrangler secret put` in your own Cloudflare account; variable examples are in `apps/*/.dev.vars.example` and `templates/.env.example`.
 
 Repository layout:
 
@@ -150,7 +150,7 @@ Repository layout:
 apps/web/            Cloudflare Workers static assets: beta landing, docs, cabinet (static)
 apps/auth/           postun-auth: Telegram OIDC, web session, MCP OAuth (authorization server), cabinet API
 apps/mcp/            postun-mcp: MCP resource server, SessionAndQuotaDO, Telegram (mtcute) adapter
-apps/admin/          postun-admin: IDP OIDC BFF, aggregates, suspend/resume
+apps/admin/          postun-admin: administrator OIDC BFF, aggregates, suspend/resume
 packages/contracts/  shared schemas, scopes, envelope encryption, cursors, RPC contracts
 migrations/control/  D1 postun-control (auth only)
 migrations/admin/    D1 postun-admin-meta (admin only)
@@ -167,10 +167,9 @@ Guidelines for contributors: [CONTRIBUTING.md](CONTRIBUTING.md). Use synthetic d
 | [docs/03_SECURITY_PRIVACY.md](docs/03_SECURITY_PRIVACY.md) | Encryption, what is open and what is closed |
 | [docs/04_DEPLOYMENT.md](docs/04_DEPLOYMENT.md) | GitHub, Cloudflare, secrets and updates |
 | [docs/05_ACCEPTANCE.md](docs/05_ACCEPTANCE.md) | Verifiable launch criteria |
-| [docs/06_IDP_ADMIN.md](docs/06_IDP_ADMIN.md) | Administrator sign-in and role matrix |
+| [docs/06_ADMIN_OIDC.md](docs/06_ADMIN_OIDC.md) | Administrator sign-in and role matrix |
 | [docs/07_SOURCES.md](docs/07_SOURCES.md) | Official sources checked |
-| [docs/08_AUDIT.md](docs/08_AUDIT.md) | Documentation changes and remaining checks |
-| [docs/RELEASE_STATUS.md](docs/RELEASE_STATUS.md) | Acceptance results (PASS / FAIL / NOT_RUN / BLOCKED) |
+| [docs/08_DESIGN_NOTES.md](docs/08_DESIGN_NOTES.md) | Design decisions and resolved contradictions |
 | [docs/DEPLOY_RUNBOOK.md](docs/DEPLOY_RUNBOOK.md) | Deployment runbook |
 | [docs/PUBLICATION_POLICY.md](docs/PUBLICATION_POLICY.md) | What is published where: code on GitHub, legal documents on the site, marketing never |
 
