@@ -55,5 +55,7 @@ export default defineConfig({
       }
     })
   ],
-  test: { include: ['test/**/*.test.ts'], testTimeout: 20_000 }
+  // Files run one at a time: deliberate stream-abort tests in one file could otherwise take down the shared
+  // workerd test runtime while another file (seen: quota.test.ts) is running.
+  test: { include: ['test/**/*.test.ts'], testTimeout: 20_000, fileParallelism: false }
 });
