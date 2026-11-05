@@ -179,6 +179,7 @@ export default {
       CANCELLED: 'Verbindung abgebrochen.',
       UPSTREAM: 'Telegram ist vorübergehend nicht erreichbar. Versuchen Sie es später erneut.'
     },
+    networkError: 'Der Dienst ist nicht erreichbar. Prüfen Sie Ihre Internetverbindung und versuchen Sie es erneut.',
     requestError: 'Anfragefehler',
     error: 'Fehler',
     serviceDown: 'Der Anmeldedienst ist derzeit nicht verfügbar. Dies ist eine Beta – bitte versuchen Sie es später erneut.',

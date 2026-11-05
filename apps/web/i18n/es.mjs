@@ -179,6 +179,7 @@ export default {
       CANCELLED: 'Conexión cancelada.',
       UPSTREAM: 'Telegram no está disponible temporalmente. Inténtalo más tarde.'
     },
+    networkError: 'No se puede conectar con el servicio. Comprueba tu conexión a internet e inténtalo de nuevo.',
     requestError: 'Error en la solicitud',
     error: 'Error',
     serviceDown: 'El servicio de inicio de sesión no está disponible ahora. Es una beta: inténtalo más tarde.',
