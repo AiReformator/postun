@@ -317,15 +317,55 @@ describe('MCP OAuth', () => {
     expect(await count('grant_reference')).toBe(2);
   });
 
-  it('no active account: consent explains how to connect one instead of showing a form', async () => {
+  it('no active account: sends the user to the cabinet to link one, carrying the exact request in the fragment', async () => {
     const e = makeEnv();
     const who = await login(e, tg);
     await acceptTerms(e, who);
     const clientId = await register(e);
     const { challenge } = await pkce();
-    const c = await openConsent(e, who, authorizePath(clientId, challenge));
-    expect(c.res.status).toBe(409);
+    const path = authorizePath(clientId, challenge);
+    const c = await openConsent(e, who, path);
+    expect(c.res.status).toBe(302);
     expect(c.text).not.toContain('name="handle"');
+    const loc = new URL(c.res.headers.get('location') as string);
+    expect(loc.origin).toBe(APP);
+    expect(loc.pathname).toBe('/app/');
+    expect(loc.search).toBe('');
+    expect(loc.hash.startsWith('#continue=')).toBe(true);
+    expect(decodeURIComponent(loc.hash.slice('#continue='.length))).toBe(path);
+    // No consent handle or library state cookie is minted before the user comes back.
+    expect(Object.keys(cookiesFrom(c.res))).toEqual([]);
+  });
+
+  it('no active account: the cabinet link keeps the user language', async () => {
+    const e = makeEnv();
+    const who = await login(e, tg);
+    await acceptTerms(e, who);
+    const clientId = await register(e);
+    const { challenge } = await pkce();
+    const c = await openConsent(e, who, `${authorizePath(clientId, challenge)}&lang=ru`);
+    expect(new URL(c.res.headers.get('location') as string).pathname).toBe('/ru/app/');
+  });
+
+  it('no active account: an invalid client never reaches the cabinet', async () => {
+    const e = makeEnv();
+    const who = await login(e, tg);
+    await acceptTerms(e, who);
+    const { challenge } = await pkce();
+    const c = await openConsent(e, who, authorizePath('no-such-client', challenge));
+    expect(c.res.headers.get('location') ?? '').not.toContain(APP);
+  });
+
+  it('no active account: a suspended profile gets 403, not the cabinet', async () => {
+    const e = makeEnv();
+    const who = await login(e, tg);
+    await acceptTerms(e, who);
+    const clientId = await register(e);
+    const { challenge } = await pkce();
+    await db().prepare("UPDATE principals SET status = 'suspended'").run();
+    const c = await openConsent(e, who, authorizePath(clientId, challenge));
+    expect(c.res.status).toBe(403);
+    expect(c.res.headers.get('location')).toBeNull();
   });
 });
 

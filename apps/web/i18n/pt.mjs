@@ -174,6 +174,7 @@ export default {
       'media:read': 'arquivos'
     },
     linkErrors: {
+      CONFLICT: 'Não é possível iniciar uma nova vinculação agora: ou já há uma em andamento (conclua-a ou aguarde até 10 minutos), ou o perfil atingiu o limite de contas (desconecte uma de que não precisa mais).',
       EXPIRED: 'O código QR expirou. Inicie a conexão novamente.',
       PASSWORD_INVALID: 'Senha da verificação em duas etapas incorreta.',
       RATE_LIMITED: 'O Telegram pediu para aguardar. Tente novamente mais tarde.',
@@ -213,6 +214,13 @@ export default {
     logout: 'Sair',
     deleteProfile: 'Excluir perfil',
     back: 'Voltar',
+    connectTitle: 'Conexão de um cliente de IA',
+    connectNeedAccount: 'Você está conectando um cliente de IA ao Postun. Primeiro vincule uma conta do Telegram pelo código QR e depois volte à conexão.',
+    connectReady: 'Sua conta do Telegram está vinculada. Volte à conexão para escolher as contas e as permissões do cliente de IA.',
+    connectContinue: 'Continuar a conexão',
+    connectSessionExpired: 'O tempo para conectar o cliente de IA acabou. Inicie a conexão novamente no próprio cliente.',
+    connectResumeLink: 'Retomar a vinculação',
+    connectDismiss: 'Ocultar',
     linked: 'Conta conectada.',
     toCabinet: 'Ir para o painel',
     linkFailed: 'Não foi possível conectar.',

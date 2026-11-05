@@ -3,6 +3,7 @@
 import { encodeQR } from 'qr';
 import { ICONS } from './icons.mjs';
 import { createApi } from './api.mjs';
+import { CONTINUE_TTL_MS, continueFromHash, continueStore, continueUrl } from './continue.mjs';
 import en from '../i18n/en.mjs';
 import ru from '../i18n/ru.mjs';
 import es from '../i18n/es.mjs';
@@ -24,6 +25,49 @@ const withLang = (u) => {
   }
 };
 /** Cabinet text is inserted with textContent, so {vars} are substituted without HTML escaping. */
+/**
+ * A pending AI-client sign-in handed over by the auth Worker as `#continue=` (see continue.mjs). Read before anything
+ * async, kept for this tab only, and removed from the address bar at once so it is not bookmarked or shared.
+ */
+let sessionStore = null;
+try {
+  sessionStore = window.sessionStorage;
+} catch {
+  /* storage blocked: the target lives in memory for this page view only */
+}
+const CONT = continueStore(sessionStore ?? { getItem: () => null, setItem() {}, removeItem() {} });
+let memoContinue = null; // { t, at } when storage is unavailable
+// Arrived just now from the auth Worker? It only sends users without an active account, so a fresh fragment shown to
+// someone who already has one did not come from a real sign-in and is dropped (see renderDashboard).
+let freshContinue = false;
+if (location.hash.startsWith('#continue=')) {
+  const t = continueFromHash(location.hash);
+  if (t) {
+    memoContinue = { t, at: Date.now() };
+    freshContinue = true;
+    CONT.save(t);
+  }
+  try {
+    window.history.replaceState(null, '', location.pathname + location.search);
+  } catch {
+    /* the fragment stays visible; it is never sent anywhere */
+  }
+}
+const pendingContinue = () => CONT.load() ?? (memoContinue && Date.now() - memoContinue.at <= CONTINUE_TTL_MS ? memoContinue.t : null);
+const dropContinue = () => {
+  CONT.clear();
+  memoContinue = null;
+  freshContinue = false;
+};
+/** User-initiated only: returns to the auth origin, where /authorize re-validates the whole request. */
+function resumeClient() {
+  const href = continueUrl(AUTH, pendingContinue());
+  dropContinue();
+  if (href) location.assign(href);
+  else main();
+}
+const continueButton = () => el('button', { class: 'btn', type: 'button', onclick: resumeClient }, T('connectContinue'), icon('arrow'));
+
 const T = (key, vars = {}) => String(S[key]).replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m));
 let csrf = '';
 
@@ -102,11 +146,14 @@ async function main() {
     return;
   }
   if (!s.authenticated) {
+    // The sign-in that sent the user here is gone (session expired or signed out): it has to start again in the client.
+    const expired = pendingContinue() ? el('p', { class: 'notice' }, icon('info'), el('span', {}, T('connectSessionExpired'))) : '';
+    dropContinue();
     const btn = s.registrationOpen
       ? el('a', { class: 'btn', href: withLang(s.loginUrl) }, T('login'), icon('arrow'))
       : el('button', { class: 'btn', disabled: '' }, T('login'));
     const note = s.registrationOpen ? '' : el('p', { class: 'note' }, T('registrationClosed'));
-    show(panel(el('span', { class: 'usp-ico' }, icon('lock')), el('p', {}, T('loginIntro')), btn, note));
+    show(panel(expired, el('span', { class: 'usp-ico' }, icon('lock')), el('p', {}, T('loginIntro')), btn, note));
     return;
   }
   csrf = s.csrfToken;
@@ -126,6 +173,27 @@ async function renderDashboard() {
 
   const sections = [];
   sections.push(el('p', { class: 'notice' }, icon('info'), el('span', {}, T('betaNote'))));
+
+  // An AI client is waiting for this user to link a Telegram account.
+  const ready = (acc.accounts || []).some((a) => a.status === 'active');
+  if (freshContinue && ready) dropContinue();
+  freshContinue = false;
+  if (pendingContinue()) {
+    // A link started before a reload or Back is still pending on the server: resume it instead of starting another.
+    const pending = (acc.accounts || []).find((a) => a.status === 'pending');
+    const action = ready
+      ? continueButton()
+      : pending
+        ? el('button', { class: 'btn', type: 'button', onclick: () => resumeLink(pending.accountId) }, icon('qr'), T('connectResumeLink'))
+        : el('button', { class: 'btn', type: 'button', onclick: () => startLink() }, icon('qr'), T('linkQr'));
+    const dismiss = el('button', { class: 'btn btn-ghost btn-sm', type: 'button', onclick: () => { dropContinue(); renderDashboard(); } }, T('connectDismiss'));
+    const resume = card(T('connectTitle'),
+      el('p', {}, T(ready ? 'connectReady' : 'connectNeedAccount')),
+      el('div', { class: 'btn-row' }, action, dismiss)
+    );
+    resume.classList.add('span-2');
+    sections.push(resume);
+  }
 
   // Quota
   const u = usage.usage;
@@ -223,11 +291,22 @@ async function startLink() {
   }
 }
 
+async function resumeLink(accountId) {
+  try {
+    await pollLink(accountId, await pollOnce(accountId));
+  } catch (e) {
+    show(panel(errorBox(e), el('button', { class: 'btn secondary', type: 'button', onclick: main }, T('back'))));
+  }
+}
+
 async function pollLink(accountId, state) {
   let lastQr = '';
   for (;;) {
     if (state.state === 'active') {
-      show(panel(el('span', { class: 'usp-ico' }, icon('check')), el('h2', { class: 'card-title' }, T('linked')), el('button', { class: 'btn', type: 'button', onclick: main }, T('toCabinet'))));
+      const actions = pendingContinue()
+        ? el('div', { class: 'btn-row' }, continueButton(), el('button', { class: 'btn secondary', type: 'button', onclick: main }, T('toCabinet')))
+        : el('button', { class: 'btn', type: 'button', onclick: main }, T('toCabinet'));
+      show(panel(el('span', { class: 'usp-ico' }, icon('check')), el('h2', { class: 'card-title' }, T('linked')), pendingContinue() ? el('p', {}, T('connectReady')) : '', actions));
       return;
     }
     if (state.state === 'failed') {
@@ -304,6 +383,7 @@ async function revoke(g) {
 }
 
 async function logout() {
+  dropContinue();
   await api('/logout', { method: 'POST', body: {} }).catch(() => undefined);
   main();
 }
