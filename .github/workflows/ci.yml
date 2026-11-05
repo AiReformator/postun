@@ -20,14 +20,12 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "24"  # diagnostic: is the workerd pool crash Node-26-specific?
+          node-version-file: .nvmrc
           cache: npm
       - run: npm ci --no-audit --no-fund
       - run: npm run lint
       - run: npm run typecheck
-      # Known flake: the local workerd test runtime occasionally exits mid-file ("Worker exited unexpectedly")
-      # after deliberate stream-abort tests. Retry the suite once; a real failure fails both runs.
-      - run: npm test || (echo "test suite failed once; retrying" && npm test)
+      - run: npm test
       - run: npm run build
       - run: npm run check:secrets
       - run: npm run check:logging
