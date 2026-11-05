@@ -21,6 +21,17 @@
   document.addEventListener('click', function (e) {
     var a = e.target && e.target.closest ? e.target.closest('a[data-lang]') : null;
     if (a && LOCALES.indexOf(a.getAttribute('data-lang')) >= 0) set(a.getAttribute('data-lang'));
+    // The language menu is a <details>; close it on any click outside it.
+    var menu = document.querySelector('details.lang[open]');
+    if (menu && !menu.contains(e.target)) menu.removeAttribute('open');
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    var menu = document.querySelector('details.lang[open]');
+    if (!menu) return;
+    menu.removeAttribute('open');
+    var s = menu.querySelector('summary');
+    if (s) s.focus();
   });
 
   var current = document.documentElement.getAttribute('data-locale') || 'en';

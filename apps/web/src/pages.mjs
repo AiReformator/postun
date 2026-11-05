@@ -1,18 +1,21 @@
 import { connectAvailable, esc, statusTable } from './render.mjs';
 import { LOCALES, SITE, locale, translator } from '../i18n/index.mjs';
+import { BRAND_MARK, icon } from './icons.mjs';
 
 const REPO = 'https://github.com/AiReformator/postun';
 
 /** Page ids and their path below a locale prefix. */
 export const PAGES = { home: '/', privacy: '/privacy/', terms: '/terms/', cabinet: '/app/' };
 
-function layout(L, page, { title, body, script, description, head = '' }) {
+const DASHBOARD = (L) => `https://app.postun.org${L.prefix}/app/`;
+
+function layout(L, page, { title, body, script, description, head = '', headerCta = '' }) {
   const t = translator(L.dict);
   const href = (l) => `${l.prefix}${PAGES[page]}`;
   const alternates = LOCALES.map((l) => `<link rel="alternate" hreflang="${l.htmlLang}" href="${SITE}${href(l)}">`).join('\n');
   const switcher = LOCALES.map((l) =>
     l.code === L.code
-      ? `<a data-lang="${l.code}" href="${href(l)}" lang="${l.htmlLang}" hreflang="${l.htmlLang}" aria-current="true">${l.short}</a>`
+      ? `<a data-lang="${l.code}" href="${href(l)}" lang="${l.htmlLang}" hreflang="${l.htmlLang}" aria-current="true" title="${esc(l.dict.meta.languageName)}">${l.short}</a>`
       : `<a data-lang="${l.code}" href="${href(l)}" lang="${l.htmlLang}" hreflang="${l.htmlLang}" title="${esc(l.dict.meta.languageName)}">${l.short}</a>`
   ).join('');
   const home = `${L.prefix}/`;
@@ -21,6 +24,9 @@ function layout(L, page, { title, body, script, description, head = '' }) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f5f3ee" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0c0d0f" media="(prefers-color-scheme: dark)">
 <title>${esc(title)}</title>
 <meta name="description" content="${esc(description ?? t('meta.description'))}">
 <link rel="canonical" href="${SITE}${href(L)}">
@@ -31,16 +37,21 @@ ${alternates}
 <script src="/assets/host.js"></script>
 ${head}</head>
 <body>
-<header class="top"><div class="wrap row">
-<a class="brand" href="${home}">Postun <span class="badge">Beta</span></a>
-<nav><a href="${home}#how">${t('nav.how')}</a><a href="${home}#status">${t('nav.status')}</a><a href="${L.prefix}/privacy/">${t('nav.data')}</a><a href="${REPO}">GitHub</a></nav>
-<nav class="langs" aria-label="${esc(t('nav.language'))}">${switcher}</nav>
-</div></header>
-<main class="wrap">${body}</main>
-<footer class="wrap foot">
-<p>${t('footer.about')}</p>
-<p><a href="${REPO}">${t('footer.source')}</a> · <a href="${REPO}/blob/main/SECURITY.md">${t('footer.vuln')}</a> · <a href="${L.prefix}/terms/">${t('footer.terms')}</a> · <a href="${L.prefix}/privacy/">${t('footer.privacy')}</a></p>
-</footer>
+<a class="skip-link" href="#main">${t('nav.skip')}</a>
+<header class="site-header"><div class="wrap">
+<a class="brand" href="${home}">${BRAND_MARK}Postun <span class="badge">Beta</span></a>
+<nav class="site-nav"><a href="${home}#how">${t('nav.how')}</a><a href="${home}#status">${t('nav.status')}</a><a href="${home}#faq">${t('nav.faq')}</a><a href="${REPO}">GitHub</a></nav>
+<details class="lang"><summary aria-label="${esc(t('nav.language'))}: ${esc(L.dict.meta.languageName)}">${icon('globe')}${L.short}${icon('chevron')}</summary>
+<nav class="langs" aria-label="${esc(t('nav.language'))}">${switcher}</nav></details>
+${headerCta}</div></header>
+<main id="main" class="wrap">${body}</main>
+<footer class="site-footer"><div class="wrap foot-grid">
+<div class="foot-brand"><a class="brand" href="${home}">${BRAND_MARK}Postun</a><p>${t('footer.about')}</p></div>
+<div class="foot-col"><h2>${t('footer.product')}</h2><ul><li><a href="${home}#how">${t('nav.how')}</a></li><li><a href="${home}#status">${t('nav.status')}</a></li><li><a href="${home}#faq">${t('nav.faq')}</a></li><li><a href="${DASHBOARD(L)}">${t('nav.app')}</a></li></ul></div>
+<div class="foot-col"><h2>${t('footer.project')}</h2><ul><li><a href="${REPO}">${t('footer.source')}</a></li><li><a href="${REPO}/blob/main/SECURITY.md">${t('footer.vuln')}</a></li><li><a href="${REPO}/issues">${t('footer.issues')}</a></li></ul></div>
+<div class="foot-col"><h2>${t('footer.legal')}</h2><ul><li><a href="${L.prefix}/terms/">${t('footer.terms')}</a></li><li><a href="${L.prefix}/privacy/">${t('footer.privacy')}</a></li></ul></div>
+<p class="foot-note">${t('footer.issuesNote', { repo: REPO })}</p>
+</div></footer>
 ${script ? `<script src="${script}" defer></script>` : ''}
 </body>
 </html>
@@ -103,77 +114,120 @@ export function jsonLd(status, code = 'en') {
   return data.map((d) => `<script type="application/ld+json">${JSON.stringify(d).replace(/<\//g, '<\\/')}</script>\n`).join('');
 }
 
+
+/** AI clients in the hero diagram. Compatibility is claimed only from status.json: PASS → verified, anything else → in testing. */
+function clientList(status, t) {
+  const st = Object.fromEntries(status.features.map((f) => [f.id, f.status]));
+  const pill = (id) =>
+    st[id] === 'PASS' ? `<span class="pill pill-ok">${t('landing.clientVerified')}</span>` : `<span class="pill pill-warn">${t('landing.clientTesting')}</span>`;
+  return `<ul class="flow-clients">
+<li>ChatGPT ${pill('mcp_chatgpt')}</li>
+<li>Claude ${pill('mcp_claude_code')}</li>
+<li>Claude Code ${pill('mcp_claude_code')}</li>
+<li class="more">${t('landing.clientOther')}</li>
+</ul>`;
+}
+
 export function landing(status, code = 'en') {
   const L = locale(code);
   const t = translator(L.dict);
   const open = connectAvailable(status);
+  const quota = Number(status.quota_daily_success ?? 10000).toLocaleString(L.htmlLang);
+  const ctaLink = (cls = 'btn') => `<a class="${cls}" href="${DASHBOARD(L)}">${t('landing.cta')}${icon('arrow')}</a>`;
   const cta = open
-    ? `<a class="btn" href="https://app.postun.org${L.prefix}/app/">${t('landing.cta')}</a>`
-    : `<button class="btn" disabled aria-describedby="cta-note">${t('landing.cta')}</button>
-<p id="cta-note" class="note">${t('landing.ctaClosed')}</p>`;
+    ? `<div class="btn-row">${ctaLink()}<a class="btn secondary" href="#how">${t('landing.ctaSecondary')}</a></div>`
+    : `<div class="btn-row"><button class="btn" disabled aria-describedby="cta-note">${t('landing.cta')}</button><a class="btn secondary" href="#how">${t('landing.ctaSecondary')}</a></div>
+<p id="cta-note" class="note cta-note">${t('landing.ctaClosed')}</p>`;
+  const usp = (i, ico, extra = '', cls = 'usp') =>
+    `<li class="${cls}"><span class="usp-ico">${icon(ico)}</span><h3>${t(`landing.usp${i}Title`)}</h3>${extra}<p>${i === 6 ? t('landing.quota', { quota }) : t(`landing.usp${i}`)}</p></li>`;
+  const step = (i) => `<li><h3>${t(`landing.step${i}Title`)}</h3><p>${t(`landing.step${i}`)}</p></li>`;
   return layout(L, 'home', {
     title: t('landing.title'),
     description: t('landing.metaDescription'),
     head: jsonLd(status, code),
+    headerCta: open ? `<a class="btn header-cta" href="${DASHBOARD(L)}">${t('nav.app')}</a>` : '',
     body: `
 <section class="hero">
+<div class="hero-copy">
 <p class="eyebrow">${t('landing.eyebrow')}</p>
 <h1>Connected, not collected.</h1>
 <p class="tagline">${t('landing.subtitle')}</p>
 <p class="lead">${t('landing.lead')}</p>
 ${cta}
-</section>
-
-<section id="how" class="grid">
-<article><h2>${t('landing.step1Title')}</h2><p>${t('landing.step1')}</p></article>
-<article><h2>${t('landing.step2Title')}</h2><p>${t('landing.step2')}</p></article>
-<article><h2>${t('landing.step3Title')}</h2><p>${t('landing.step3')}</p></article>
-<article><h2>${t('landing.step4Title')}</h2><p>${t('landing.step4')}</p></article>
-</section>
-
-<section>
-<h2>${t('landing.canTitle')}</h2>
-<p>${t('landing.can')}</p>
-<p>${t('landing.quota', { quota: Number(status.quota_daily_success ?? 10000).toLocaleString(L.htmlLang) })}</p>
-</section>
-
-<section id="status">
-<h2>${t('landing.statusTitle')}</h2>
-<p class="note">${t('landing.statusNote', { updated: status.updated })}</p>
-${statusTable(status, L.dict)}
-</section>
-
-<section>
-<h2>${t('landing.dataTitle')}</h2>
-<ul>
-<li>${t('landing.data1')}</li>
-<li>${t('landing.data2')}</li>
-<li>${t('landing.data3')}</li>
-<li>${t('landing.data4')}</li>
+<ul class="chips">
+<li>${icon('check')}${t('landing.trust1')}</li>
+<li>${icon('check')}${t('landing.trust2')}</li>
+<li>${icon('check')}${t('landing.trust3')}</li>
 </ul>
-<p><a href="${L.prefix}/privacy/">${t('landing.dataMore')}</a></p>
+</div>
+<figure class="flow" aria-label="${esc(plainText(t('landing.flowLabel')))}">
+<div class="flow-node"><span class="flow-ico">${icon('phone')}</span><strong>${t('landing.flowYou')}</strong><small>${t('landing.flowYouNote')}</small></div>
+<div class="flow-link" aria-hidden="true"></div>
+<div class="flow-node flow-core"><span class="flow-ico">${BRAND_MARK}</span><strong>Postun</strong><small>${t('landing.flowCoreNote')}</small></div>
+<div class="flow-link" aria-hidden="true"></div>
+<p class="flow-caption">${icon('spark')}${t('landing.flowAi')}</p>
+${clientList(status, t)}
+</figure>
+</section>
+
+<section id="why" class="section">
+<div class="section-head"><h2>${t('landing.uspTitle')}</h2></div>
+<ul class="usp-grid">
+${usp(1, 'qr', '', 'usp usp-lead')}
+${usp(2, 'spark')}
+${usp(3, 'eye')}
+${usp(4, 'lock')}
+${usp(5, 'code')}
+${usp(6, 'gift', `<p class="usp-figure">${esc(quota)}</p>`)}
+</ul>
+</section>
+
+<section id="how" class="section">
+<div class="section-head"><h2>${t('landing.howTitle')}</h2></div>
+<ol class="steps">
+${[1, 2, 3, 4].map(step).join('\n')}
+</ol>
+</section>
+
+<section id="status" class="section">
+<div class="status-grid">
+<div class="status-intro section-head">
+<h2>${t('landing.statusTitle')}</h2>
+<p>${t('landing.can')}</p>
+<p class="note">${t('landing.statusNote', { updated: status.updated })}</p>
+</div>
+<div class="table-wrap">${statusTable(status, L.dict)}</div>
+</div>
 </section>
 
 <section id="open">
+<div class="section"><div class="band">
 <h2>${t('landing.openTitle')}</h2>
 <p>${t('landing.open', { repo: REPO })}</p>
+<a class="btn" href="${REPO}">${icon('code')}${t('landing.openCta')}</a>
+</div></div>
 </section>
 
-<section id="faq" class="faq">
-<h2>${t('faq.title')}</h2>
+<section id="faq" class="section faq">
+<div class="section-head"><h2>${t('faq.title')}</h2></div>
+<div class="faq-list">
 ${faqItems(status, code).map((f) => `<details><summary>${f.q}</summary><p>${f.html}</p></details>`).join('\n')}
+</div>
 </section>
 
-<section>
-<h2>${t('landing.feedbackTitle')}</h2>
-<p>${t('landing.feedback', { repo: REPO })}</p>
+<section class="section">
+<div class="final">
+<h2>${t('landing.finalTitle')}</h2>
+<p>${t('landing.finalText')}</p>
+${open ? ctaLink() : ''}
+</div>
 </section>`
   });
 }
 
 function translationNote(t) {
   const n = t('legal.translationNote');
-  return n ? `<p class="note">${n}</p>` : '';
+  return n ? `<p class="note translation">${n}</p>` : '';
 }
 
 export function privacy(code = 'en') {
@@ -182,15 +236,17 @@ export function privacy(code = 'en') {
   const rows = [1, 2, 3, 4, 5, 6, 7, 8, 9].map((i) => `<tr><td>${t(`privacy.r${i}a`)}</td><td>${t(`privacy.r${i}b`)}</td></tr>`).join('\n');
   return layout(L, 'privacy', {
     title: t('privacy.title'),
-    body: `<h1>${t('privacy.h1')}</h1>
+    body: `<article class="doc">
+<h1>${t('privacy.h1')}</h1>
 ${translationNote(t)}
 <p class="note">${t('privacy.edition')}</p>
-<table class="status"><thead><tr><th>${t('privacy.category')}</th><th>${t('privacy.policy')}</th></tr></thead><tbody>
+<div class="table-wrap"><table class="status"><thead><tr><th>${t('privacy.category')}</th><th>${t('privacy.policy')}</th></tr></thead><tbody>
 ${rows}
-</tbody></table>
+</tbody></table></div>
 <p>${t('privacy.p1')}</p>
 <p>${t('privacy.p2')}</p>
-<p>${t('privacy.p3')}</p>`
+<p>${t('privacy.p3')}</p>
+</article>`
   });
 }
 
@@ -199,11 +255,13 @@ export function terms(code = 'en') {
   const t = translator(L.dict);
   return layout(L, 'terms', {
     title: t('terms.title'),
-    body: `<h1>${t('terms.h1')}</h1>
+    body: `<article class="doc">
+<h1>${t('terms.h1')}</h1>
 ${translationNote(t)}
-<ul>
+<ul class="terms">
 ${[1, 2, 3, 4, 5, 6].map((i) => `<li>${t(`terms.t${i}`)}</li>`).join('\n')}
-</ul>`
+</ul>
+</article>`
   });
 }
 
@@ -213,10 +271,12 @@ export function cabinet(status, code = 'en') {
   return layout(L, 'cabinet', {
     title: t('cabinet.title'),
     script: '/assets/app.js',
-    body: `<h1>${t('cabinet.h1')} <span class="badge">Beta</span></h1>
-<div id="app" data-auth="https://auth.postun.org" data-registration="${status.registration_open ? 'open' : 'closed'}">
+    body: `<section class="cab">
+<div class="cab-head"><h1>${t('cabinet.h1')} <span class="badge">Beta</span></h1></div>
+<div id="app" data-auth="https://auth.postun.org" data-registration="${status.registration_open ? 'open' : 'closed'}" aria-live="polite">
 <p class="note">${t('cabinet.loading')}</p>
 <noscript><p>${t('cabinet.noscript')}</p></noscript>
-</div>`
+</div>
+</section>`
   });
 }
