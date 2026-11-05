@@ -6,6 +6,8 @@ import { decryptTelegramId } from '../src/keys';
 import { importAesKey } from '@postun/contracts';
 import { BOT_ID, TG_ISSUER, call, claims, cookiesFrom, count, db, installFetchMock, login, makeEnv, mock, newTelegram, resetDb } from './helpers';
 import type { Telegram } from './helpers';
+import { safeReturn } from '../src/login';
+import vectors from '../../../packages/contracts/test-vectors/return-targets.json';
 
 let tg: Telegram;
 beforeEach(async () => {
@@ -205,6 +207,20 @@ describe('sessions, registration gate, config', () => {
     expect(r.callback.headers.get('location')).toContain('/terms?return=');
     const evil = await login(makeEnv(), tg, { returnTo: 'https://evil.example/' });
     expect(evil.callback.headers.get('location')).toBe('https://auth.postun.org/terms');
+  });
+
+  it('terms without a session sends the user to sign in again with the same allow-listed return', async () => {
+    const r = await call(makeEnv(), `/terms?return=${encodeURIComponent('/authorize?x=1')}`);
+    expect(r.status).toBe(302);
+    expect(r.headers.get('location')).toBe(`https://auth.postun.org/login?return=${encodeURIComponent('/authorize?x=1')}`);
+    const evil = await call(makeEnv(), `/terms?return=${encodeURIComponent('https://evil.example/')}`);
+    expect(evil.headers.get('location')).toBe('https://auth.postun.org/login');
+  });
+
+  it('safeReturn agrees with the shared return-target vectors', () => {
+    for (const v of vectors.accept) expect(safeReturn(v), v).toBe(v);
+    for (const v of vectors.reject) expect(safeReturn(v), JSON.stringify(v)).toBeNull();
+    expect(safeReturn(`/authorize?${'a'.repeat(vectors.rejectLong - 11)}`)).toBeNull();
   });
 
   it('applies a strict CSP and security headers to HTML', async () => {

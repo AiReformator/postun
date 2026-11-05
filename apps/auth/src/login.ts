@@ -113,8 +113,9 @@ export async function handleCallback(env: Env, cfg: Config, req: Request, url: U
 
 export async function handleTermsGet(env: Env, cfg: Config, req: Request, url: URL, locale: Locale): Promise<Response> {
   const session = await getSession(env, cfg, req);
-  if (!session) return redirect(`${cfg.authIssuer}/login`);
   const ret = safeReturn(url.searchParams.get('return')) ?? '';
+  // Signed out (expired session): sign in again without losing the client's pending authorization request.
+  if (!session) return redirect(`${cfg.authIssuer}/login${ret ? `?return=${encodeURIComponent(ret)}` : ''}`);
   return html(
     page(
       locale,

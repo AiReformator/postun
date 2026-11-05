@@ -9,6 +9,7 @@ import { listAccounts, MAX_ACCOUNTS } from './accounts';
 import { scopeLabel, t } from './i18n';
 import type { Locale } from './i18n';
 import { loadKeys } from './keys';
+import { safeReturn } from './login';
 import { assertCsrf, getSession } from './sessions';
 import type { Session } from './sessions';
 
@@ -46,6 +47,12 @@ function loginRedirect(cfg: Config, url: URL): Response {
   return redirect(`${cfg.authIssuer}/login?return=${encodeURIComponent(url.pathname + url.search)}`);
 }
 
+/** Cabinet page in the user's language, carrying the pending /authorize request in the fragment as `continue`. */
+export function cabinetContinueUrl(cfg: Config, locale: Locale, ret: string): string {
+  const prefix = locale === 'en' ? '' : `/${locale}`;
+  return `${cfg.appOrigin}${prefix}/app/#continue=${encodeURIComponent(ret)}`;
+}
+
 function guard(session: Session, cfg: Config, locale: Locale): Response | null {
   void cfg;
   if (session.status !== 'active') return html(errorPage(locale, 'FORBIDDEN', t(locale, 'oauth.suspended')), 403);
@@ -70,6 +77,11 @@ async function showConsent(env: Env, cfg: Config, oauth: OAuthHelpers, req: Requ
 
   const accounts = (await listAccounts(env, session.principalId, t(locale, 'account.fallback'))).filter((a) => a.status === 'active');
   if (accounts.length === 0) {
+    // No linked Telegram account yet: send the user to the cabinet to link one without leaving the client's sign-in.
+    // Only the allow-listed /authorize path+query travels, in the URL fragment (never sent to a server or in Referer);
+    // on return GET /authorize re-validates every OAuth parameter, so nothing can be altered on the way.
+    const ret = safeReturn(url.pathname + url.search);
+    if (ret) return redirect(cabinetContinueUrl(cfg, locale, ret));
     return html(page(locale, t(locale, 'oauth.noAccountsTitle'), `<p>${t(locale, 'oauth.noAccounts', { url: cfg.appOrigin })}</p>`), 409);
   }
   const details = await oauth.describeConsent(request);

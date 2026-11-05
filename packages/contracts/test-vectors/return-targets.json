@@ -1,0 +1,26 @@
+{
+  "_comment": "Shared vectors for the /authorize return allow-list: apps/auth safeReturn (server) and apps/web safeContinue (cabinet) must agree on every case.",
+  "accept": [
+    "/authorize",
+    "/authorize?response_type=code&client_id=abc&redirect_uri=https%3A%2F%2Fchatgpt.com%2Fconnector%2Foauth%2Fx&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256&state=xyz&scope=accounts%3Aread&resource=https%3A%2F%2Fmcp.postun.org%2Fmcp",
+    "/authorize?lang=ru"
+  ],
+  "reject": [
+    "",
+    "/",
+    "/authorizeX",
+    "/authorize/x",
+    "/authorize#x",
+    "//evil.example/authorize",
+    "https://evil.example/authorize",
+    "/authorize?x=\\evil",
+    "/authorize?x=a b",
+    "/authorize?x=é",
+    "/authorize?x=\u0000",
+    "/app/",
+    "/login?return=/authorize",
+    "/AUTHORIZE",
+    " /authorize"
+  ],
+  "rejectLong": 4097
+}

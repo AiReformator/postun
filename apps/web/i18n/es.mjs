@@ -174,6 +174,7 @@ export default {
       'media:read': 'archivos'
     },
     linkErrors: {
+      CONFLICT: 'Ya hay una vinculación en curso en otra pestaña o ventana. Termínala allí o espera hasta 10 minutos y vuelve a intentarlo.',
       EXPIRED: 'El código QR ha caducado. Inicia la conexión de nuevo.',
       PASSWORD_INVALID: 'Contraseña de verificación en dos pasos incorrecta.',
       RATE_LIMITED: 'Telegram ha pedido que esperes. Inténtalo más tarde.',
@@ -213,6 +214,11 @@ export default {
     logout: 'Cerrar sesión',
     deleteProfile: 'Eliminar perfil',
     back: 'Atrás',
+    connectTitle: 'Conexión de un cliente de IA',
+    connectNeedAccount: 'Estás conectando un cliente de IA a Postun. Primero vincula una cuenta de Telegram con el código QR y luego vuelve a la conexión.',
+    connectReady: 'Tu cuenta de Telegram está vinculada. Vuelve a la conexión para elegir las cuentas y los permisos del cliente de IA.',
+    connectContinue: 'Continuar la conexión',
+    connectSessionExpired: 'Se agotó el tiempo para conectar el cliente de IA. Vuelve a iniciar la conexión en el propio cliente.',
     linked: 'Cuenta conectada.',
     toCabinet: 'Ir al panel',
     linkFailed: 'No se pudo completar la conexión.',

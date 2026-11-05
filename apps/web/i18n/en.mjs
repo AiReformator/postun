@@ -174,6 +174,7 @@ export default {
       'media:read': 'files'
     },
     linkErrors: {
+      CONFLICT: 'Linking is already in progress in another tab or window. Finish it there, or wait up to 10 minutes and try again.',
       EXPIRED: 'The QR code has expired. Start the connection again.',
       PASSWORD_INVALID: 'Incorrect Two-Step Verification password.',
       RATE_LIMITED: 'Telegram asked you to wait. Try again later.',
@@ -213,6 +214,11 @@ export default {
     logout: 'Sign out',
     deleteProfile: 'Delete profile',
     back: 'Back',
+    connectTitle: 'Connecting an AI client',
+    connectNeedAccount: 'You are connecting an AI client to Postun. First link a Telegram account with the QR code, then return to the connection.',
+    connectReady: 'Your Telegram account is linked. Return to the connection to choose accounts and permissions for the AI client.',
+    connectContinue: 'Continue connecting',
+    connectSessionExpired: 'The AI client connection timed out. Start connecting again in the client itself.',
     linked: 'Account connected.',
     toCabinet: 'Go to dashboard',
     linkFailed: 'Connection failed.',
