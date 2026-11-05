@@ -46,5 +46,9 @@
     }
   }
   if (want !== current && current === 'en') path = '/' + want + path;
-  if (path !== location.pathname) location.replace(path + location.search + location.hash);
+  if (path !== location.pathname) {
+    // Same-origin only: collapse '//' (no protocol-relative URL) and verify the origin before navigating.
+    var target = new URL(path.replace(/\/{2,}/g, '/') + location.search + location.hash, location.origin);
+    if (target.origin === location.origin) location.replace(target.pathname + target.search + target.hash);
+  }
 })();
