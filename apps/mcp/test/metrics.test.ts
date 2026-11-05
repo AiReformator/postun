@@ -27,11 +27,15 @@ describe('service metrics: one aggregate point per MCP tool call', () => {
     await call('list_dialogs', { account_id: 'not-a-uuid' });
 
     expect(m.points.map((p) => p.blobs)).toEqual([
-      [METRICS_SCHEMA, 'list_dialogs', 'ok'],
-      [METRICS_SCHEMA, 'list_dialogs', 'ok'],
-      [METRICS_SCHEMA, 'list_accounts', 'ok'],
-      [METRICS_SCHEMA, 'list_dialogs', 'INVALID_INPUT']
+      [METRICS_SCHEMA, 'list_dialogs', 'ok', ''],
+      [METRICS_SCHEMA, 'list_dialogs', 'ok', ''],
+      [METRICS_SCHEMA, 'list_accounts', 'ok', ''],
+      [METRICS_SCHEMA, 'list_dialogs', 'INVALID_INPUT', '']
     ]);
+    // double5 = items returned (counts only), double6 = retry-after seconds
+    expect(m.points.map((p) => p.doubles?.[5])).toEqual([0, 0, 0, 0]);
+    expect(m.points[0]?.doubles?.[4]).toBeGreaterThan(0);
+    expect(m.points[3]?.doubles?.[4]).toBe(0);
     expect(m.points.every((p) => p.indexes?.length === 1 && p.indexes[0] === METRIC_KIND.mcpCall)).toBe(true);
     // first counted call of the day and month, then not again; uncounted calls never claim first use
     expect(m.points.map((p) => [p.doubles?.[0], p.doubles?.[2], p.doubles?.[3]])).toEqual([

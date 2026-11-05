@@ -44,5 +44,13 @@ export const SCHEMA: readonly string[] = [
      message_id INTEGER NOT NULL,
      size INTEGER NOT NULL,
      expires_at INTEGER NOT NULL
+   )`,
+  // Per-account pacing state (token buckets, rolling counters) and the persisted Telegram flood cooldown.
+  // Counters only; no identifiers beyond the account id, no content.
+  `CREATE TABLE IF NOT EXISTS pacing(
+     account_id TEXT PRIMARY KEY,
+     state TEXT NOT NULL,
+     cooldown_until INTEGER NOT NULL DEFAULT 0,
+     updated_at INTEGER NOT NULL
    )`
 ];

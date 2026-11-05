@@ -123,6 +123,8 @@ Status comes from [apps/web/status.json](apps/web/status.json) (updated 2026-11-
 
 **Free beta limit:** 10,000 successful operations per UTC day per owner.
 
+**Telegram flood protection:** Postun's main protection is obeying Telegram itself: when Telegram answers FLOOD_WAIT, the wait is stored and no call reaches Telegram until it ends, so the account is never hammered into longer penalties. On top of that there is only a generous spam guard (about 120 calls a minute and 5,000 an hour per account), channel search and global search are spaced to about one per second (short queue, not a refusal), and deep paging through dialogs or global search is bounded. Heavy normal work, such as reading dozens of channels with thousands of messages, is not slowed down. Your AI is told the rules and gets a `limits` object in every result. Telegram publishes no numeric limits, so these numbers are initial and tunable (see [docs/02_ARCHITECTURE.md](docs/02_ARCHITECTURE.md)).
+
 ## Self-hosting
 
 Running Postun in your own Cloudflare account, with your own keys, is **planned** and described in [docs/04_DEPLOYMENT.md](docs/04_DEPLOYMENT.md) and [docs/DEPLOY_RUNBOOK.md](docs/DEPLOY_RUNBOOK.md). It is not yet a polished, supported install path. The goal is that the service does not depend on postun.org being up.

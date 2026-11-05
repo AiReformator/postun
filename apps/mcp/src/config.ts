@@ -2,6 +2,7 @@ import {
   importAesKey, importHmacKey, maxFileBytesFromEnv, PostunError, quotaPolicyFromEnv, requireConfig, type QuotaPolicy
 } from '@postun/contracts';
 import type { Env } from './env';
+import { pacingFromEnv, type PacingConfig } from './do/limiter';
 
 export interface Config {
   appEnv: string;
@@ -10,6 +11,7 @@ export interface Config {
   quota: QuotaPolicy;
   maxFileBytes: number;
   channelsEnabled: boolean;
+  pacing: PacingConfig;
 }
 
 /** Non-secret configuration. Missing or invalid values fail closed with CONFIG_MISSING. */
@@ -28,7 +30,8 @@ export function loadConfig(env: Env): Config {
       issuer: issuer.toString().replace(/\/$/, ''),
       quota: quotaPolicyFromEnv(env),
       maxFileBytes: maxFileBytesFromEnv(env),
-      channelsEnabled: env.FEATURE_CHANNELS === 'on'
+      channelsEnabled: env.FEATURE_CHANNELS === 'on',
+      pacing: pacingFromEnv(env as unknown as Record<string, string | undefined>)
     };
   } catch {
     throw new PostunError('CONFIG_MISSING');

@@ -102,8 +102,8 @@ export async function selectAdapter(env: Env): Promise<TelegramAdapter> {
   if (env.TELEGRAM_ADAPTER === 'mtcute') {
     const apiId = Number(env.TELEGRAM_API_ID);
     if (!Number.isSafeInteger(apiId) || apiId <= 0 || !env.TELEGRAM_API_HASH) throw new PostunError('CONFIG_MISSING');
-    const { MtcuteAdapter } = await import('./mtcute');
-    return new MtcuteAdapter(apiId, env.TELEGRAM_API_HASH);
+    const { MtcuteAdapter, floodOptionsFromEnv } = await import('./mtcute');
+    return new MtcuteAdapter(apiId, env.TELEGRAM_API_HASH, floodOptionsFromEnv(env));
   }
   throw new PostunError('CONFIG_MISSING');
 }

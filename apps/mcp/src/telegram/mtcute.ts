@@ -5,7 +5,7 @@
  */
 import { Long } from '@mtcute/core';
 import type { Document, Message, Peer, Photo, tl } from '@mtcute/core';
-import { MemoryStorage, TelegramClient, WebCryptoProvider, WebSocketTransport } from '@mtcute/web';
+import { MemoryStorage, networkMiddlewares, TelegramClient, WebCryptoProvider, WebSocketTransport } from '@mtcute/web';
 import { PostunError } from '@postun/contracts';
 // Workers forbid compiling WASM from bytes at runtime; a statically imported module is allowed.
 import wasmModule from '../../../../node_modules/@mtcute/wasm/mtcute.wasm';
@@ -22,8 +22,43 @@ const ALIGN = 4096;
  * signInQr detects the scan through `updateLoginToken`; with `disableUpdates: true` the scan is only noticed when
  * the ~30 s login token is re-exported. Data sessions keep updates disabled.
  */
-function makeClient(apiId: number, apiHash: string, link = false): TelegramClient {
+/**
+ * Flood handling of the data client. mtcute's default would sleep up to 10 s and retry up to 5 times, hiding
+ * FLOOD_WAIT from Postun and hammering Telegram. Here only short waits are slept through and at most once; anything
+ * longer surfaces as RATE_LIMITED, which the Durable Object stores as a per-account cooldown.
+ */
+export interface FloodOptions {
+  /** Longest FLOOD_WAIT slept through inside a call, in seconds. */
+  autoSleepSeconds: number;
+  /** Retries after such a short wait. */
+  maxRetries: number;
+}
+
+export const FLOOD_DEFAULTS: Readonly<FloodOptions> = { autoSleepSeconds: 3, maxRetries: 1 };
+
+function boundedInt(raw: string | undefined, def: number, min: number, max: number): number {
+  if (raw === undefined || raw.trim() === '') return def;
+  const n = Number(raw);
+  return Number.isSafeInteger(n) && n >= min && n <= max ? n : def;
+}
+
+/** Initial tunable guesses; invalid values fall back to the defaults. */
+export function floodOptionsFromEnv(env: { FLOOD_AUTO_SLEEP_SECONDS?: string; FLOOD_AUTO_RETRIES?: string }): FloodOptions {
+  return {
+    autoSleepSeconds: boundedInt(env.FLOOD_AUTO_SLEEP_SECONDS, FLOOD_DEFAULTS.autoSleepSeconds, 0, 60),
+    maxRetries: boundedInt(env.FLOOD_AUTO_RETRIES, FLOOD_DEFAULTS.maxRetries, 0, 5)
+  };
+}
+
+export function floodMiddlewares(f: FloodOptions): ReturnType<typeof networkMiddlewares.basic> {
+  return networkMiddlewares.basic({
+    floodWaiter: { maxWait: f.autoSleepSeconds * 1000, maxRetries: f.maxRetries, store: false, onBeforeWait: () => undefined }
+  });
+}
+
+function makeClient(apiId: number, apiHash: string, link = false, flood: FloodOptions = FLOOD_DEFAULTS): TelegramClient {
   return new TelegramClient({
+    network: { middlewares: floodMiddlewares(flood) },
     apiId,
     apiHash,
     storage: new MemoryStorage(),
@@ -289,7 +324,7 @@ export class MtcuteSession implements TelegramSession {
 }
 
 export class MtcuteAdapter implements TelegramAdapter {
-  constructor(private readonly apiId: number, private readonly apiHash: string) {}
+  constructor(private readonly apiId: number, private readonly apiHash: string, private readonly flood: FloodOptions = FLOOD_DEFAULTS) {}
 
   startQrLink(hooks: LinkHooks): LinkRun {
     const tg = makeClient(this.apiId, this.apiHash, true);
@@ -313,7 +348,7 @@ export class MtcuteAdapter implements TelegramAdapter {
   }
 
   async open(session: string): Promise<TelegramSession> {
-    const tg = makeClient(this.apiId, this.apiHash);
+    const tg = makeClient(this.apiId, this.apiHash, false, this.flood);
     try {
       await tg.importSession(session, true);
       await tg.connect();

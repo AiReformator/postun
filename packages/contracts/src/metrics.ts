@@ -31,6 +31,12 @@ export interface McpCallMetric {
   durationMs: number;
   firstOfDay: boolean;
   firstOfMonth: boolean;
+  /** Refusal reason vocabulary (FLOOD_WAIT, LOCAL_PACING, ...); empty when none. Never free text. */
+  reason?: string;
+  /** Items returned (messages, dialogs or channels); 0 on errors. */
+  items?: number;
+  /** Seconds Telegram or Postun asked to wait; 0 when none. */
+  retryAfterSeconds?: number;
 }
 
 /** control_snapshot doubles, in column order (double1 … double12). */
@@ -53,11 +59,14 @@ export type ControlSnapshot = Record<(typeof CONTROL_SNAPSHOT_FIELDS)[number], n
 
 const num = (v: number): number => (Number.isFinite(v) && v >= 0 ? v : 0);
 
+const REASON_RE = /^[A-Z_]{1,32}$/;
+
 export function mcpCallPoint(m: McpCallMetric) {
   return {
     indexes: [METRIC_KIND.mcpCall],
-    blobs: [METRICS_SCHEMA, m.tool, m.outcome],
-    doubles: [1, Math.round(num(m.durationMs)), m.firstOfDay ? 1 : 0, m.firstOfMonth ? 1 : 0]
+    // Columns are append-only within schema v1: blob4 = reason, double5 = items, double6 = retry-after seconds.
+    blobs: [METRICS_SCHEMA, m.tool, m.outcome, REASON_RE.test(m.reason ?? '') ? (m.reason as string) : ''],
+    doubles: [1, Math.round(num(m.durationMs)), m.firstOfDay ? 1 : 0, m.firstOfMonth ? 1 : 0, Math.round(num(m.items ?? 0)), Math.round(num(m.retryAfterSeconds ?? 0))]
   };
 }
 

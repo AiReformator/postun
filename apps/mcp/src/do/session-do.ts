@@ -8,7 +8,7 @@ import { DurableObject } from 'cloudflare:workers';
 import {
   AdminProjectionSchema, fromBase64Url, fromUtf8, hmac, HTTP_STATUS, jsonResponse, normalizeScopes, openSession, PostunError, randomToken,
   retainedDays, retainedMonths, rewrapSession, sealSession, sha256, timingSafeEqual, toBase64Url, toSafeError, TOOL_SCOPE, utcDay, utcMonth, utf8,
-  type ErrorCode, type GrantRecord, type LinkState, type SessionEnvelope, type ToolName, type UsageView
+  type GrantRecord, type LinkState, type SafeError, type SessionEnvelope, type ToolName, type UsageView
 } from '@postun/contracts';
 import { signFileCapability } from '../capability';
 import type { Config, Keys } from '../config';
@@ -19,7 +19,8 @@ import { TOOL_INPUT } from '../schemas';
 import type { LinkRun, TelegramAdapter, TelegramSession } from '../telegram/adapter';
 import { selectAdapter } from '../telegram/adapter';
 import { mapTelegramError } from '../telegram/errors';
-import { assertFeatureEnabled, parseToolArgs, runTool, type JsonValue } from '../tools';
+import { assertFeatureEnabled, parseToolArgs, preflightTool, runTool, type JsonValue } from '../tools';
+import { addMessages, admit, limitsView, messageBudgetWait, parsePacing, type CallKind, type PacingState } from './limiter';
 import { KeyedLocks } from './locks';
 import { SCHEMA } from './schema';
 
@@ -32,6 +33,11 @@ const ALARM_PERIOD_MS = 30 * 60 * 1000;
 const SWEEP_PERIOD_MS = 6 * 60 * 60 * 1000;
 const MAX_REVOKE_BACKOFF_MS = 6 * 60 * 60 * 1000;
 const MAX_LIVE_INTENTS = 50;
+/** Tools whose results are lists of messages; their size is counted against the hourly message budget. */
+const MESSAGE_TOOLS: ReadonlySet<ToolName> = new Set<ToolName>(['get_history', 'get_channel_posts', 'search_messages']);
+const FLOOD_HINT = 'Telegram slowed this account down. Wait retryAfterSeconds, then continue with the same cursor. Do not retry immediately.';
+const COOLDOWN_STALE_MS = 25 * 60 * 60 * 1000;
+const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 /**
  * Idempotency semantics (docs/03 section 6, docs/05 Q-02). A committed operation_id may be replayed against Telegram
  * (results are never stored) for at most FREE_REPLAYS further calls within the TTL; those are not counted again.
@@ -54,7 +60,7 @@ export interface ToolCallRequest {
 /** `json` is the serialised result: keeps the RPC type shallow and the payload opaque to the transport. */
 export type ToolOutcome =
   | { ok: true; json: string; usage?: FirstUse }
-  | { ok: false; code: ErrorCode; message: string; retryAfterSeconds?: number };
+  | ({ ok: false } & SafeError);
 
 /** For aggregate service metrics only: whether a counted call was this principal's first in the UTC day / month. */
 export interface FirstUse {
@@ -312,11 +318,24 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
     return this.q<{ success_count: number }>('SELECT success_count FROM usage_day WHERE day = ?', day)[0]?.success_count ?? 0;
   }
 
-  /** True when the month or the day limit (if any) is reached, counting in-flight reservations. */
-  private overQuota(cfg: Config, month: string, day: string): boolean {
-    if (this.usageRow(month).success_count + (this.reserved.get(month) ?? 0) >= cfg.quota.monthlySuccessLimit) return true;
+  /** Which limit (if any) is reached, counting in-flight reservations. Monthly wins when both are. */
+  private overQuota(cfg: Config, month: string, day: string): PostunError | null {
+    if (this.usageRow(month).success_count + (this.reserved.get(month) ?? 0) >= cfg.quota.monthlySuccessLimit) {
+      return new PostunError('QUOTA_EXCEEDED', undefined, {
+        reason: 'MONTHLY_QUOTA',
+        message: 'Monthly beta quota exhausted',
+        hint: 'The monthly allowance of successful calls is used up. It renews at the start of the next UTC month.'
+      });
+    }
     const daily = cfg.quota.dailySuccessLimit;
-    return daily !== null && this.dayCount(day) + (this.reservedDay.get(day) ?? 0) >= daily;
+    if (daily !== null && this.dayCount(day) + (this.reservedDay.get(day) ?? 0) >= daily) {
+      return new PostunError('QUOTA_EXCEEDED', undefined, {
+        reason: 'DAILY_QUOTA',
+        message: 'Daily beta quota exhausted',
+        hint: 'The daily allowance of successful calls is used up. It renews at 00:00 UTC.'
+      });
+    }
+    return null;
   }
 
   /** Synchronous (no await inside): the check and the reservation are one atomic step. */
@@ -334,7 +353,8 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
         if (row.req_hash !== reqHash) throw new PostunError('CONFLICT');
         if (row.state === 'committed') {
           // A replay never bypasses the quota, even though it is not counted again.
-          if (this.overQuota(cfg, month, day)) throw new PostunError('QUOTA_EXCEEDED');
+          const over = this.overQuota(cfg, month, day);
+          if (over) throw over;
           if (row.replays < FREE_REPLAYS) {
             this.run('UPDATE idem SET replays = replays + 1 WHERE operation_id = ?', op);
             return { counted: false, month, day, op };
@@ -349,7 +369,8 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
       }
       if (row) this.run('DELETE FROM idem WHERE operation_id = ?', op);
     }
-    if (this.overQuota(cfg, month, day)) throw new PostunError('QUOTA_EXCEEDED');
+    const overNow = this.overQuota(cfg, month, day);
+    if (overNow) throw overNow;
     this.reserved.set(month, (this.reserved.get(month) ?? 0) + 1);
     this.reservedDay.set(day, (this.reservedDay.get(day) ?? 0) + 1);
     if (op !== null) {
@@ -396,6 +417,80 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
     this.run('UPDATE usage SET out_bytes = out_bytes + ?, revision = ? WHERE month = ?', n, this.nextRevision(), month);
   }
 
+  // ------------------------------------------------------------------ pacing and flood cooldown
+
+  private pacingRow(accountId: string): { state: PacingState; cooldownUntil: number } {
+    const r = this.q<{ state: string; cooldown_until: number }>('SELECT state, cooldown_until FROM pacing WHERE account_id = ?', accountId)[0];
+    return { state: parsePacing(r?.state ?? null), cooldownUntil: r?.cooldown_until ?? 0 };
+  }
+
+  private savePacing(accountId: string, state: PacingState, now: number): void {
+    this.run(
+      `INSERT INTO pacing(account_id, state, cooldown_until, updated_at) VALUES(?, ?, 0, ?)
+       ON CONFLICT(account_id) DO UPDATE SET state = excluded.state, updated_at = excluded.updated_at`,
+      accountId, JSON.stringify(state), now
+    );
+    this.ensureAlarm();
+  }
+
+  /** Refuses before any client is opened while a Telegram FLOOD_WAIT cooldown is stored for the account. */
+  private assertNoCooldown(accountId: string, now: number): void {
+    const until = this.pacingRow(accountId).cooldownUntil;
+    if (until > now) throw new PostunError('RATE_LIMITED', Math.max(1, Math.ceil((until - now) / 1000)), { reason: 'FLOOD_WAIT', hint: FLOOD_HINT });
+  }
+
+  /** Persists a Telegram flood wait (plus a safety margin) so the next calls do not reconnect and hit Telegram again. */
+  private noteFlood(accountId: string, e: unknown, cfg: Config): void {
+    if (!(e instanceof PostunError) || e.code !== 'RATE_LIMITED' || e.reason !== 'FLOOD_WAIT') return;
+    const now = Date.now();
+    const until = now + ((e.retryAfterSeconds ?? 1) + cfg.pacing.floodMarginSeconds) * 1000;
+    this.run(
+      `INSERT INTO pacing(account_id, state, cooldown_until, updated_at) VALUES(?, ?, ?, ?)
+       ON CONFLICT(account_id) DO UPDATE SET cooldown_until = MAX(cooldown_until, excluded.cooldown_until), updated_at = excluded.updated_at`,
+      accountId, JSON.stringify(parsePacing(null)), until, now
+    );
+    this.ensureAlarm();
+  }
+
+  /** Local pacing for one Telegram-touching call. Returns a short smoothing delay (at most about 1 s) or throws. */
+  private admitCall(accountId: string, tool: ToolName, kind: CallKind, cfg: Config, now: number): number {
+    const { state } = this.pacingRow(accountId);
+    if (MESSAGE_TOOLS.has(tool)) {
+      const wait = messageBudgetWait(state, cfg.pacing, now);
+      if (wait !== null) {
+        throw new PostunError('RATE_LIMITED', wait, {
+          reason: 'MESSAGE_BUDGET',
+          hint: 'This account already returned its hourly share of messages. Wait retryAfterSeconds, then continue with the same cursor.'
+        });
+      }
+    }
+    const a = admit(state, cfg.pacing, kind, now);
+    if (!a.ok) {
+      const hints = {
+        LOCAL_PACING: 'Calls for this account are too frequent. Wait retryAfterSeconds, then continue at the pace shown in limits.paceSeconds.',
+        HOURLY_CAP: 'The hourly call allowance for this account is used up. Wait retryAfterSeconds before continuing.',
+        LOOKUP_CAP: 'Expensive lookups (search_channels, search_messages without peer) are spaced out to protect the account. Wait retryAfterSeconds, or search inside one chat by passing peer.',
+        MESSAGE_BUDGET: 'Hourly message budget used up. Wait retryAfterSeconds.'
+      } as const;
+      throw new PostunError('RATE_LIMITED', a.retryAfterSeconds, { reason: a.reason, hint: hints[a.reason] });
+    }
+    this.savePacing(accountId, a.state, now);
+    return a.delayMs;
+  }
+
+  /** Counts the messages a successful call returned and builds the limits object for its result. */
+  private finishCall(accountId: string, tool: ToolName, kind: CallKind, data: JsonValue, cfg: Config): JsonValue {
+    const now = Date.now();
+    let { state } = this.pacingRow(accountId);
+    const msgs = MESSAGE_TOOLS.has(tool) && data !== null && typeof data === 'object' && !Array.isArray(data) ? data.messages : undefined;
+    if (Array.isArray(msgs) && msgs.length > 0) {
+      state = addMessages(state, msgs.length, now);
+      this.savePacing(accountId, state, now);
+    }
+    if (data === null || typeof data !== 'object' || Array.isArray(data)) return data;
+    return { ...data, limits: limitsView(state, cfg.pacing, now, kind, MESSAGE_TOOLS.has(tool)) as unknown as JsonValue };
+  }
+
   // ------------------------------------------------------------------ MCP tool execution
 
   async callTool(req: ToolCallRequest): Promise<ToolOutcome> {
@@ -435,33 +530,47 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
     let committed = false;
     try {
       const accId = accountId as string;
+      // Refusals below happen before any Telegram client is opened; the reservation is released in `finally`.
+      const t0 = Date.now();
+      this.assertNoCooldown(accId, t0);
+      await preflightTool({ principalId: req.principalId, accountId: accId, cursorKey: keys.cursor, cfg }, req.tool, req.args);
+      const kind: CallKind = req.tool === 'search_channels' || (req.tool === 'search_messages' && (args as { peer?: string }).peer === undefined) ? 'lookup' : 'normal';
+      const delayMs = this.admitCall(accId, req.tool, kind, cfg, Date.now()); // fresh clock: preflight awaited
+      if (delayMs > 0) await sleep(delayMs);
       const unlock = await this.locks.acquire(accId, LOCK_WAIT_MS);
       let data: JsonValue;
       try {
         // Deny / suspend / disconnect may have happened while we waited.
         this.authorize(auth);
-        data = await this.withSession(accId, keys, async (session) => {
-          try {
-            return await runTool(
-              {
-                principalId: req.principalId,
-                accountId: accId,
-                session,
-                cursorKey: keys.cursor,
-                cfg,
-                globalSearchAllowed: this.chatAllowlist(grant) === null,
-                issueMedia: (peerId, messageId, size) => this.issueIntent(grant.grant_id, accId, peerId, messageId, size, keys)
-              },
-              req.tool as Exclude<ToolName, 'list_accounts'>,
-              req.args
-            );
-          } catch (e) {
-            throw mapTelegramError(e);
-          }
-        });
+        this.assertNoCooldown(accId, Date.now()); // a call queued behind a flooded one must not reconnect
+        try {
+          data = await this.withSession(accId, keys, async (session) => {
+            try {
+              return await runTool(
+                {
+                  principalId: req.principalId,
+                  accountId: accId,
+                  session,
+                  cursorKey: keys.cursor,
+                  cfg,
+                  globalSearchAllowed: this.chatAllowlist(grant) === null,
+                  issueMedia: (peerId, messageId, size) => this.issueIntent(grant.grant_id, accId, peerId, messageId, size, keys)
+                },
+                req.tool as Exclude<ToolName, 'list_accounts'>,
+                req.args
+              );
+            } catch (e) {
+              throw mapTelegramError(e);
+            }
+          });
+        } catch (e) {
+          this.noteFlood(accId, e, cfg);
+          throw e;
+        }
       } finally {
         unlock();
       }
+      data = this.finishCall(accId, req.tool, kind, data, cfg);
       const usage = this.commit(reservation);
       committed = true;
       return usage ? { data, usage } : { data };
@@ -601,6 +710,9 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
       accountId = row.account_id;
       unlock = await this.locks.acquire(accountId, LOCK_WAIT_MS);
       this.assertTransferAllowed(row, cfg);
+      this.assertNoCooldown(accountId, Date.now()); // a flooded account must not reconnect for a download either
+      const floodAccount = accountId;
+      const noteFlood = (err: unknown) => this.noteFlood(floodAccount, err, cfg);
 
       const acc = this.account(accountId);
       const payload = await this.unseal(accountId, acc?.envelope ?? '', keys);
@@ -611,7 +723,9 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
       try {
         media = await session.openMediaStream(row.peer_id, row.message_id, { start: range.start, end: range.end });
       } catch (e) {
-        throw mapTelegramError(e);
+        const mapped = mapTelegramError(e);
+        noteFlood(mapped);
+        throw mapped;
       }
       if (media.size !== row.size) {
         await media.cancel();
@@ -650,6 +764,7 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
               }
             } catch (e) {
               const err = e instanceof PostunError ? e : mapTelegramError(e);
+              noteFlood(err);
               controller.error(err);
               await media.cancel().catch(() => undefined);
               await cleanup();
@@ -828,6 +943,7 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
     // Not usable from this moment: running calls and transfers see it at their next check,
     // which also frees the account lock that the logout below has to wait for.
     this.run('DELETE FROM transfers WHERE account_id = ?', accountId);
+    this.run('DELETE FROM pacing WHERE account_id = ?', accountId);
     if (before.envelope) this.run("UPDATE accounts SET status = 'revocation_pending', status_at = ? WHERE account_id = ?", Date.now(), accountId);
     const unlock = await this.locks.acquire(accountId, LOCK_WAIT_MS);
     try {
@@ -963,6 +1079,7 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
       this.run('DELETE FROM usage_day');
       this.run('DELETE FROM idem');
       this.run('DELETE FROM transfers');
+      this.run('DELETE FROM pacing');
       this.run('DELETE FROM accounts WHERE envelope IS NULL');
       this.run("UPDATE accounts SET label = '' WHERE envelope IS NOT NULL");
       this.run("DELETE FROM meta WHERE k NOT IN ('principal', 'deleted', 'revision', 'revoke_attempts')");
@@ -1000,6 +1117,7 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
     const now = Date.now();
     this.run('DELETE FROM idem WHERE expires_at <= ?', now);
     this.run('DELETE FROM transfers WHERE expires_at <= ?', now);
+    this.run('DELETE FROM pacing WHERE cooldown_until <= ? AND updated_at <= ?', now, now - COOLDOWN_STALE_MS);
     this.run("DELETE FROM accounts WHERE status = 'pending' AND envelope IS NULL AND created_at <= ?", now - PENDING_TTL_MS);
     const keep = retainedMonths(new Date(now));
     this.run(`DELETE FROM usage WHERE month NOT IN (${keep.map(() => '?').join(',')})`, ...keep);
