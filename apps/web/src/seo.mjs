@@ -25,7 +25,7 @@ export function llmsTxt(status) {
   const names = { en: 'English (default)', ru: 'Russian', es: 'Spanish', pt: 'Portuguese (Brazil)', de: 'German' };
   return `# Postun
 
-> Postun Beta is an open-source, read-only MCP server (a Telegram MCP connector) that links your own Telegram account to ChatGPT, Claude / Claude Code and other MCP clients through OAuth. You choose which Telegram accounts and which read scopes (accounts, dialogs, history and search, public channels, files) each AI client gets, and you can revoke access at any time. It is not a Telegram bot and it cannot send, edit or delete messages.
+> Postun Beta is an open-source MCP server (a Telegram MCP connector) that works in transit: it passes your messages to your AI on request and does not store, log or view them. It links your own Telegram account to ChatGPT, Claude / Claude Code and other MCP clients through OAuth. You choose which Telegram accounts and which read scopes (accounts, dialogs, history and search, public channels, files) each AI client gets, and you can revoke access at any time. It is not a Telegram bot and it cannot send, edit or delete messages.
 
 ## Key facts
 
