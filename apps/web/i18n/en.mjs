@@ -88,7 +88,8 @@ export default {
     r9a: 'Phone number, username, file names',
     r9b: 'Not stored by default',
     p1: 'The Telegram ID is stored only as an HMAC index and an encrypted value. Sessions are encrypted with AES-256-GCM using a separate key per account. Keys are kept in Cloudflare secrets, not in the repository.',
-    p2: 'Cloudflare and IDP may keep their own infrastructure metadata; Postun does not promise that it is absent. The product administrator has no access to messages or sessions; the infrastructure administrator technically remains part of the trust model.'
+    p2: 'Cloudflare and IDP may keep their own infrastructure metadata; Postun does not promise that it is absent. The product administrator has no access to messages or sessions; the infrastructure administrator technically remains part of the trust model.',
+    p3: 'Cloudflare Workers logging (observability, logs, tail, logpush) is disabled for every Postun service and verified automatically on every build. The code never writes content to logs: only constant service messages without data are allowed.'
   },
   terms: {
     title: 'Beta terms — Postun Beta',
@@ -97,7 +98,8 @@ export default {
     t2: 'By connecting an account, you confirm that you are taking part in an experiment and that the data you select is passed to your AI provider.',
     t3: 'We do not promise absolute confidentiality or recovery of deleted data.',
     t4: 'The beta is free; the operation limit is set by configuration and may change. There are no payments in the beta.',
-    t5: 'Do not upload other people\'s data unless you have the right to process it. Use a separate account for testing.'
+    t5: 'Do not upload other people\'s data unless you have the right to process it. Use a separate account for testing.',
+    t6: 'Postun keeps no logs of conversations or requests: message content, search queries, files and tool results are never stored or written to logs. They exist only in memory while being delivered to your AI client; once delivered, they cannot be retrieved from Postun.'
   },
   cabinet: { title: 'Dashboard — Postun Beta', h1: 'Dashboard', loading: 'Loading…', noscript: 'The dashboard requires JavaScript.' },
   app: {

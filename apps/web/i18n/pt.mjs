@@ -88,7 +88,8 @@ export default {
     r9a: 'Número de telefone, username, nomes de arquivos',
     r9b: 'Não são armazenados por padrão',
     p1: 'O Telegram ID é armazenado apenas como índice HMAC e como valor criptografado. As sessões são criptografadas com AES-256-GCM, com uma chave separada por conta. As chaves ficam nos segredos do Cloudflare, não no repositório.',
-    p2: 'O Cloudflare e o IDP podem manter seus próprios metadados de infraestrutura; o Postun não promete que eles não existam. O administrador do produto não tem acesso às conversas nem às sessões; o administrador da infraestrutura continua, tecnicamente, fazendo parte do modelo de confiança.'
+    p2: 'O Cloudflare e o IDP podem manter seus próprios metadados de infraestrutura; o Postun não promete que eles não existam. O administrador do produto não tem acesso às conversas nem às sessões; o administrador da infraestrutura continua, tecnicamente, fazendo parte do modelo de confiança.',
+    p3: 'O registro do Cloudflare Workers (observability, logs, tail, logpush) está desativado em todos os serviços do Postun e é verificado automaticamente a cada build. O código nunca grava conteúdo em logs: apenas mensagens de serviço constantes, sem dados, são permitidas.'
   },
   terms: {
     title: 'Termos do beta — Postun Beta',
@@ -97,7 +98,8 @@ export default {
     t2: 'Ao conectar uma conta, você confirma que participa de um experimento e que os dados selecionados serão repassados ao seu provedor de IA.',
     t3: 'Não prometemos confidencialidade absoluta nem a recuperação de dados excluídos.',
     t4: 'O beta é gratuito; o limite de operações é definido por configuração e pode mudar. Não há pagamentos no beta.',
-    t5: 'Não carregue dados de terceiros sem ter o direito de tratá-los. Para testes, use uma conta separada.'
+    t5: 'Não carregue dados de terceiros sem ter o direito de tratá-los. Para testes, use uma conta separada.',
+    t6: 'O Postun não mantém registros de conversas nem de solicitações: o conteúdo das mensagens, as buscas, os arquivos e os resultados das ferramentas nunca são armazenados nem gravados em logs. Eles existem apenas na memória durante a entrega ao seu cliente de IA; depois de entregues, não podem ser recuperados do Postun.'
   },
   cabinet: { title: 'Painel — Postun Beta', h1: 'Painel', loading: 'Carregando…', noscript: 'O painel exige JavaScript.' },
   app: {

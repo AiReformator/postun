@@ -120,7 +120,8 @@ ${translationNote(t)}
 ${rows}
 </tbody></table>
 <p>${t('privacy.p1')}</p>
-<p>${t('privacy.p2')}</p>`
+<p>${t('privacy.p2')}</p>
+<p>${t('privacy.p3')}</p>`
   });
 }
 
@@ -132,7 +133,7 @@ export function terms(code = 'en') {
     body: `<h1>${t('terms.h1')}</h1>
 ${translationNote(t)}
 <ul>
-${[1, 2, 3, 4, 5].map((i) => `<li>${t(`terms.t${i}`)}</li>`).join('\n')}
+${[1, 2, 3, 4, 5, 6].map((i) => `<li>${t(`terms.t${i}`)}</li>`).join('\n')}
 </ul>`
   });
 }

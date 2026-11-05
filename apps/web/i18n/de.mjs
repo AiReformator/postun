@@ -88,7 +88,8 @@ export default {
     r9a: 'Telefonnummer, Username, Dateinamen',
     r9b: 'Standardmäßig nicht gespeichert',
     p1: 'Die Telegram-ID wird nur als HMAC-Index und als verschlüsselter Wert gespeichert. Sitzungen sind mit AES-256-GCM verschlüsselt, mit einem eigenen Schlüssel pro Konto. Die Schlüssel liegen in den Cloudflare-Secrets, nicht im Repository.',
-    p2: 'Cloudflare und IDP können eigene Infrastruktur-Metadaten führen; Postun sagt nicht zu, dass keine anfallen. Der Produktadministrator hat keinen Zugriff auf Nachrichten und Sitzungen; der Infrastrukturadministrator bleibt technisch Teil des Vertrauensmodells.'
+    p2: 'Cloudflare und IDP können eigene Infrastruktur-Metadaten führen; Postun sagt nicht zu, dass keine anfallen. Der Produktadministrator hat keinen Zugriff auf Nachrichten und Sitzungen; der Infrastrukturadministrator bleibt technisch Teil des Vertrauensmodells.',
+    p3: 'Die Protokollierung von Cloudflare Workers (observability, logs, tail, logpush) ist für alle Postun-Dienste deaktiviert und wird bei jedem Build automatisch geprüft. Der Code schreibt niemals Inhalte in Logs: Erlaubt sind nur konstante Dienstmeldungen ohne Daten.'
   },
   terms: {
     title: 'Bedingungen der Beta-Teilnahme – Postun Beta',
@@ -97,7 +98,8 @@ export default {
     t2: 'Mit der Verbindung Ihres Kontos bestätigen Sie Ihre Teilnahme am Experiment und die Übermittlung der ausgewählten Daten an Ihren KI-Anbieter.',
     t3: 'Wir sagen keine absolute Vertraulichkeit und keine Wiederherstellung gelöschter Daten zu.',
     t4: 'Die Beta ist kostenlos; das Limit für Vorgänge ist eine Einstellung und kann sich ändern. In der Beta gibt es keine Zahlungen.',
-    t5: 'Laden Sie keine fremden Daten hoch, wenn Sie nicht zu deren Verarbeitung berechtigt sind. Verwenden Sie für Tests ein separates Konto.'
+    t5: 'Laden Sie keine fremden Daten hoch, wenn Sie nicht zu deren Verarbeitung berechtigt sind. Verwenden Sie für Tests ein separates Konto.',
+    t6: 'Postun führt keine Protokolle über Unterhaltungen oder Anfragen: Nachrichteninhalte, Suchbegriffe, Dateien und Tool-Ergebnisse werden weder gespeichert noch in Logs geschrieben. Sie existieren nur im Arbeitsspeicher, während sie an Ihren KI-Client übermittelt werden; nach der Übermittlung können sie bei Postun nicht mehr abgerufen werden.'
   },
   cabinet: { title: 'Dashboard – Postun Beta', h1: 'Dashboard', loading: 'Wird geladen…', noscript: 'Für das Dashboard wird JavaScript benötigt.' },
   app: {

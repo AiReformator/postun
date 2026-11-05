@@ -18,7 +18,8 @@
     "build": "npm run build --workspaces --if-present",
     "audit:docs": "python3 -I scripts/audit_docs.py .",
     "check:secrets": "node scripts/check-no-secrets.mjs",
-    "ci": "npm run lint && npm run typecheck && npm run test && npm run build && npm run check:secrets"
+    "check:logging": "node scripts/check-no-logging.mjs",
+    "ci": "npm run lint && npm run typecheck && npm run test && npm run build && npm run check:secrets && npm run check:logging"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "5.20261104.1",
