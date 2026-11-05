@@ -1,10 +1,10 @@
-# Postun — open-source Telegram MCP server: connect your own Telegram to ChatGPT, Claude and Claude Code, read-only
+# Postun — open-source Telegram MCP server: connect your own Telegram to ChatGPT, Claude and Claude Code, in transit, with no message storage
 
 **English** · [Русский](README.ru.md) · [Español](README.es.md) · [Português](README.pt.md) · [Deutsch](README.de.md)
 
 *The English README is canonical; translations follow it and may lag behind.*
 
-**Postun Beta** is an open-source, read-only [MCP](https://modelcontextprotocol.io) (Model Context Protocol) server for Telegram. It links your own Telegram account to ChatGPT, Claude, Claude Code and other MCP clients, so an AI assistant can read your chats, search messages and look at public channels. You decide which accounts and which read scopes each AI client gets, and you can revoke access at any time. Message search, public channels and files are implemented but not yet verified on production (see [Beta status](#beta-status)).
+**Postun Beta** is an open-source [MCP](https://modelcontextprotocol.io) (Model Context Protocol) server for Telegram. It links your own Telegram account to ChatGPT, Claude, Claude Code and other MCP clients and works as a transit: when your AI assistant asks, Postun passes it your chats, message search results or public channel posts, and keeps nothing itself. Messages exist only in memory while they are handed over; they are not stored, logged or viewed by Postun, and only read scopes exist, so nothing can be sent, edited or deleted. You decide which accounts and which scopes each AI client gets, and you can revoke access at any time. Files are implemented but not yet verified on production (see [Beta status](#beta-status)).
 
 - Site: https://postun.org (English, Русский, Español, Português, Deutsch)
 - Cabinet: https://app.postun.org
@@ -113,9 +113,9 @@ Status comes from [apps/web/status.json](apps/web/status.json) (updated 2026-11-
 | Linking an account with a cloud password (2FA) | Verified |
 | ChatGPT: MCP connection (OAuth) | Verified |
 | Reading dialogs and message history (via ChatGPT) | Verified |
-| Claude Code: remote HTTP MCP | Not verified yet |
-| Message search | Not verified yet |
-| Public channels | Not verified yet |
+| Claude Code: remote HTTP MCP | Verified |
+| Message search | Verified |
+| Public channels | Verified |
 | File download | Not verified yet |
 | File as an attachment for the AI | Not verified yet |
 
