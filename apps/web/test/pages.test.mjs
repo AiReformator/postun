@@ -160,3 +160,14 @@ describe('SEO: semantic core', () => {
     expect(readFileSync(new URL('../dist/robots.txt', import.meta.url), 'utf8')).toContain('Sitemap: https://postun.org/sitemap.xml');
   }, 60000);
 });
+
+describe('plainText', () => {
+  it('strips nested tags and decodes entities in a single pass', async () => {
+    const { plainText } = await import('../src/pages.mjs');
+    expect(plainText('<b>a</b> &amp; b')).toBe('a & b');
+    expect(plainText('x &amp;lt; y')).toBe('x &lt; y');
+    expect(plainText('<scr<script>ipt>alert(1)')).toBe('alert(1)');
+    expect(plainText('5 &lt; 6 &gt; 4')).toBe('5 < 6 > 4');
+    expect(plainText('it&#39;s &quot;q&quot;')).toBe('it\'s "q"');
+  });
+});

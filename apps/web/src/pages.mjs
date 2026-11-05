@@ -47,15 +47,18 @@ ${script ? `<script src="${script}" defer></script>` : ''}
 `;
 }
 
-/** Plain text of a trusted dictionary string with markup: tags removed, the few entities we use decoded. */
-export const plainText = (html) =>
-  html
-    .replace(/<[^>]*>/g, '')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'");
+/** Plain text of a trusted dictionary string with markup: tags removed until none remain, then the few entities escHtml emits
+ * decoded in ONE pass (so "&amp;lt;" becomes "&lt;", never "<"). Output goes only into JSON-LD, which escapes "</" separately. */
+const ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', '#39': "'" };
+export function plainText(html) {
+  let s = String(html);
+  for (let prev = ''; prev !== s; ) {
+    prev = s;
+    s = s.replace(/<[^<>]*>/g, '');
+  }
+  s = s.replace(/[<>]/g, '');
+  return s.replace(/&(amp|lt|gt|quot|#39);/g, (_, e) => ENTITIES[e]);
+}
 
 export const FAQ_COUNT = 7;
 
