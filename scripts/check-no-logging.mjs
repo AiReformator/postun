@@ -4,33 +4,9 @@
 // calls console.* with anything other than a single constant string (no data can be interpolated into logs).
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { stripJsonc } from './lib/jsonc.mjs';
 
 const problems = [];
-// Removes line and block comments outside strings, then trailing commas (enough for wrangler.jsonc).
-function stripJsonc(src) {
-  let out = '';
-  let inStr = false;
-  for (let i = 0; i < src.length; i++) {
-    const c = src[i];
-    if (inStr) {
-      out += c;
-      if (c === '\\') out += src[++i] ?? '';
-      else if (c === '"') inStr = false;
-    } else if (c === '"') {
-      inStr = true;
-      out += c;
-    } else if (c === '/' && src[i + 1] === '/') {
-      while (i < src.length && src[i] !== '\n') i++;
-      out += '\n';
-    } else if (c === '/' && src[i + 1] === '*') {
-      i += 2;
-      while (i < src.length && !(src[i] === '*' && src[i + 1] === '/')) i++;
-      i++;
-    } else out += c;
-  }
-  return out.replace(/,(\s*[}\]])/g, '$1');
-}
-
 for (const app of readdirSync('apps')) {
   const file = join('apps', app, 'wrangler.jsonc');
   let cfg;

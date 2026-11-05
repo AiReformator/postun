@@ -19,7 +19,8 @@
     "check:docs": "node scripts/check-docs.mjs",
     "check:secrets": "node scripts/check-no-secrets.mjs",
     "check:logging": "node scripts/check-no-logging.mjs",
-    "ci": "npm run lint && npm run typecheck && npm run test && npm run build && npm run check:secrets && npm run check:logging && npm run check:docs"
+    "test:scripts": "node --test scripts/",
+    "ci": "npm run lint && npm run typecheck && npm run test && npm run test:scripts && npm run build && npm run check:secrets && npm run check:logging && npm run check:docs"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "5.20261104.1",

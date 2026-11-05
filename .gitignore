@@ -37,3 +37,6 @@ wrangler.private.jsonc
 
 # Local-only drafts (research notes, keyword data) — not published
 docs/seo/
+
+# Production deploy configs rendered in CI from wrangler.jsonc + protected environment (never committed)
+wrangler.deploy.json
