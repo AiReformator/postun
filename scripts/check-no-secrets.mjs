@@ -18,6 +18,13 @@ const walk = (d) => (existsSync(d) ? readdirSync(d).flatMap((f) => (statSync(joi
 const outputs = ['apps/web/dist', 'apps/auth/dist', 'apps/mcp/dist', 'apps/admin/dist'].flatMap(walk);
 
 let bad = 0;
+// Publication policy (docs/PUBLICATION_POLICY.md): marketing materials are never published.
+for (const file of tracked) {
+  if (/^docs\/seo\//.test(file) || /semantic[-_ ]?core|keyword[-_]research/i.test(file)) {
+    console.error(`publication policy: marketing material must not be committed: ${file}`);
+    bad++;
+  }
+}
 for (const file of [...tracked, ...outputs]) {
   if (/\.(docx|png|jpg|wasm|ico)$/.test(file) || file.endsWith('package-lock.json')) continue;
   // Open once and stat/read through the same descriptor (no check-then-read race on the path).
