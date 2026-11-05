@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync, existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { landing, cabinet, privacy, terms, faqItems } from '../src/pages.mjs';
+import { landing, cabinet, privacy, terms, faqItems, WEB_ANALYTICS_TOKEN, BEACON_SRC } from '../src/pages.mjs';
 import { robotsTxt, sitemapXml, llmsTxt } from '../src/seo.mjs';
 import { connectAvailable, validateStatus } from '../src/render.mjs';
 import { LOCALES, checkLocales, translator } from '../i18n/index.mjs';
@@ -206,5 +206,44 @@ describe('design system', () => {
   it('the header offers the dashboard only when connecting is available', () => {
     expect(landing(withAll(status, 'NOT_RUN'))).not.toContain('header-cta');
     expect(landing(withAll(status, 'PASS'))).toContain('class="btn header-cta" href="https://app.postun.org/app/"');
+  });
+});
+
+describe('web analytics', () => {
+  const headers = readFileSync(new URL('../public/_headers', import.meta.url), 'utf8');
+  const csp = (block) => {
+    const m = new RegExp(`^${block.replace(/[*/]/g, '\\$&')}\\n((?:  .*\\n?)*)`, 'm').exec(headers);
+    return (m?.[1] ?? '').split('\n').filter((l) => l.trim().startsWith('Content-Security-Policy:')).map((l) => l.trim().slice(24).trim());
+  };
+
+  it('public pages load the cookieless beacon with the public site token, in every locale', () => {
+    expect(WEB_ANALYTICS_TOKEN).toMatch(/^[0-9a-f]{32}$/);
+    for (const l of LOCALES) {
+      for (const html of [landing(status, l.code), privacy(l.code), terms(l.code)]) {
+        expect(html).toContain(`<script type="module" src="${BEACON_SRC}" data-cf-beacon='{"token":"${WEB_ANALYTICS_TOKEN}","spa":false}'></script>`);
+      }
+    }
+  });
+
+  it('the cabinet never loads the beacon', () => {
+    for (const l of LOCALES) expect(cabinet(status, l.code)).not.toContain('cloudflareinsights');
+  });
+
+  it('the privacy page discloses the counter in every locale', () => {
+    for (const l of LOCALES) expect(privacy(l.code)).toContain(l.dict.privacy.p4);
+  });
+
+  it('the site CSP allows only the beacon script and its endpoint; the cabinet adds a strict policy without them', () => {
+    const [site] = csp('/*');
+    expect(site).toContain(`script-src 'self' ${BEACON_SRC};`);
+    expect(site).toContain('connect-src https://auth.postun.org https://cloudflareinsights.com;');
+    expect(site).not.toMatch(/unsafe-inline|unsafe-eval|\*/);
+    for (const block of ['/app/*', '/:lang/app/*']) {
+      const policies = csp(block);
+      expect(policies, block).toHaveLength(1);
+      expect(policies[0]).toContain("script-src 'self';");
+      expect(policies[0]).not.toContain('cloudflareinsights');
+      expect(policies[0]).toContain('connect-src https://auth.postun.org;');
+    }
   });
 });

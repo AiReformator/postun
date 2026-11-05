@@ -9,7 +9,17 @@ export const PAGES = { home: '/', privacy: '/privacy/', terms: '/terms/', cabine
 
 const DASHBOARD = (L) => `https://app.postun.org${L.prefix}/app/`;
 
-function layout(L, page, { title, body, script, description, head = '', headerCta = '' }) {
+/**
+ * Cloudflare Web Analytics (cookieless page-view counter). The site token is public by design: it is visible in every page.
+ * Only the official site loads it, so forks that change SITE send nothing to this account. Public pages only: the cabinet
+ * never loads third-party code, and its own stricter CSP (public/_headers) blocks the beacon there in any case.
+ */
+export const WEB_ANALYTICS_TOKEN = SITE === 'https://postun.org' ? '82c68c9072b746318c16ba54d4689ccd' : '';
+export const BEACON_SRC = 'https://static.cloudflareinsights.com/beacon.min.js';
+const beacon = () =>
+  WEB_ANALYTICS_TOKEN ? `<script type="module" src="${BEACON_SRC}" data-cf-beacon='${JSON.stringify({ token: WEB_ANALYTICS_TOKEN, spa: false })}'></script>\n` : '';
+
+function layout(L, page, { title, body, script, description, head = '', headerCta = '', analytics = true }) {
   const t = translator(L.dict);
   const href = (l) => `${l.prefix}${PAGES[page]}`;
   const alternates = LOCALES.map((l) => `<link rel="alternate" hreflang="${l.htmlLang}" href="${SITE}${href(l)}">`).join('\n');
@@ -53,7 +63,7 @@ ${headerCta}</div></header>
 <p class="foot-note">${t('footer.issuesNote', { repo: REPO })}</p>
 </div></footer>
 ${script ? `<script src="${script}" defer></script>` : ''}
-</body>
+${analytics ? beacon() : ''}</body>
 </html>
 `;
 }
@@ -246,6 +256,7 @@ ${rows}
 <p>${t('privacy.p1')}</p>
 <p>${t('privacy.p2')}</p>
 <p>${t('privacy.p3')}</p>
+<p>${t('privacy.p4')}</p>
 </article>`
   });
 }
@@ -271,6 +282,7 @@ export function cabinet(status, code = 'en') {
   return layout(L, 'cabinet', {
     title: t('cabinet.title'),
     script: '/assets/app.js',
+    analytics: false,
     body: `<section class="cab">
 <div class="cab-head"><h1>${t('cabinet.h1')} <span class="badge">Beta</span></h1></div>
 <div id="app" data-auth="https://auth.postun.org" data-registration="${status.registration_open ? 'open' : 'closed'}" aria-live="polite">

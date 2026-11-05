@@ -122,7 +122,7 @@ export default {
   privacy: {
     title: 'Tratamiento de datos — Postun Beta',
     h1: 'Tratamiento de datos en Postun Beta',
-    edition: 'Edición 2.0-beta, 04.11.2026. Describe las reglas de diseño de la beta; los plazos reales de eliminación se confirman mediante pruebas.',
+    edition: 'Edición 2.0-beta, 05.11.2026. Describe las reglas de diseño de la beta; los plazos reales de eliminación se confirman mediante pruebas.',
     category: 'Categoría',
     policy: 'Política',
     r1a: 'Identidad y vínculos confirmados',
@@ -145,7 +145,8 @@ export default {
     r9b: 'No se guardan por defecto',
     p1: 'El ID de Telegram se almacena únicamente como índice HMAC y como valor cifrado. Las sesiones se cifran con AES-256-GCM, con una clave distinta por cuenta. Las claves se guardan en los secretos de Cloudflare, no en el repositorio.',
     p2: 'Cloudflare y el proveedor de inicio de sesión del administrador pueden mantener sus propios metadatos de infraestructura; Postun no promete que no existan. El administrador del producto no tiene acceso a las conversaciones ni a las sesiones; el administrador de la infraestructura sigue formando técnicamente parte del modelo de confianza.',
-    p3: 'El registro de Cloudflare Workers (observability, logs, tail, logpush) está desactivado en todos los servicios de Postun y se verifica automáticamente en cada compilación. El código nunca escribe contenido en los registros: solo se permiten mensajes de servicio constantes, sin datos.'
+    p3: 'El registro de Cloudflare Workers (observability, logs, tail, logpush) está desactivado en todos los servicios de Postun y se verifica automáticamente en cada compilación. El código nunca escribe contenido en los registros: solo se permiten mensajes de servicio constantes, sin datos.',
+    p4: 'Las páginas públicas del sitio (inicio, condiciones, tratamiento de datos) usan Cloudflare Web Analytics. No instala cookies, no crea huellas del navegador y no vincula las visitas con tu perfil. Cloudflare recibe la dirección de la página, la procedencia, el tipo de navegador y dispositivo, el país y el tiempo de carga; Postun solo ve estadísticas agregadas. El panel no tiene contador.'
   },
   terms: {
     title: 'Condiciones de la beta — Postun Beta',
