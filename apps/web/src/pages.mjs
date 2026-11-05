@@ -128,6 +128,17 @@ function clientList(status, t) {
 </ul>`;
 }
 
+export const MCP_URL = 'https://mcp.postun.org/mcp';
+
+/** The MCP address, front and centre. The copy button is revealed by host.js, so without JS there is no dead control. */
+function endpoint(t) {
+  return `<div class="endpoint">
+<p class="endpoint-label" id="mcp-label">${icon('link')}${t('app.mcpLabel')}</p>
+<div class="copy-field endpoint-field"><code aria-labelledby="mcp-label">${MCP_URL}</code><button type="button" class="btn btn-sm endpoint-copy" data-copy="${MCP_URL}" data-copied="${esc(plainText(t('app.copied')))}" hidden>${icon('copy')}<span>${t('app.copy')}</span></button></div>
+<p class="endpoint-hint">${t('landing.mcpHint')}</p>
+</div>`;
+}
+
 export function landing(status, code = 'en') {
   const L = locale(code);
   const t = translator(L.dict);
@@ -152,6 +163,7 @@ export function landing(status, code = 'en') {
 <p class="eyebrow">${t('landing.eyebrow')}</p>
 <h1>Connected, not collected.</h1>
 <p class="tagline">${t('landing.subtitle')}</p>
+${endpoint(t)}
 <p class="lead">${t('landing.lead')}</p>
 ${cta}
 <ul class="chips">

@@ -34,6 +34,45 @@
     if (s) s.focus();
   });
 
+  // Copy buttons (the MCP address on the landing page). Revealed only when the Clipboard API exists.
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    // host.js runs in <head>, before the body exists.
+    var reveal = function () {
+      var buttons = document.querySelectorAll('button[data-copy]');
+      for (var b = 0; b < buttons.length; b++) buttons[b].hidden = false;
+    };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', reveal);
+    else reveal();
+    document.addEventListener('click', function (e) {
+      var btn = e.target && e.target.closest ? e.target.closest('button[data-copy]') : null;
+      if (!btn) return;
+      var label = btn.querySelector('span');
+      navigator.clipboard.writeText(btn.getAttribute('data-copy')).then(
+        function () {
+          if (!label) return;
+          if (!btn.hasAttribute('data-label')) btn.setAttribute('data-label', label.textContent);
+          label.textContent = btn.getAttribute('data-copied');
+          btn.classList.add('is-done');
+          window.clearTimeout(btn._t);
+          btn._t = window.setTimeout(function () {
+            label.textContent = btn.getAttribute('data-label');
+            btn.classList.remove('is-done');
+          }, 2000);
+        },
+        function () {
+          // Clipboard refused: select the address so the user can copy it by hand.
+          var code = btn.parentNode && btn.parentNode.querySelector('code');
+          var sel = window.getSelection && window.getSelection();
+          if (!code || !sel) return;
+          var range = document.createRange();
+          range.selectNodeContents(code);
+          sel.removeAllRanges();
+          sel.addRange(range);
+        }
+      );
+    });
+  }
+
   var current = document.documentElement.getAttribute('data-locale') || 'en';
   // The target is built only from fixed values (known pages, known locale prefixes), never from URL text.
   var PAGES = ['/', '/privacy/', '/terms/', '/app/'];

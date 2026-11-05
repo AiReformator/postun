@@ -58,6 +58,7 @@ export default {
     trust1: 'Não é um bot',
     trust2: 'Sem chaves de API nem código',
     trust3: 'Grátis durante o beta',
+    mcpHint: 'Cole-o no seu cliente de IA como conector MCP personalizado. Você entra com o Telegram e escolhe quais contas e dados ele pode ler.',
     flowLabel: 'Como o Postun conecta o Telegram aos clientes de IA',
     flowYou: 'Seu Telegram',
     flowYouNote: 'conta pessoal, não um bot',
