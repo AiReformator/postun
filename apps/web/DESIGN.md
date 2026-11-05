@@ -14,8 +14,8 @@ Everything else is quiet, so the key promises read first.
 
 1. **Mobile first.** Base styles are for a 320–599 px phone; `600`, `768` and `1024` px add columns. No horizontal scroll at
    320 px in any locale.
-2. **Promises first, fine print in the documents.** The first screen shows the plain-language tagline, the CTA and three
-   checks (not a bot, no API keys, free). The six USPs follow. Caveats and limits live in the beta terms and the data
+2. **Promises first, fine print in the documents.** The first screen shows the plain-language tagline, the MCP address to
+   copy, the CTA and three checks (not a bot, no API keys, free). The six USPs follow. Caveats and limits live in the beta terms and the data
    handling page, which are linked only from the footer.
 3. **Only claim what is verified.** The AI-client list in the hero is derived from `status.json`: `PASS` → "verified",
    anything else → "in testing" (tested in `test/pages.test.mjs`).
@@ -53,6 +53,7 @@ colours (the QR code keeps a white plate so it always scans).
 | Button: primary, secondary, ghost, danger, small | `.btn`, `.btn.secondary`, `.btn-ghost`, `.btn-danger`, `.btn-sm` | |
 | Badge (Beta) | `.badge` | header, page titles |
 | Status pill | `.pill` + `.pill-ok` / `.pill-warn` / `.pill-bad`; status table keeps `.st-*` | hero, status table, dashboard |
+| MCP address with copy button (button hidden until `host.js` confirms the Clipboard API; on failure the address is selected) | `.endpoint`, `.endpoint-field`, `.endpoint-copy` | hero |
 | Check chips | `.chips` | hero |
 | Eyebrow | `.eyebrow` | hero |
 | Card | `.card`, `.card-head`, `.card-title` | dashboard |

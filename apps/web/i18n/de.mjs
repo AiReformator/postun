@@ -58,6 +58,7 @@ export default {
     trust1: 'Kein Bot',
     trust2: 'Keine API-Schlüssel, kein Code',
     trust3: 'Kostenlos während der Beta',
+    mcpHint: 'Füge sie in deinem KI-Client als benutzerdefinierten MCP-Connector ein. Du meldest dich mit Telegram an und wählst, welche Konten und Daten er lesen darf.',
     flowLabel: 'Wie Postun Telegram mit KI-Clients verbindet',
     flowYou: 'Ihr Telegram',
     flowYouNote: 'persönliches Konto, kein Bot',
