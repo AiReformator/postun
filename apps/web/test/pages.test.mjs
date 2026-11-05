@@ -211,9 +211,16 @@ describe('design system', () => {
 
 describe('web analytics', () => {
   const headers = readFileSync(new URL('../public/_headers', import.meta.url), 'utf8');
-  const csp = (block) => {
-    const m = new RegExp(`^${block.replace(/[*/]/g, '\\$&')}\\n((?:  .*\\n?)*)`, 'm').exec(headers);
-    return (m?.[1] ?? '').split('\n').filter((l) => l.trim().startsWith('Content-Security-Policy:')).map((l) => l.trim().slice(24).trim());
+  /** Content-Security-Policy values declared directly under the given path rule. */
+  const csp = (rule) => {
+    const out = [];
+    let current = null;
+    for (const line of headers.split('\n')) {
+      if (!line.trim() || line.startsWith('#')) continue;
+      if (!/^\s/.test(line)) current = line.trim();
+      else if (current === rule && line.trim().startsWith('Content-Security-Policy:')) out.push(line.trim().slice('Content-Security-Policy:'.length).trim());
+    }
+    return out;
   };
 
   it('public pages load the cookieless beacon with the public site token, in every locale', () => {
