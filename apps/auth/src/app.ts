@@ -3,6 +3,7 @@ import { handleApi, handleLogout } from './api';
 import { loadConfig } from './env';
 import type { Config, Env } from './env';
 import { errorToResponse, html, page } from './http';
+import { langCookie, pickLocale, t } from './i18n';
 import { loadKeys } from './keys';
 import { handleCallback, handleLogin, handleTermsGet, handleTermsPost } from './login';
 import { handleAuthorize, oauthServer } from './oauth';
@@ -41,6 +42,12 @@ export async function handleRequest(req: Request, env: Env, ctx: ExecutionContex
   const path = url.pathname;
   if (path === '/healthz') return jsonResponse({ ok: true, service: 'postun-auth' });
   const wantsHtml = HTML_PATHS.has(path);
+  const locale = pickLocale(req);
+  const remember = langCookie(req);
+  const tagged = (r: Response): Response => {
+    if (remember) r.headers.append('set-cookie', remember);
+    return r;
+  };
   let cfg: Config | undefined;
   try {
     cfg = loadConfig(env);
@@ -51,21 +58,22 @@ export async function handleRequest(req: Request, env: Env, ctx: ExecutionContex
       const res = path === '/logout' ? (req.method === 'POST' ? await handleLogout(env, c, req) : new Response(null, { status: 405 })) : await handleApi(env, c, req, url);
       return cors(c, req, res);
     }
-    if (path === '/login' && req.method === 'GET') return await handleLogin(env, c, url);
-    if (path === '/callback' && req.method === 'GET') return await handleCallback(env, c, req, url);
+    if (path === '/login' && req.method === 'GET') return tagged(await handleLogin(env, c, url));
+    if (path === '/callback' && req.method === 'GET') return tagged(await handleCallback(env, c, req, url, locale));
     if (path === '/terms') {
-      if (req.method === 'GET') return await handleTermsGet(env, c, req, url);
-      if (req.method === 'POST') return await handleTermsPost(env, c, req);
+      if (req.method === 'GET') return tagged(await handleTermsGet(env, c, req, url, locale));
+      if (req.method === 'POST') return tagged(await handleTermsPost(env, c, req, locale));
       return new Response(null, { status: 405, headers: { allow: 'GET, POST' } });
     }
-    if (path === '/authorize') return await handleAuthorize(env, c, req, url);
+    if (path === '/authorize') return tagged(await handleAuthorize(env, c, req, url, locale));
     if (path === '/' && req.method === 'GET') {
-      return html(page('Вход', `<p>Сервис входа Postun (бета). Перейдите в <a href="${c.appOrigin}">кабинет</a>.</p>`));
+      return tagged(html(page(locale, t(locale, 'login.title'), `<p>${t(locale, 'root.text', { url: c.appOrigin })}</p>`)));
     }
     // Everything else (metadata, /oauth/register, /oauth/token) belongs to the OAuth library.
     return await oauthServer(c).fetch(req, env, ctx);
   } catch (err) {
-    const res = errorToResponse(err, wantsHtml);
+    const res = errorToResponse(err, wantsHtml, locale);
+    if (wantsHtml) tagged(res);
     return cfg && (path.startsWith('/api/') || path === '/logout') ? cors(cfg, req, res) : res;
   }
 }

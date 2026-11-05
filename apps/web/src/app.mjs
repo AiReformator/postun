@@ -11,6 +11,16 @@ const root = document.getElementById('app');
 const AUTH = root.dataset.auth;
 const LOCALE = document.documentElement.dataset.locale || 'en';
 const S = ({ en, ru, es, pt, de }[LOCALE] || en).app;
+/** Hand the cabinet language to the auth Worker (it renders its own pages). */
+const withLang = (u) => {
+  try {
+    const x = new URL(u, location.href);
+    x.searchParams.set('lang', LOCALE);
+    return x.href;
+  } catch {
+    return u;
+  }
+};
 /** Cabinet text is inserted with textContent, so {vars} are substituted without HTML escaping. */
 const T = (key, vars = {}) => String(S[key]).replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m));
 let csrf = '';
@@ -77,7 +87,7 @@ async function main() {
   if (!s.authenticated) {
     const intro = el('p', {}, T('loginIntro'));
     const btn = s.registrationOpen
-      ? el('a', { class: 'btn', href: s.loginUrl }, T('login'))
+      ? el('a', { class: 'btn', href: withLang(s.loginUrl) }, T('login'))
       : el('button', { class: 'btn', disabled: '' }, T('login'));
     const note = s.registrationOpen ? '' : el('p', { class: 'note' }, T('registrationClosed'));
     show(intro, btn, note);
@@ -87,7 +97,7 @@ async function main() {
   if (s.termsRequired) {
     show(
       el('p', {}, T('termsIntro')),
-      el('a', { class: 'btn', href: s.termsUrl }, T('termsOpen'))
+      el('a', { class: 'btn', href: withLang(s.termsUrl) }, T('termsOpen'))
     );
     return;
   }

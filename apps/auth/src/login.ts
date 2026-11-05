@@ -2,6 +2,8 @@ import { clearHostCookie, hostCookie, newId, PostunError, randomToken, readCooki
 import type { Config, Env } from './env';
 import { now } from './env';
 import { errorPage, esc, html, page, redirect } from './http';
+import { t } from './i18n';
+import type { Locale } from './i18n';
 import { encryptTelegramId, loadKeys } from './keys';
 import { assertCsrf, createSession, getSession } from './sessions';
 import { authorizeUrl, exchangeCode, verifyIdToken } from './telegram';
@@ -33,11 +35,11 @@ export async function handleLogin(env: Env, cfg: Config, url: URL): Promise<Resp
   return redirect(await authorizeUrl(cfg, { state, nonce, verifier }), [hostCookie(LOGIN_COOKIE, binder, { maxAge: LOGIN_TTL })]);
 }
 
-function loginFailed(message: string, status = 400): Response {
-  return html(page('Вход', `<p class="warn">${esc(message)}</p><p><a href="/login">Войти заново</a></p>`), status, {}, []);
+function loginFailed(locale: Locale, message: string, status = 400): Response {
+  return html(page(locale, t(locale, 'login.title'), `<p class="warn">${esc(message)}</p><p><a href="/login">${t(locale, 'login.retry')}</a></p>`), status, {}, []);
 }
 
-export async function handleCallback(env: Env, cfg: Config, req: Request, url: URL): Promise<Response> {
+export async function handleCallback(env: Env, cfg: Config, req: Request, url: URL, locale: Locale): Promise<Response> {
   const clear = clearHostCookie(LOGIN_COOKIE);
   const withClear = (r: Response): Response => {
     r.headers.append('set-cookie', clear);
@@ -45,7 +47,7 @@ export async function handleCallback(env: Env, cfg: Config, req: Request, url: U
   };
   const state = url.searchParams.get('state');
   const binder = readCookie(req, LOGIN_COOKIE);
-  if (!state || !binder || state.length > 256) return withClear(loginFailed('Сессия входа не найдена, истекла или уже использована. Начните вход заново.'));
+  if (!state || !binder || state.length > 256) return withClear(loginFailed(locale, t(locale, 'login.sessionLost')));
 
   // Single use: the row is consumed (deleted) whether or not the rest succeeds.
   const row = await env.CONTROL_DB.prepare(
@@ -54,19 +56,19 @@ export async function handleCallback(env: Env, cfg: Config, req: Request, url: U
     .bind(await sha(state))
     .first<{ binder_hash: string; nonce: string; code_verifier: string; return_to: string | null; expires_at: number }>();
   if (!row || row.expires_at <= now() || !timingSafeEqual(utf8(row.binder_hash), utf8(await sha(binder)))) {
-    return withClear(loginFailed('Сессия входа не найдена, истекла или уже использована. Начните вход заново.'));
+    return withClear(loginFailed(locale, t(locale, 'login.sessionLost')));
   }
-  if (url.searchParams.has('error')) return withClear(loginFailed('Вход через Telegram отменён или не подтверждён.'));
+  if (url.searchParams.has('error')) return withClear(loginFailed(locale, t(locale, 'login.cancelled')));
   const code = url.searchParams.get('code');
-  if (!code || code.length > 2048) return withClear(loginFailed('Некорректный ответ Telegram.'));
+  if (!code || code.length > 2048) return withClear(loginFailed(locale, t(locale, 'login.badResponse')));
 
   let identity;
   try {
     const idToken = await exchangeCode(cfg, code, row.code_verifier);
     identity = await verifyIdToken(cfg, idToken, row.nonce);
   } catch (err) {
-    if (err instanceof PostunError && err.code === 'UPSTREAM_UNAVAILABLE') return withClear(loginFailed('Telegram временно недоступен. Попробуйте ещё раз.', 502));
-    return withClear(loginFailed('Не удалось подтвердить вход через Telegram.', 401));
+    if (err instanceof PostunError && err.code === 'UPSTREAM_UNAVAILABLE') return withClear(loginFailed(locale, t(locale, 'login.upstream'), 502));
+    return withClear(loginFailed(locale, t(locale, 'login.verifyFailed'), 401));
   }
 
   const keys = await loadKeys(cfg);
@@ -77,7 +79,7 @@ export async function handleCallback(env: Env, cfg: Config, req: Request, url: U
   if (!principal) {
     if (!cfg.registrationOpen && !cfg.betaTesterIds.has(identity.telegramId)) {
       return withClear(
-        html(page('Бета пока закрыта', '<p>Регистрация в бета-тестировании Postun пока не открыта. Загляните позже.</p>'), 403)
+        html(page(locale, t(locale, 'login.closedTitle'), `<p>${t(locale, 'login.closed')}</p>`), 403)
       );
     }
     const principalId = newId();
@@ -97,7 +99,7 @@ export async function handleCallback(env: Env, cfg: Config, req: Request, url: U
       .run();
     principal = await find();
   }
-  if (!principal || principal.status === 'deleted') return withClear(loginFailed('Не удалось завершить вход.', 403));
+  if (!principal || principal.status === 'deleted') return withClear(loginFailed(locale, t(locale, 'login.failed'), 403));
 
   const cookie = await createSession(env, cfg, principal.principal_id);
   const accepted = await db
@@ -109,24 +111,25 @@ export async function handleCallback(env: Env, cfg: Config, req: Request, url: U
   return redirect(dest, [cookie, clear]);
 }
 
-export async function handleTermsGet(env: Env, cfg: Config, req: Request, url: URL): Promise<Response> {
+export async function handleTermsGet(env: Env, cfg: Config, req: Request, url: URL, locale: Locale): Promise<Response> {
   const session = await getSession(env, cfg, req);
   if (!session) return redirect(`${cfg.authIssuer}/login`);
   const ret = safeReturn(url.searchParams.get('return')) ?? '';
   return html(
     page(
-      'Условия беты',
-      `<p>Postun — экспериментальный проект в открытом бета-тестировании. Доступность не гарантируется, функции могут меняться.</p>
+      locale,
+      t(locale, 'terms.title'),
+      `<p>${t(locale, 'terms.intro')}</p>
 <div class="box"><ul>
-<li>Postun читает ваши сообщения Telegram только по вашим запросам через выбранного ИИ-клиента и не ведёт архив переписки.</li>
-<li>Сессия Telegram хранится в зашифрованном виде; шифрование не делает сервис «нулевого знания».</li>
-<li>Вы можете отключить аккаунт, отозвать доступ клиента или удалить профиль в любой момент.</li>
+<li>${t(locale, 'terms.li1')}</li>
+<li>${t(locale, 'terms.li2')}</li>
+<li>${t(locale, 'terms.li3')}</li>
 </ul>
-<p><a href="${esc(cfg.publicSiteUrl)}/terms/">Полные условия беты</a> · <a href="${esc(cfg.publicSiteUrl)}/privacy/">Обработка данных</a></p></div>
-<form method="post" action="/terms">
+<p><a href="${esc(cfg.publicSiteUrl)}/terms/">${t(locale, 'terms.full')}</a> · <a href="${esc(cfg.publicSiteUrl)}/privacy/">${t(locale, 'terms.privacy')}</a></p></div>
+<form method="post" action="/terms?lang=${locale}">
 <input type="hidden" name="_csrf" value="${esc(session.csrf)}"><input type="hidden" name="return" value="${esc(ret)}">
-<label><input type="checkbox" name="accept" value="yes" required> Я прочитал(а) и принимаю условия бета-тестирования (версия ${esc(cfg.termsVersion)})</label>
-<p><button type="submit">Продолжить</button></p></form>`
+<label><input type="checkbox" name="accept" value="yes" required> ${t(locale, 'terms.accept', { version: cfg.termsVersion })}</label>
+<p><button type="submit">${t(locale, 'terms.continue')}</button></p></form>`
     ),
     200,
     {},
@@ -134,12 +137,12 @@ export async function handleTermsGet(env: Env, cfg: Config, req: Request, url: U
   );
 }
 
-export async function handleTermsPost(env: Env, cfg: Config, req: Request): Promise<Response> {
+export async function handleTermsPost(env: Env, cfg: Config, req: Request, locale: Locale): Promise<Response> {
   const session = await getSession(env, cfg, req);
   if (!session) return redirect(`${cfg.authIssuer}/login`);
   const form = await req.formData();
   assertCsrf(req, cfg, session, String(form.get('_csrf') ?? ''));
-  if (form.get('accept') !== 'yes') return html(errorPage('INVALID_INPUT', 'Нужно принять условия, чтобы продолжить.'), 400);
+  if (form.get('accept') !== 'yes') return html(errorPage(locale, 'INVALID_INPUT', t(locale, 'terms.mustAccept')), 400);
   await env.CONTROL_DB.prepare("UPDATE principals SET accepted_terms_version = ?2, accepted_terms_at = ?3 WHERE principal_id = ?1 AND status IN ('active', 'suspended')")
     .bind(session.principalId, cfg.termsVersion, now())
     .run();
