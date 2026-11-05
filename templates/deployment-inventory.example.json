@@ -10,14 +10,14 @@
   "cloudflare_zone_id": null,
   "domain": "postun.org",
   "domains": {
-    "pages": "postun.org",
+    "web": "postun.org",
     "app": "app.postun.org",
     "auth": "auth.postun.org",
     "mcp": "mcp.postun.org",
     "admin": "admin.postun.org"
   },
   "resources": {
-    "pages_project": null,
+    "web_worker": null,
     "auth_worker": null,
     "mcp_worker": null,
     "admin_worker": null,
@@ -26,13 +26,13 @@
     "oauth_kv_id": null,
     "session_quota_do_namespace": null
   },
-  "idp": {
+  "admin_oidc": {
     "issuer": null,
-    "project_id": null,
-    "org_id": null,
     "client_id": null,
     "secret_reference": null,
-    "roles": ["postun.viewer", "postun.operator", "postun.owner"]
+    "roles_claim": null,
+    "roles_tenant": null,
+    "extra_audience": null
   },
   "release": {
     "commit_sha": null,

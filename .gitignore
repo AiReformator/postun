@@ -34,3 +34,6 @@ deployment-inventory.local.json
 
 # Private deploy configs with real resource IDs (generated from wrangler.jsonc, never committed)
 wrangler.private.jsonc
+
+# Local-only drafts (research notes, keyword data) — not published
+docs/seo/

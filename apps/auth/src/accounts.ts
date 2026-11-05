@@ -24,14 +24,14 @@ interface AccountRow {
 
 const ROW = 'account_id, status, label, telegram_id_hmac, failure_code, created_at';
 
-export async function listAccounts(env: Env, principalId: string): Promise<LinkedAccountView[]> {
+export async function listAccounts(env: Env, principalId: string, fallbackLabel = 'Аккаунт Telegram'): Promise<LinkedAccountView[]> {
   const rs = await env.CONTROL_DB.prepare(`SELECT ${ROW} FROM linked_accounts WHERE principal_id = ?1 AND status != 'disconnected' ORDER BY created_at`)
     .bind(principalId)
     .all<AccountRow>();
   return rs.results.map((r) => ({
     accountId: r.account_id,
     status: r.status,
-    label: r.label ?? 'Аккаунт Telegram',
+    label: r.label ?? fallbackLabel,
     createdAt: new Date(r.created_at * 1000).toISOString()
   }));
 }

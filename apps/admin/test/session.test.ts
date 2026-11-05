@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { advance, call, csrfOf, db, form, ISSUER, installIdP, login, makeEnv, ORIGIN, ownerRoles, seedProjection, sessionCount, startClock, type IdP } from './helpers';
+import { advance, call, csrfOf, db, form, ISSUER, installIdp, login, makeEnv, ORIGIN, ownerRoles, seedProjection, sessionCount, startClock, type Idp } from './helpers';
 
-let z: IdP;
+let z: Idp;
 const REF = 'ref_AAAAAAAAAAAAAAAAAAAA';
 beforeEach(async () => {
   startClock();
-  z = await installIdP();
+  z = await installIdp();
 });
 afterEach(() => vi.restoreAllMocks());
 
@@ -97,7 +97,7 @@ describe('revalidation (AD-02)', () => {
   it('revoked role destroys the session at the next revalidation; the old login token is not trusted', async () => {
     const env = makeEnv();
     const cookie = await login(env, z);
-    z.roles = undefined; // role removed in IDP; refreshed ID token has no roles claim, userinfo has none either
+    z.roles = undefined; // role removed at the IdP; refreshed ID token has no roles claim, userinfo has none either
     advance(6 * 60_000);
     const res = await call(env, '/', { cookie });
     expect(res.status).toBe(401);
@@ -109,7 +109,7 @@ describe('revalidation (AD-02)', () => {
   it('role moved to another org is revoked too', async () => {
     const env = makeEnv();
     const cookie = await login(env, z);
-    z.roles = { 'postun.owner': { 'other-org': 'x' } };
+    z.roles = { 'postun.owner': { 'other-tenant': 'x' } };
     advance(6 * 60_000);
     expect((await call(env, '/', { cookie })).status).toBe(401);
   });
@@ -273,7 +273,7 @@ describe('owner quota display setting (informational)', () => {
 });
 
 describe('logout', () => {
-  it('destroys the local session, clears the cookie and ends the IDP session', async () => {
+  it('destroys the local session, clears the cookie and ends the IdP session', async () => {
     const env = makeEnv();
     const cookie = await login(env, z);
     const csrf = await csrfOf(cookie);
@@ -295,7 +295,7 @@ describe('logout', () => {
     expect((await call(env, '/logout', { ...f, cookie })).status).toBe(403);
     expect(await sessionCount()).toBe(1);
   });
-  it('still logs out locally when IDP is unreachable', async () => {
+  it('still logs out locally when the IdP is unreachable', async () => {
     const env = makeEnv();
     const cookie = await login(env, z);
     const csrf = await csrfOf(cookie);

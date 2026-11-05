@@ -10,7 +10,7 @@ const patterns = [
   [/\b\d{8,10}:AA[A-Za-z0-9_-]{33}\b/, 'Telegram bot token'],
   [/\bsk-(?:ant-)?[A-Za-z0-9_-]{24,}/, 'API key'],
   [/\bAKIA[0-9A-Z]{16}\b/, 'AWS key'],
-  [/^(SESSION_KEK|CURSOR_HMAC_KEY|IDENTITY_INDEX_HMAC_KEY|IDENTITY_ENCRYPTION_KEY|WEB_SESSION_KEY|ADMIN_SESSION_KEY|TELEGRAM_API_HASH|TELEGRAM_OIDC_CLIENT_SECRET|IDP_CLIENT_SECRET)[ \t]*=[ \t]*[^\s#]+/m, 'non-empty secret assignment']
+  [/^(SESSION_KEK|CURSOR_HMAC_KEY|IDENTITY_INDEX_HMAC_KEY|IDENTITY_ENCRYPTION_KEY|WEB_SESSION_KEY|ADMIN_SESSION_KEY|TELEGRAM_API_HASH|[A-Z0-9_]*CLIENT_SECRET)[ \t]*=[ \t]*[^\s#]+/m, 'non-empty secret assignment']
 ];
 
 const tracked = execFileSync('git', ['ls-files', '-z'], { encoding: 'utf8' }).split('\0').filter(Boolean);
@@ -18,6 +18,13 @@ const walk = (d) => (existsSync(d) ? readdirSync(d).flatMap((f) => (statSync(joi
 const outputs = ['apps/web/dist', 'apps/auth/dist', 'apps/mcp/dist', 'apps/admin/dist'].flatMap(walk);
 
 let bad = 0;
+// Publication policy (docs/PUBLICATION_POLICY.md): marketing materials are never published.
+for (const file of tracked) {
+  if (/^docs\/seo\//.test(file) || /semantic[-_ ]?core|keyword[-_]research/i.test(file)) {
+    console.error(`publication policy: marketing material must not be committed: ${file}`);
+    bad++;
+  }
+}
 for (const file of [...tracked, ...outputs]) {
   if (/\.(docx|png|jpg|wasm|ico)$/.test(file) || file.endsWith('package-lock.json')) continue;
   // Open once and stat/read through the same descriptor (no check-then-read race on the path).

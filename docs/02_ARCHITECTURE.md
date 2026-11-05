@@ -1,32 +1,32 @@
 # 02. Postun Beta — архитектура Cloudflare
 
-**Редакция 2.0-beta · 04.11.2026.** Модульный TypeScript-проект с разделением по границам доверия. Не создаём микросервис для каждого инструмента.
+**Редакция 2.0-beta.** Модульный TypeScript-проект с разделением по границам доверия. Не создаём микросервис для каждого инструмента.
 
 ## 1. Компоненты и адреса
 
 | Компонент | Адрес / ресурс | Назначение |
 |---|---|---|
-| Pages postun-web | postun.org; app.postun.org | Статический лендинг и кабинет; без секретов и D1 bindings |
+| Workers static assets postun-web | postun.org; app.postun.org | Статический лендинг и кабинет; без секретов и D1 bindings |
 | Auth Worker postun-auth | auth.postun.org | Telegram OIDC, web session, MCP OAuth, служебный API кабинета |
 | MCP Worker postun-mcp | mcp.postun.org/mcp | OAuth resource, read-only tools, Telegram transport и SessionAndQuotaDO |
-| Admin Worker postun-admin | admin.postun.org | Серверный IDP OIDC, административный UI/API |
+| Admin Worker postun-admin | admin.postun.org | Серверный OIDC-вход администраторов, административный UI/API |
 | D1 postun-control | Приватный binding | Пользователи, владельцы аккаунтов, права, entitlement |
 | D1 postun-admin-meta | Отдельная БД | Только псевдонимные административные проекции и admin sessions |
 | KV OAUTH_KV | Только auth | Поддерживаемое хранилище Workers OAuth Provider |
 | SQLite Durable Objects | Только mcp | Зашифрованные сессии, актуальные ограничения, атомарные счётчики |
-| IDP | Точный issuer задаёт оператор | Идентификация и роли администраторов; без Telegram-сессий |
+| OIDC-провайдер администраторов | Точный issuer задаёт оператор (ADMIN_OIDC_ISSUER) | Идентификация и роли администраторов; без Telegram-сессий |
 
 ```text
-Pages / user -> Auth Worker -> Telegram OIDC
+Web (static assets) / user -> Auth Worker -> Telegram OIDC
 AI client -> MCP Worker -> SessionAndQuotaDO -> Telegram MTProto
                  |                |
                  +-- auth service binding   +-- aggregate projection
                                             -> Admin metadata D1
-Admin browser -> Admin Worker -> IDP
+Admin browser -> Admin Worker -> OIDC-провайдер администраторов
                        +-----> Admin metadata D1
 ```
 
-Google Cloud, внешняя БД, VPS, R2 и Containers не входят в эту редакцию. IDP — единственное специально согласованное исключение для административной идентификации, а не место хранения содержимого Postun.
+Google Cloud, внешняя БД, VPS, R2 и Containers не входят в эту редакцию. OIDC-провайдер администраторов — единственное допустимое внешнее звено, и только для административной идентификации; это не место хранения содержимого Postun.
 
 ## 2. Владельцы данных и реальные границы
 
@@ -43,10 +43,10 @@ Admin Worker не получает postun-control, OAUTH_KV, SessionAndQuotaDO �
 ## 3. Минимальная структура кода
 
 ```text
-apps/web/       # Pages: landing, app UI
+apps/web/       # Workers static assets: landing, app UI
 apps/auth/      # Telegram login + OAuth + account control API
 apps/mcp/       # MCP + DO + Telegram adapter
-apps/admin/     # IDP BFF + UI + metadata API
+apps/admin/     # admin OIDC BFF + UI + metadata API
 packages/contracts/  # shared schemas and DTO
 migrations/control/
 migrations/admin/
@@ -95,10 +95,10 @@ MCP возвращает метаданные и поддерживаемый к
 
 Непрозрачный capability хранится хешированным, имеет owner/grant/account binding, срок жизни и один download intent. Строго одноразовый GET несовместим с Range-возобновлением: intent допускает несколько проверенных range-запросов до завершения/истечения. Предпочтительнее token в заголовке или fragment-to-POST обмен, не в индексируемой ссылке с bearer query.
 
-Backpressure, abort, no-store, nosniff, безопасный Content-Disposition, проверка диапазонов. Не кэшировать содержимое через Cache API/Pages/CDN. Если клиент не умеет получать приватный файл без раскрытия токенов модели, остаётся авторизованное скачивание человеком; это честно отдельный статус.
+Backpressure, abort, no-store, nosniff, безопасный Content-Disposition, проверка диапазонов. Не кэшировать содержимое через Cache API/статические ассеты/CDN. Если клиент не умеет получать приватный файл без раскрытия токенов модели, остаётся авторизованное скачивание человеком; это честно отдельный статус.
 
 ## 8. Стоимость и переносимость
 
-Free-first — цель, не гарантия. Workers, DO, D1 и KV имеют разные квоты; расходы на несколько OAuth-записей и refresh не исключать из расчёта. Paid и любые дополнительные платные сервисы включаются только с разрешения владельца. Для 1000 пользователей важнее измеренные CPU, duration, bytes и ошибки, а не само число регистраций. [S05–S08]
+Free-first — цель, не гарантия. Workers, DO, D1 и KV имеют разные квоты; расходы на несколько OAuth-записей и refresh не исключать из расчёта. Paid и любые дополнительные платные сервисы включаются только по явному решению оператора установки. Для 1000 пользователей важнее измеренные CPU, duration, bytes и ошибки, а не само число регистраций. [S05–S08]
 
-Self-host получает тот же открытый код и безопасные defaults; производственные keys, issuer, resource IDs и IDP client задаются владельцем установки. Никакой обязательной регистрации на postun.org, центрального licence-check или скрытого закрытого security-пакета.
+Self-host получает тот же открытый код и безопасные defaults; производственные keys, issuer, resource IDs и клиент OIDC-провайдера администраторов (ADMIN_OIDC_*) задаются оператором установки. Никакой обязательной регистрации на postun.org, центрального licence-check или скрытого закрытого security-пакета.

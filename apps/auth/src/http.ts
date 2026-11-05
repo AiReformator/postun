@@ -1,5 +1,7 @@
 import { HTTP_STATUS, jsonResponse, PostunError, toSafeError, withSecurityHeaders } from '@postun/contracts';
 import type { ErrorCode } from '@postun/contracts';
+import { hasKey, htmlLang, t } from './i18n';
+import type { Locale } from './i18n';
 
 /** Strict CSP for server-rendered pages: no scripts at all; inline style only (single <style> block). */
 export function csp(formActions: string[] = []): string {
@@ -33,10 +35,10 @@ export function apiError(code: ErrorCode, extra: Record<string, unknown> = {}): 
 }
 
 /** Only these codes and fixed messages leave the server. Raw errors are never logged or echoed. */
-export function errorToResponse(err: unknown, wantsHtml: boolean): Response {
+export function errorToResponse(err: unknown, wantsHtml: boolean, locale: Locale): Response {
   const safe = toSafeError(err);
   if (safe.code === 'INTERNAL') console.error('internal_error');
-  if (wantsHtml) return html(errorPage(safe.code), HTTP_STATUS[safe.code]);
+  if (wantsHtml) return html(errorPage(locale, safe.code), HTTP_STATUS[safe.code]);
   return jsonResponse({ error: { code: safe.code, message: safe.message } }, HTTP_STATUS[safe.code]);
 }
 
@@ -65,19 +67,12 @@ button{font:inherit;padding:.5rem 1rem;border-radius:.4rem;border:1px solid #444
 label{display:block;margin:.4rem 0}.box{border:1px solid #ccc;border-radius:.5rem;padding:.75rem 1rem;margin:1rem 0}.warn{color:#9a3412}
 @media (prefers-color-scheme:dark){body{background:#111;color:#eee}.box{border-color:#444}button{background:#eee;color:#111}button.sec{background:#111;color:#eee}}`;
 
-export function page(title: string, inner: string): string {
-  return `<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>${esc(title)} · Postun Beta</title><style>${STYLE}</style></head><body><h1>Postun <span class="beta">Beta</span></h1>${inner}</body></html>`;
+export function page(locale: Locale, title: string, inner: string): string {
+  return `<!doctype html><html lang="${htmlLang(locale)}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>${esc(title)} · Postun Beta</title><style>${STYLE}</style></head><body><h1>Postun <span class="beta">Beta</span></h1>${inner}</body></html>`;
 }
 
-const ERROR_TEXT: Partial<Record<ErrorCode, string>> = {
-  CONFIG_MISSING: 'Сервис ещё не настроен. Попробуйте позже.',
-  UNAUTHENTICATED: 'Требуется вход.',
-  FORBIDDEN: 'Операция недоступна.',
-  INVALID_INPUT: 'Некорректный запрос.',
-  UPSTREAM_UNAVAILABLE: 'Внешний сервис временно недоступен. Попробуйте ещё раз.',
-  INTERNAL: 'Внутренняя ошибка. Попробуйте ещё раз позже.'
-};
-
-export function errorPage(code: ErrorCode, message?: string): string {
-  return page('Ошибка', `<p class="warn">${esc(message ?? ERROR_TEXT[code] ?? 'Не удалось выполнить запрос.')}</p><p>Код: ${esc(code)}</p>`);
+export function errorPage(locale: Locale, code: ErrorCode, message?: string): string {
+  const key = `err.${code}`;
+  const text = message ?? (hasKey(key) ? t(locale, key) : t(locale, 'err.generic'));
+  return page(locale, t(locale, 'err.title'), `<p class="warn">${esc(text)}</p><p>${t(locale, 'err.code', { code })}</p>`);
 }

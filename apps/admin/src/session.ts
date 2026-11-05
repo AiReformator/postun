@@ -88,7 +88,7 @@ export type AuthResult = { status: 'ok'; session: Session } | { status: 'none' |
 
 /**
  * Resolves the cookie to a live session. Checks idle/absolute expiry, the local block list and (every 5 min, or always
- * when `fresh`) re-reads the roles from IDP. A session that cannot be revalidated (no refresh token) ends 5 minutes
+ * when `fresh`) re-reads the roles from the identity provider. A session that cannot be revalidated (no refresh token) ends 5 minutes
  * after login. Revoked roles destroy the session (AD-02).
  */
 export async function authenticate(cfg: Cfg, db: D1Database, req: Request, now: number, fresh = false): Promise<AuthResult> {

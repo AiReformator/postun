@@ -7,8 +7,10 @@ import type { Env } from '../src/env';
 
 export const ISSUER = 'https://idp.test.example';
 export const ORIGIN = 'https://admin.test.example';
-export const PROJECT = 'proj-111';
-export const ORG = 'org-222';
+export const EXTRA_AUD = 'aud-111';
+export const TENANT = 'tenant-222';
+export const ROLES_CLAIM = 'https://idp.test.example/claims/roles';
+export const SCOPES = 'openid profile offline_access test:roles';
 export const CLIENT = 'client-333@postun';
 export const SECRET = 'synthetic-client-secret';
 export const SESSION_KEY = toBase64Url(new Uint8Array(32).fill(7));
@@ -28,11 +30,13 @@ export function makeEnv(over: Partial<Record<keyof Env, unknown>> = {}, control?
     CONTROL: c,
     APP_ENV: 'test',
     ADMIN_ORIGIN: ORIGIN,
-    IDP_ISSUER: ISSUER,
-    IDP_PROJECT_ID: PROJECT,
-    IDP_ORG_ID: ORG,
-    IDP_CLIENT_ID: CLIENT,
-    IDP_CLIENT_SECRET: SECRET,
+    ADMIN_OIDC_ISSUER: ISSUER,
+    ADMIN_OIDC_CLIENT_ID: CLIENT,
+    ADMIN_OIDC_CLIENT_SECRET: SECRET,
+    ADMIN_OIDC_SCOPES: SCOPES,
+    ADMIN_OIDC_ROLES_CLAIM: ROLES_CLAIM,
+    ADMIN_OIDC_ROLES_TENANT: TENANT,
+    ADMIN_OIDC_EXTRA_AUDIENCE: EXTRA_AUD,
     ADMIN_SESSION_KEY: SESSION_KEY,
     ...over
   };
@@ -50,9 +54,9 @@ export const advance = (ms: number): void => {
   clock.t += ms;
 };
 
-// ---------- fake IDP ----------
-type Roles = Record<string, Record<string, string>> | undefined;
-export interface IdP {
+// ---------- fake identity provider ----------
+type Roles = Record<string, Record<string, string>> | string[] | undefined;
+export interface Idp {
   keys: CryptoKeyPair;
   /** Roles currently assigned at the IdP (returned by userinfo and by refreshed ID tokens). */
   roles: Roles;
@@ -67,7 +71,7 @@ export interface IdP {
   codes: Map<string, { nonce: string; challenge: string }>;
   calls: { token: number; refresh: number; userinfo: number };
 }
-export const ownerRoles = (...r: string[]): Roles => Object.fromEntries(r.map((x) => [x, { [ORG]: 'org.test' }]));
+export const ownerRoles = (...r: string[]): Roles => Object.fromEntries(r.map((x) => [x, { [TENANT]: 'tenant.test' }]));
 
 async function sign(keys: CryptoKeyPair, payload: Record<string, unknown>): Promise<string> {
   const h = toBase64Url(utf8(JSON.stringify({ alg: 'RS256', typ: 'JWT', kid: 'k1' })));
@@ -77,16 +81,16 @@ async function sign(keys: CryptoKeyPair, payload: Record<string, unknown>): Prom
 }
 const json = (b: unknown, status = 200): Response => new Response(JSON.stringify(b), { status, headers: { 'content-type': 'application/json' } });
 
-export async function installIdP(): Promise<IdP> {
+export async function installIdp(): Promise<Idp> {
   resetDiscoveryCache();
   const keys = (await crypto.subtle.generateKey({ name: 'RSASSA-PKCS1-v1_5', modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256' }, true, ['sign', 'verify'])) as CryptoKeyPair;
   const jwk = { ...(await crypto.subtle.exportKey('jwk', keys.publicKey)), kid: 'k1', alg: 'RS256', use: 'sig' };
-  const z: IdP = { keys, roles: ownerRoles('postun.operator'), idOverrides: {}, rolesInIdToken: true, refresh: 'ok', issueRefreshToken: true, rogueSignature: false, discoveryDown: false, codes: new Map(), calls: { token: 0, refresh: 0, userinfo: 0 } };
-  const rolesClaim = (): Record<string, unknown> => (z.roles ? { [`urn:idp:iam:org:project:${PROJECT}:roles`]: z.roles } : {});
+  const z: Idp = { keys, roles: ownerRoles('postun.operator'), idOverrides: {}, rolesInIdToken: true, refresh: 'ok', issueRefreshToken: true, rogueSignature: false, discoveryDown: false, codes: new Map(), calls: { token: 0, refresh: 0, userinfo: 0 } };
+  const rolesClaim = (): Record<string, unknown> => (z.roles ? { [ROLES_CLAIM]: z.roles } : {});
   const now = (): number => Math.floor(clock.t / 1000);
   const rogue = (await crypto.subtle.generateKey({ name: 'RSASSA-PKCS1-v1_5', modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256' }, true, ['sign', 'verify'])) as CryptoKeyPair;
   const idToken = (extra: Record<string, unknown>): Promise<string> =>
-    sign(z.rogueSignature ? rogue : keys, { iss: ISSUER, sub: SUBJECT, aud: [CLIENT, PROJECT], azp: CLIENT, iat: now(), exp: now() + 600, amr: ['pwd', 'mfa', 'otp'], ...(z.rolesInIdToken ? rolesClaim() : {}), ...extra });
+    sign(z.rogueSignature ? rogue : keys, { iss: ISSUER, sub: SUBJECT, aud: [CLIENT, EXTRA_AUD], azp: CLIENT, iat: now(), exp: now() + 600, amr: ['pwd', 'mfa', 'otp'], ...(z.rolesInIdToken ? rolesClaim() : {}), ...extra });
 
   vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
     const url = new URL(input instanceof Request ? input.url : String(input));
@@ -155,7 +159,7 @@ export interface LoginFlow {
   url: URL;
   flowCookie: string;
 }
-export async function startLogin(env: Env, z: IdP, code = 'code-1'): Promise<LoginFlow> {
+export async function startLogin(env: Env, z: Idp, code = 'code-1'): Promise<LoginFlow> {
   const res = await call(env, '/login');
   if (res.status !== 303) throw new Error(`login status ${res.status}`);
   const url = new URL(res.headers.get('location') ?? '');
@@ -167,7 +171,7 @@ export const callback = (env: Env, f: LoginFlow, code = 'code-1', opts: { state?
   call(env, `/oidc/callback?code=${code}&state=${opts.state ?? f.state}`, { cookie: opts.cookie ?? f.flowCookie });
 
 /** Full successful login; returns the admin session cookie. */
-export async function login(env: Env, z: IdP): Promise<string> {
+export async function login(env: Env, z: Idp): Promise<string> {
   const f = await startLogin(env, z);
   const res = await callback(env, f);
   const c = cookieOf(res, '__Host-postun_admin');

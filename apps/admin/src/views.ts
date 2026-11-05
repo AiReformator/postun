@@ -21,7 +21,7 @@ export function page(nonce: string, body: string, user?: { subject: string; leve
 }
 
 export const loginPage = (nonce: string): string =>
-  page(nonce, `<h1>Вход для администраторов</h1><p>Экспериментальная Beta-версия. Вход выполняется только через IDP; требуется проектная роль Postun и многофакторная аутентификация.</p><p><a class="btn" href="/login">Войти через IDP</a></p>`);
+  page(nonce, `<h1>Вход для администраторов</h1><p>Экспериментальная Beta-версия. Вход выполняется только через внешнего провайдера входа; требуется роль Postun и многофакторная аутентификация.</p><p><a class="btn" href="/login">Войти</a></p>`);
 
 export const messagePage = (nonce: string, title: string, text: string): string => page(nonce, `<h1>${esc(title)}</h1><p>${esc(text)}</p><p><a href="/">На главную</a></p>`);
 

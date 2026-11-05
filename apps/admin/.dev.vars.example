@@ -1,11 +1,16 @@
 # Copy to .dev.vars (git-ignored) for local dev, or set with `wrangler secret put`. Never commit real values.
 # Admin is disabled (503) until every value below is set.
-IDP_ISSUER=
-IDP_PROJECT_ID=
-IDP_ORG_ID=
-IDP_CLIENT_ID=
-IDP_CLIENT_SECRET=
+ADMIN_OIDC_ISSUER=
+ADMIN_OIDC_CLIENT_ID=
+ADMIN_OIDC_CLIENT_SECRET=
+# Full space-separated scope string (no default); must yield a refresh token and the roles claim.
+ADMIN_OIDC_SCOPES=
+# Name of the claim (ID token or userinfo) holding the administrator roles.
+ADMIN_OIDC_ROLES_CLAIM=
 # 32 random bytes, base64/base64url (e.g. `openssl rand -base64 32`). Encrypts refresh tokens in admin D1.
 ADMIN_SESSION_KEY=
+# Required (use the literal value none to switch a check off explicitly; blank or missing disables the admin):
+# ADMIN_OIDC_ROLES_TENANT=<key a role's value object must contain | none>
+# ADMIN_OIDC_EXTRA_AUDIENCE=<value id_token aud must include | none>
 # Optional tuning (plain vars): ADMIN_REQUIRE_MFA_AMR=true, ADMIN_MFA_AMR_VALUES=mfa,otp,hwk,swk,pop,
-# IDP_CLIENT_AUTH=basic|post, IDP_ID_TOKEN_ALG=RS256, IDP_SCOPES=<override full scope string>
+# ADMIN_OIDC_CLIENT_AUTH=basic|post, ADMIN_OIDC_ID_TOKEN_ALG=RS256

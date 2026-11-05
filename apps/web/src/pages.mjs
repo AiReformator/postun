@@ -6,7 +6,7 @@ const REPO = 'https://github.com/AiReformator/postun';
 /** Page ids and their path below a locale prefix. */
 export const PAGES = { home: '/', privacy: '/privacy/', terms: '/terms/', cabinet: '/app/' };
 
-function layout(L, page, { title, body, script }) {
+function layout(L, page, { title, body, script, description, head = '' }) {
   const t = translator(L.dict);
   const href = (l) => `${l.prefix}${PAGES[page]}`;
   const alternates = LOCALES.map((l) => `<link rel="alternate" hreflang="${l.htmlLang}" href="${SITE}${href(l)}">`).join('\n');
@@ -22,14 +22,14 @@ function layout(L, page, { title, body, script }) {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(title)}</title>
-<meta name="description" content="${esc(t('meta.description'))}">
+<meta name="description" content="${esc(description ?? t('meta.description'))}">
 <link rel="canonical" href="${SITE}${href(L)}">
 ${alternates}
 <link rel="alternate" hreflang="x-default" href="${SITE}${PAGES[page]}">
 <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/assets/site.css">
 <script src="/assets/host.js"></script>
-</head>
+${head}</head>
 <body>
 <header class="top"><div class="wrap row">
 <a class="brand" href="${home}">Postun <span class="badge">Beta</span></a>
@@ -47,6 +47,62 @@ ${script ? `<script src="${script}" defer></script>` : ''}
 `;
 }
 
+/** Plain text of a trusted dictionary string with markup: tags removed until none remain, then the few entities escHtml emits
+ * decoded in ONE pass (so "&amp;lt;" becomes "&lt;", never "<"). Output goes only into JSON-LD, which escapes "</" separately. */
+const ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', '#39': "'" };
+export function plainText(html) {
+  let s = String(html);
+  for (let prev = ''; prev !== s; ) {
+    prev = s;
+    s = s.replace(/<[^<>]*>/g, '');
+  }
+  s = s.replace(/[<>]/g, '');
+  return s.replace(/&(amp|lt|gt|quot|#39);/g, (_, e) => ENTITIES[e]);
+}
+
+export const FAQ_COUNT = 7;
+
+/** FAQ entries for a locale: answers are HTML (visible page) and plain text (JSON-LD). Claude Code wording follows status.json. */
+export function faqItems(status, code = 'en') {
+  const L = locale(code);
+  const t = translator(L.dict);
+  const claude = status.features.find((f) => f.id === 'mcp_claude_code')?.status === 'PASS' ? 'faq.claudeVerified' : 'faq.claudeTesting';
+  const vars = { claudeState: t(claude), quota: Number(status.quota_daily_success ?? 10000).toLocaleString(L.htmlLang) };
+  return Array.from({ length: FAQ_COUNT }, (_, i) => {
+    const q = t(`faq.q${i + 1}`);
+    const html = t(`faq.a${i + 1}`, vars);
+    return { q, html, text: plainText(html) };
+  });
+}
+
+/** JSON-LD for the landing: FAQPage (matches the visible FAQ) and SoftwareApplication. Safe to embed in a <script> data block. */
+export function jsonLd(status, code = 'en') {
+  const L = locale(code);
+  const t = translator(L.dict);
+  const data = [
+    {
+      '@context': 'https://schema.org',
+      '@type': 'FAQPage',
+      inLanguage: L.htmlLang,
+      mainEntity: faqItems(status, code).map((f) => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.text } }))
+    },
+    {
+      '@context': 'https://schema.org',
+      '@type': 'SoftwareApplication',
+      name: 'Postun',
+      description: plainText(t('landing.metaDescription')),
+      applicationCategory: 'DeveloperApplication',
+      operatingSystem: 'Web',
+      url: `${SITE}${L.prefix}/`,
+      inLanguage: L.htmlLang,
+      codeRepository: REPO,
+      sameAs: [REPO],
+      offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' }
+    }
+  ];
+  return data.map((d) => `<script type="application/ld+json">${JSON.stringify(d).replace(/<\//g, '<\\/')}</script>\n`).join('');
+}
+
 export function landing(status, code = 'en') {
   const L = locale(code);
   const t = translator(L.dict);
@@ -57,10 +113,13 @@ export function landing(status, code = 'en') {
 <p id="cta-note" class="note">${t('landing.ctaClosed')}</p>`;
   return layout(L, 'home', {
     title: t('landing.title'),
+    description: t('landing.metaDescription'),
+    head: jsonLd(status, code),
     body: `
 <section class="hero">
 <p class="eyebrow">${t('landing.eyebrow')}</p>
 <h1>Connected, not collected.</h1>
+<p class="tagline">${t('landing.subtitle')}</p>
 <p class="lead">${t('landing.lead')}</p>
 ${cta}
 </section>
@@ -93,6 +152,16 @@ ${statusTable(status, L.dict)}
 <li>${t('landing.data4')}</li>
 </ul>
 <p><a href="${L.prefix}/privacy/">${t('landing.dataMore')}</a></p>
+</section>
+
+<section id="open">
+<h2>${t('landing.openTitle')}</h2>
+<p>${t('landing.open', { repo: REPO })}</p>
+</section>
+
+<section id="faq" class="faq">
+<h2>${t('faq.title')}</h2>
+${faqItems(status, code).map((f) => `<details><summary>${f.q}</summary><p>${f.html}</p></details>`).join('\n')}
 </section>
 
 <section>

@@ -3,6 +3,7 @@ import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync, readdirSync, st
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { landing, privacy, terms, cabinet } from './src/pages.mjs';
+import { robotsTxt, sitemapXml, llmsTxt } from './src/seo.mjs';
 import { validateStatus } from './src/render.mjs';
 import { LOCALES, checkLocales } from './i18n/index.mjs';
 import { build as esbuild } from 'esbuild';
@@ -31,6 +32,9 @@ for (const [file, html] of Object.entries(pages)) {
   mkdirSync(dirname(join(out, file)), { recursive: true });
   writeFileSync(join(out, file), html);
 }
+writeFileSync(join(out, 'robots.txt'), robotsTxt());
+writeFileSync(join(out, 'sitemap.xml'), sitemapXml(status.updated));
+writeFileSync(join(out, 'llms.txt'), llmsTxt(status));
 // Record exactly which source commit this site was built from (public, non-secret).
 const git = (...a) => {
   try {
