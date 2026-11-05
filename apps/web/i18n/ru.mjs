@@ -63,7 +63,7 @@ export default {
     feedbackTitle: 'Обратная связь',
     feedback: 'Ошибки и предложения — в <a href="{repo}/issues">GitHub Issues</a> без переписки, документов, кодов входа и токенов. Уязвимости — только через закрытый канал из <a href="{repo}/blob/main/SECURITY.md">SECURITY.md</a>.'
   },
-  legal: { translationNote: '' },
+  legal: { translationNote: 'Это перевод для удобства. При расхождении действует английская версия.' },
   privacy: {
     title: 'Обработка данных — Postun Beta',
     h1: 'Обработка данных в Postun Beta',

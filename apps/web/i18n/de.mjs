@@ -62,7 +62,7 @@ export default {
     feedbackTitle: 'Feedback',
     feedback: 'Fehler und Vorschläge bitte über <a href="{repo}/issues">GitHub Issues</a> melden – ohne Nachrichten, Dokumente, Anmeldecodes und Tokens. Sicherheitslücken nur über den nicht öffentlichen Kanal aus <a href="{repo}/blob/main/SECURITY.md">SECURITY.md</a>.'
   },
-  legal: { translationNote: 'Dies ist eine Übersetzung zur Orientierung. Bei Abweichungen gilt die russische Fassung.' },
+  legal: { translationNote: 'Dies ist eine Übersetzung zur Orientierung. Bei Abweichungen gilt die englische Fassung.' },
   privacy: {
     title: 'Datenverarbeitung – Postun Beta',
     h1: 'Datenverarbeitung in Postun Beta',

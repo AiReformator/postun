@@ -62,7 +62,7 @@ export default {
     feedbackTitle: 'Comentarios',
     feedback: 'Errores y sugerencias: en <a href="{repo}/issues">GitHub Issues</a>, sin conversaciones, documentos, códigos de acceso ni tokens. Las vulnerabilidades, solo a través del canal privado indicado en <a href="{repo}/blob/main/SECURITY.md">SECURITY.md</a>.'
   },
-  legal: { translationNote: 'Esta es una traducción de cortesía. En caso de discrepancia, prevalece la versión en ruso.' },
+  legal: { translationNote: 'Esta es una traducción de conveniencia. En caso de discrepancia, prevalece la versión en inglés.' },
   privacy: {
     title: 'Tratamiento de datos — Postun Beta',
     h1: 'Tratamiento de datos en Postun Beta',

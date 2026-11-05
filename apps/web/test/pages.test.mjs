@@ -3,7 +3,6 @@ import { readFileSync } from 'node:fs';
 import { landing, cabinet, privacy, terms } from '../src/pages.mjs';
 import { connectAvailable, validateStatus } from '../src/render.mjs';
 import { LOCALES, checkLocales, translator } from '../i18n/index.mjs';
-import ru from '../i18n/ru.mjs';
 import en from '../i18n/en.mjs';
 
 const status = validateStatus(JSON.parse(readFileSync(new URL('../status.json', import.meta.url), 'utf8')));
@@ -63,10 +62,14 @@ describe('beta landing', () => {
       expect(terms(l.code)).toContain(translator(l.dict)('terms.h1'));
     }
   });
-  it('English is the default and non-Russian legal pages say the Russian version prevails', () => {
+  it('English is the default and authoritative; translated legal pages say the English version prevails', () => {
     expect(landing(status)).toContain('<html lang="en"');
-    expect(ru.legal.translationNote).toBe('');
-    for (const l of LOCALES.filter((x) => x.code !== 'ru')) expect(terms(l.code)).toContain(l.dict.legal.translationNote);
+    expect(en.legal.translationNote).toBe('');
+    for (const l of LOCALES.filter((x) => x.code !== 'en')) {
+      expect(l.dict.legal.translationNote).not.toBe('');
+      expect(terms(l.code)).toContain(l.dict.legal.translationNote);
+      expect(privacy(l.code)).toContain(l.dict.legal.translationNote);
+    }
   });
   it('translator escapes variables but keeps trusted markup', () => {
     const t = translator({ a: '<code>{x}</code>' });

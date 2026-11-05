@@ -62,7 +62,7 @@ export default {
     feedbackTitle: 'Feedback',
     feedback: 'Report bugs and suggestions in <a href="{repo}/issues">GitHub Issues</a> without messages, documents, sign-in codes or tokens. Report vulnerabilities only through the private channel described in <a href="{repo}/blob/main/SECURITY.md">SECURITY.md</a>.'
   },
-  legal: { translationNote: 'This is a convenience translation. In case of any discrepancy, the Russian version prevails.' },
+  legal: { translationNote: '' },
   privacy: {
     title: 'Data handling — Postun Beta',
     h1: 'Data handling in Postun Beta',
