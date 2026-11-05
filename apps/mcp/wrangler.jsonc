@@ -15,6 +15,8 @@
     { "binding": "AUTH", "service": "postun-auth" },
     { "binding": "ADMIN_SINK", "service": "postun-admin", "entrypoint": "ProjectionSink" }
   ],
+  // Aggregate service metrics, no identifiers (docs/03 "Service metrics"). No resource ID: the dataset is created on first write.
+  "analytics_engine_datasets": [{ "binding": "METRICS", "dataset": "postun_metrics" }],
   "vars": {
     "APP_ENV": "production",
     "MCP_RESOURCE": "https://mcp.postun.org/mcp",
@@ -39,6 +41,7 @@
         { "binding": "AUTH", "service": "postun-auth-staging" },
         { "binding": "ADMIN_SINK", "service": "postun-admin-staging", "entrypoint": "ProjectionSink" }
       ],
+      "analytics_engine_datasets": [{ "binding": "METRICS", "dataset": "postun_metrics_staging" }],
       "vars": {
         "APP_ENV": "staging",
         "MCP_RESOURCE": "https://mcp.staging.postun.org/mcp",

@@ -1,4 +1,4 @@
-import type { AdminProjection, AuthServerRpc, ProjectionSinkRpc } from '@postun/contracts';
+import type { AdminProjection, AuthServerRpc, MetricsDataset, ProjectionSinkRpc } from '@postun/contracts';
 import type { SessionAndQuotaDO } from './do/session-do';
 
 /** Typed service binding: only the RPC methods of the contract are visible. */
@@ -9,6 +9,8 @@ export interface Env {
   SESSIONS: DurableObjectNamespace<SessionAndQuotaDO>;
   AUTH: RpcService<AuthServerRpc>;
   ADMIN_SINK?: RpcService<ProjectionSinkRpc>;
+  /** Workers Analytics Engine dataset for aggregate service metrics; optional, writes are best effort. */
+  METRICS?: MetricsDataset;
   // vars
   APP_ENV: string;
   MCP_RESOURCE: string;

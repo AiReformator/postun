@@ -19,6 +19,8 @@
     }
   ],
   "services": [{ "binding": "VAULT", "service": "postun-mcp", "entrypoint": "VaultControl" }],
+  // Aggregate service metrics, no identifiers (docs/03 "Service metrics"). No resource ID: the dataset is created on first write.
+  "analytics_engine_datasets": [{ "binding": "METRICS", "dataset": "postun_metrics" }],
   "vars": {
     "APP_ENV": "production",
     "AUTH_ISSUER": "https://auth.postun.org",
@@ -48,6 +50,7 @@
         }
       ],
       "services": [{ "binding": "VAULT", "service": "postun-mcp-staging", "entrypoint": "VaultControl" }],
+      "analytics_engine_datasets": [{ "binding": "METRICS", "dataset": "postun_metrics_staging" }],
       "vars": {
         "APP_ENV": "staging",
         "AUTH_ISSUER": "https://auth.staging.postun.org",

@@ -9,3 +9,4 @@ export * from './config';
 export * from './cookies';
 export * from './dto';
 export * from './rpc';
+export * from './metrics';
