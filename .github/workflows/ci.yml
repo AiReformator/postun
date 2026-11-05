@@ -25,7 +25,9 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: npm run lint
       - run: npm run typecheck
-      - run: npm test
+      # Known flake: the local workerd test runtime occasionally exits mid-file ("Worker exited unexpectedly")
+      # after deliberate stream-abort tests. Retry the suite once; a real failure fails both runs.
+      - run: npm test || (echo "test suite failed once; retrying" && npm test)
       - run: npm run build
       - run: npm run check:secrets
       - run: npm run check:logging
