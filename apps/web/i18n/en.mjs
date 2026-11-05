@@ -122,7 +122,7 @@ export default {
   privacy: {
     title: 'Data handling — Postun Beta',
     h1: 'Data handling in Postun Beta',
-    edition: 'Edition 2.0-beta, November 4, 2026. Describes the design rules of the beta; actual deletion times are confirmed by tests.',
+    edition: 'Edition 2.0-beta, November 5, 2026. Describes the design rules of the beta; actual deletion times are confirmed by tests.',
     category: 'Category',
     policy: 'Policy',
     r1a: 'Identity and verified links',
@@ -145,7 +145,8 @@ export default {
     r9b: 'Not stored by default',
     p1: 'The Telegram ID is stored only as an HMAC index and an encrypted value. Sessions are encrypted with AES-256-GCM using a separate key per account. Keys are kept in Cloudflare secrets, not in the repository.',
     p2: 'Cloudflare and the administrator sign-in provider may keep their own infrastructure metadata; Postun does not promise that it is absent. The product administrator has no access to messages or sessions; the infrastructure administrator technically remains part of the trust model.',
-    p3: 'Cloudflare Workers logging (observability, logs, tail, logpush) is disabled for every Postun service and verified automatically on every build. The code never writes content to logs: only constant service messages without data are allowed.'
+    p3: 'Cloudflare Workers logging (observability, logs, tail, logpush) is disabled for every Postun service and verified automatically on every build. The code never writes content to logs: only constant service messages without data are allowed.',
+    p4: 'The public pages of the site (home, terms, data processing) use Cloudflare Web Analytics. It sets no cookies, does not fingerprint the browser and does not link visits to your profile. Cloudflare receives the page address, referrer, browser and device type, country and load timing; Postun sees only aggregate statistics. The cabinet has no counter.'
   },
   terms: {
     title: 'Beta terms — Postun Beta',

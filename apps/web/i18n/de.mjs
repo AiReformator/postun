@@ -122,7 +122,7 @@ export default {
   privacy: {
     title: 'Datenverarbeitung – Postun Beta',
     h1: 'Datenverarbeitung in Postun Beta',
-    edition: 'Fassung 2.0-beta, 04.11.2026. Beschreibt die Entwurfsregeln der Beta; tatsächliche Löschfristen werden durch Tests bestätigt.',
+    edition: 'Fassung 2.0-beta, 05.11.2026. Beschreibt die Entwurfsregeln der Beta; tatsächliche Löschfristen werden durch Tests bestätigt.',
     category: 'Kategorie',
     policy: 'Regel',
     r1a: 'Identität und bestätigte Verknüpfungen',
@@ -145,7 +145,8 @@ export default {
     r9b: 'Standardmäßig nicht gespeichert',
     p1: 'Die Telegram-ID wird nur als HMAC-Index und als verschlüsselter Wert gespeichert. Sitzungen sind mit AES-256-GCM verschlüsselt, mit einem eigenen Schlüssel pro Konto. Die Schlüssel liegen in den Cloudflare-Secrets, nicht im Repository.',
     p2: 'Cloudflare und der Anbieter der Administrator-Anmeldung können eigene Infrastruktur-Metadaten führen; Postun sagt nicht zu, dass keine anfallen. Der Produktadministrator hat keinen Zugriff auf Nachrichten und Sitzungen; der Infrastrukturadministrator bleibt technisch Teil des Vertrauensmodells.',
-    p3: 'Die Protokollierung von Cloudflare Workers (observability, logs, tail, logpush) ist für alle Postun-Dienste deaktiviert und wird bei jedem Build automatisch geprüft. Der Code schreibt niemals Inhalte in Logs: Erlaubt sind nur konstante Dienstmeldungen ohne Daten.'
+    p3: 'Die Protokollierung von Cloudflare Workers (observability, logs, tail, logpush) ist für alle Postun-Dienste deaktiviert und wird bei jedem Build automatisch geprüft. Der Code schreibt niemals Inhalte in Logs: Erlaubt sind nur konstante Dienstmeldungen ohne Daten.',
+    p4: 'Die öffentlichen Seiten der Website (Startseite, Bedingungen, Datenverarbeitung) verwenden Cloudflare Web Analytics. Es setzt keine Cookies, erstellt keinen Browser-Fingerabdruck und verknüpft Besuche nicht mit Ihrem Profil. Cloudflare erhält die Seitenadresse, die Herkunft, Browser- und Gerätetyp, das Land und die Ladezeit; Postun sieht nur zusammengefasste Statistiken. Im Konto-Bereich gibt es keinen Zähler.'
   },
   terms: {
     title: 'Bedingungen der Beta-Teilnahme – Postun Beta',
