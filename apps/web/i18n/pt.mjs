@@ -35,11 +35,13 @@ export default {
     file_attachment: 'Arquivo como anexo para a IA'
   },
   landing: {
-    title: 'Postun Beta — o Telegram para os seus clientes de IA',
+    title: 'Postun — Telegram MCP para ChatGPT e Claude (beta aberto)',
+    metaDescription: 'Servidor MCP de Telegram de código aberto e somente leitura. Conecte a sua própria conta do Telegram ao ChatGPT, ao Claude e ao Claude Code via OAuth e escolha o que cada cliente de IA pode ler. Beta gratuito.',
     cta: 'Participar do beta',
     ctaClosed: 'O cadastro será aberto depois da verificação do login, da conexão de contas e dos clientes MCP. No momento a conexão não está disponível: não oferecemos autorização em um serviço não verificado.',
     eyebrow: 'Beta aberto · projeto experimental',
     lead: 'O Postun conecta a sua própria conta do Telegram ao ChatGPT, ao Claude Code e a outros clientes MCP — somente leitura e somente para as contas e os recursos que você permitiu explicitamente.',
+    subtitle: 'Conecte o seu Telegram ao ChatGPT e ao Claude — somente leitura, código aberto',
     step1Title: '1. Login',
     step1: 'Login pelo Telegram Login oficial. O número de telefone não é solicitado.',
     step2Title: '2. Conexão da conta',
@@ -60,7 +62,28 @@ export default {
     data4: 'Para testar, use uma conta preparada especialmente para isso e dados de teste.',
     dataMore: 'Detalhes sobre o tratamento de dados',
     feedbackTitle: 'Feedback',
-    feedback: 'Erros e sugestões vão no <a href="{repo}/issues">GitHub Issues</a>, sem conversas, documentos, códigos de login nem tokens. Vulnerabilidades devem ser relatadas apenas pelo canal privado descrito em <a href="{repo}/blob/main/SECURITY.md">SECURITY.md</a>.'
+    feedback: 'Erros e sugestões vão no <a href="{repo}/issues">GitHub Issues</a>, sem conversas, documentos, códigos de login nem tokens. Vulnerabilidades devem ser relatadas apenas pelo canal privado descrito em <a href="{repo}/blob/main/SECURITY.md">SECURITY.md</a>.',
+    openTitle: 'Aberto por princípio',
+    open: 'O código do Postun é totalmente aberto, de propósito. Seguimos o princípio de Kerckhoffs: um sistema deve continuar seguro mesmo que tudo sobre ele, exceto as chaves, seja público. Qualquer pessoa pode ler o código e verificar como funcionam a criptografia, as verificações de acesso e a regra de não guardar logs; a nossa segurança depende apenas de chaves secretas, que ficam nos segredos da Cloudflare e nunca no repositório. Veja o <a href="{repo}">código no GitHub</a> e a <a href="{repo}/blob/main/SECURITY.md">política de segurança (SECURITY.md)</a>.'
+  },
+  faq: {
+    title: 'Perguntas frequentes',
+    claudeTesting: 'ainda está em teste e não foi verificado em produção',
+    claudeVerified: 'foi verificado em produção',
+    q1: 'O que é um servidor MCP para Telegram e o que é MCP?',
+    a1: 'MCP (Model Context Protocol) é um padrão aberto que permite a clientes de IA, como o ChatGPT ou o Claude, usar ferramentas externas e ler dados delas. Um servidor MCP para Telegram é uma dessas ferramentas: o Postun permite que um cliente de IA veja a sua lista de conversas, leia o histórico e, depois de verificado, busque mensagens, leia canais públicos e obtenha arquivos. É somente leitura: não envia, edita nem apaga nada.',
+    q2: 'Como conectar o Telegram ao ChatGPT?',
+    a2: 'Entre em app.postun.org com o Telegram e conecte a sua própria conta por QR code (Telegram → Configurações → Dispositivos → Conectar dispositivo desktop; a senha na nuvem é aceita). Depois adicione no ChatGPT um conector MCP personalizado com o endereço <code>https://mcp.postun.org/mcp</code> e aprove a tela de OAuth, na qual você escolhe as contas e as permissões de leitura desse cliente. Conectores personalizados dependem do seu plano e das configurações do ChatGPT. Esse fluxo está verificado em produção para conversas, grupos e histórico.',
+    q3: 'Como conectar o Telegram ao Claude ou ao Claude Code?',
+    a3: 'Adicione o mesmo endereço, <code>https://mcp.postun.org/mcp</code>, como servidor MCP remoto: no Claude, como conector personalizado; no Claude Code, com <code>claude mcp add --transport http postun https://mcp.postun.org/mcp</code>. Depois conclua o OAuth e escolha contas e permissões. O suporte ao Claude Code {claudeState}.',
+    q4: 'É seguro? O que o Postun armazena?',
+    a4: 'O Postun lê apenas o que você permite. As sessões do Telegram são armazenadas criptografadas (AES-256-GCM, uma chave separada por conta, protegida por uma chave mestra guardada nos segredos da Cloudflare). O Postun não mantém logs de conversas nem de requisições — os logs da Cloudflare estão desativados e o CI verifica isso — e o conteúdo das mensagens existe apenas na memória enquanto é entregue ao seu cliente de IA. Não é zero-knowledge: o operador e a infraestrutura fazem parte do modelo de confiança, e o seu provedor de IA guarda dados conforme as próprias regras. O código é aberto, então você pode conferir tudo isso.',
+    q5: 'O Postun é um bot do Telegram?',
+    a5: 'Não. Um bot é uma conta separada do Telegram que conversa com você dentro do Telegram. O Postun não adiciona nada às suas conversas: ele conecta a sua própria conta (como um dispositivo vinculado) e dá a um cliente de IA acesso somente leitura via MCP. Se você procura um chatbot dentro do Telegram, é outra coisa.',
+    q6: 'Posso revogar o acesso?',
+    a6: 'Sim, a qualquer momento. No painel você pode revogar um cliente de IA específico, desconectar uma conta do Telegram (a sessão é encerrada) ou excluir o perfil. Você também pode encerrar a sessão no Telegram, em Configurações → Dispositivos.',
+    q7: 'O Postun é gratuito?',
+    a7: 'Sim. O beta é gratuito, com limite de {quota} operações bem-sucedidas por dia (UTC) por titular. Solicitações de serviço e erros não são contabilizados. Não há pagamentos no beta, e o limite pode mudar.'
   },
   legal: { translationNote: 'Esta é uma tradução de conveniência. Em caso de divergência, prevalece a versão em inglês.' },
   privacy: {

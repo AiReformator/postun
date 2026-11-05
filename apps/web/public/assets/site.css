@@ -41,3 +41,7 @@ input[type=password],input[type=text]{font:inherit;padding:10px;border:1px solid
 ul.plain{list-style:none;padding:0}
 ul.plain li{padding:8px 0;border-bottom:1px solid var(--line)}
 .err{color:var(--bad)}
+.tagline{font-size:1.3rem;font-weight:600;margin:0 0 12px;max-width:680px}
+.faq details{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 16px;margin:10px 0}
+.faq summary{cursor:pointer;font-weight:600}
+.faq details p{margin:10px 0 2px;color:var(--muted)}

@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { landing, cabinet, privacy, terms } from '../src/pages.mjs';
+import { readFileSync, existsSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import { landing, cabinet, privacy, terms, faqItems } from '../src/pages.mjs';
+import { robotsTxt, sitemapXml, llmsTxt } from '../src/seo.mjs';
 import { connectAvailable, validateStatus } from '../src/render.mjs';
 import { LOCALES, checkLocales, translator } from '../i18n/index.mjs';
 import en from '../i18n/en.mjs';
@@ -76,4 +79,84 @@ describe('beta landing', () => {
     expect(t('a', { x: '<b>' })).toBe('<code>&lt;b&gt;</code>');
     expect(() => t('missing')).toThrow();
   });
+});
+
+describe('SEO: semantic core', () => {
+  const ldBlocks = (html) => [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map((m) => JSON.parse(m[1].replace(/<\\\//g, '</')));
+  const visibleQuestions = (html) => [...html.matchAll(/<details><summary>([\s\S]*?)<\/summary>/g)].map((m) => m[1]);
+  const primary = { en: /Telegram MCP/i, ru: /Telegram MCP/i, es: /Telegram MCP/i, pt: /Telegram MCP/i, de: /Telegram-MCP/i };
+
+  it('every locale has a keyword-bearing title and its own meta description', () => {
+    for (const l of LOCALES) {
+      const html = landing(status, l.code);
+      const title = html.match(/<title>(.*)<\/title>/)[1];
+      expect(title, l.code).toMatch(primary[l.code]);
+      expect(title, l.code).toContain('ChatGPT');
+      expect(title, l.code).toContain('Claude');
+      const desc = html.match(/<meta name="description" content="([^"]*)"/)[1];
+      expect(desc.length, l.code).toBeGreaterThan(100);
+      expect(desc, l.code).not.toBe(l.dict.meta.description);
+      expect(html).toContain('<h1>Connected, not collected.</h1>');
+      expect(html).toContain(`<p class="tagline">${l.dict.landing.subtitle}</p>`);
+    }
+    expect(landing(status)).toContain('<title>Postun — Telegram MCP server for ChatGPT and Claude (open beta)</title>');
+  });
+  it('JSON-LD parses; FAQPage matches the visible FAQ; SoftwareApplication has the required fields', () => {
+    for (const l of LOCALES) {
+      const html = landing(status, l.code);
+      const [faq, app] = ldBlocks(html);
+      expect(faq['@type']).toBe('FAQPage');
+      expect(faq.mainEntity.length).toBeGreaterThanOrEqual(5);
+      expect(faq.mainEntity.map((q) => q.name), l.code).toEqual(visibleQuestions(html));
+      for (const q of faq.mainEntity) expect(q.acceptedAnswer.text).not.toMatch(/<|\{/);
+      expect(app).toMatchObject({ '@type': 'SoftwareApplication', name: 'Postun', applicationCategory: 'DeveloperApplication', operatingSystem: 'Web' });
+      expect(app.offers.price).toBe('0');
+      expect(app.url).toBe(`https://postun.org${l.prefix}/`);
+      expect(app.codeRepository).toBe('https://github.com/AiReformator/postun');
+      expect(app.sameAs).toContain('https://github.com/AiReformator/postun');
+    }
+  });
+  it('JSON-LD cannot break out of its script block', () => {
+    const html = landing({ ...status, quota_daily_success: 5 });
+    for (const m of html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)) expect(m[1]).not.toContain('</');
+  });
+  it('FAQ states Claude Code is not verified unless status says PASS, and never claims unverified features', () => {
+    const notRun = withAll(status, 'NOT_RUN');
+    expect(faqItems(notRun, 'en')[2].text).toContain('in testing');
+    expect(faqItems(withAll(status, 'PASS'), 'en')[2].text).toContain('verified on production');
+    expect(faqItems(status, 'en')[6].text).toContain('10,000');
+    expect(faqItems(status, 'en')[2].text).toContain('https://mcp.postun.org/mcp');
+  });
+  it('the Open by design section names Kerckhoffs and links the repo and SECURITY.md in every locale', () => {
+    for (const l of LOCALES) {
+      const html = landing(status, l.code);
+      const sec = html.match(/<section id="open">([\s\S]*?)<\/section>/)[1];
+      expect(sec, l.code).toMatch(/Kerckhoff|Керкгофф/);
+      expect(sec).toContain('https://github.com/AiReformator/postun"');
+      expect(sec).toContain('/blob/main/SECURITY.md');
+    }
+  });
+  it('sitemap lists every locale page with hreflang alternates and x-default, but not the cabinet', () => {
+    const xml = sitemapXml('2026-11-05');
+    for (const l of LOCALES) for (const p of ['/', '/privacy/', '/terms/']) {
+      expect(xml).toContain(`<loc>https://postun.org${l.prefix}${p}</loc>`);
+      expect(xml).toContain(`hreflang="${l.htmlLang}" href="https://postun.org${l.prefix}${p}"`);
+    }
+    expect(xml).toContain('hreflang="x-default" href="https://postun.org/"');
+    expect(xml).not.toContain('/app/');
+    expect((xml.match(/<url>/g) ?? []).length).toBe(LOCALES.length * 3);
+  });
+  it('robots.txt allows all and points to the sitemap; llms.txt follows llmstxt.org and links everything', () => {
+    expect(robotsTxt()).toBe('User-agent: *\nAllow: /\n\nSitemap: https://postun.org/sitemap.xml\n');
+    const llms = llmsTxt(status);
+    expect(llms.startsWith('# Postun\n\n> ')).toBe(true);
+    for (const l of LOCALES) expect(llms).toContain(`(https://postun.org${l.prefix}/)`);
+    for (const u of ['https://mcp.postun.org/mcp', 'https://github.com/AiReformator/postun', '/blob/main/SECURITY.md', 'Kerckhoffs']) expect(llms).toContain(u);
+    expect(llms).toContain('not yet verified');
+  });
+  it('the build writes robots.txt, sitemap.xml and llms.txt into dist', () => {
+    execFileSync(process.execPath, ['build.mjs'], { cwd: fileURLToPath(new URL('..', import.meta.url)), stdio: 'pipe' });
+    for (const f of ['robots.txt', 'sitemap.xml', 'llms.txt']) expect(existsSync(new URL(`../dist/${f}`, import.meta.url)), f).toBe(true);
+    expect(readFileSync(new URL('../dist/robots.txt', import.meta.url), 'utf8')).toContain('Sitemap: https://postun.org/sitemap.xml');
+  }, 60000);
 });
