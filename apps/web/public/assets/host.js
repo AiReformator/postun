@@ -24,11 +24,14 @@
   });
 
   var current = document.documentElement.getAttribute('data-locale') || 'en';
-  var path = location.pathname;
+  // The target is built only from fixed values (known pages, known locale prefixes), never from URL text.
+  var PAGES = ['/', '/privacy/', '/terms/', '/app/'];
+  var m = /^\/(?:(ru|es|pt|de)\/)?(privacy\/|terms\/|app\/)?$/.exec(location.pathname);
+  if (!m) return;
+  var page = PAGES.indexOf('/' + (m[2] || ''));
+  if (page < 0) return;
   // app.postun.org/ serves the cabinet.
-  if (location.hostname.indexOf('app.') === 0 && (path === '/' || /^\/(ru|es|pt|de)\/$/.test(path))) {
-    path = path + 'app/';
-  }
+  if (location.hostname.indexOf('app.') === 0 && page === 0) page = 3;
   var want = current;
   if (current === 'en') {
     var saved = get();
@@ -45,10 +48,7 @@
       }
     }
   }
-  if (want !== current && current === 'en') path = '/' + want + path;
-  if (path !== location.pathname) {
-    // Same-origin only: collapse '//' (no protocol-relative URL) and verify the origin before navigating.
-    var target = new URL(path.replace(/\/{2,}/g, '/') + location.search + location.hash, location.origin);
-    if (target.origin === location.origin) location.replace(target.pathname + target.search + target.hash);
-  }
+  var prefix = { en: '', ru: '/ru', es: '/es', pt: '/pt', de: '/de' }[want === current ? current : want];
+  var target = prefix + PAGES[page];
+  if (target !== location.pathname) location.replace(target);
 })();
