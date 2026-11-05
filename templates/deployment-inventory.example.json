@@ -1,0 +1,48 @@
+{
+  "project": "Postun Beta",
+  "schema_version": 1,
+  "documentation_version": "2.0-beta",
+  "example_only": true,
+  "repository": "AiReformator/postun",
+  "branch": "main",
+  "environment": "UNSET",
+  "cloudflare_account_id": null,
+  "cloudflare_zone_id": null,
+  "domain": "postun.org",
+  "domains": {
+    "pages": "postun.org",
+    "app": "app.postun.org",
+    "auth": "auth.postun.org",
+    "mcp": "mcp.postun.org",
+    "admin": "admin.postun.org"
+  },
+  "resources": {
+    "pages_project": null,
+    "auth_worker": null,
+    "mcp_worker": null,
+    "admin_worker": null,
+    "control_d1_id": null,
+    "admin_metadata_d1_id": null,
+    "oauth_kv_id": null,
+    "session_quota_do_namespace": null
+  },
+  "idp": {
+    "issuer": null,
+    "project_id": null,
+    "org_id": null,
+    "client_id": null,
+    "secret_reference": null,
+    "roles": ["postun.viewer", "postun.operator", "postun.owner"]
+  },
+  "release": {
+    "commit_sha": null,
+    "deployment_ids": {},
+    "compatibility_date": null,
+    "runtime_acceptance": "NOT_RUN"
+  },
+  "isolation": {
+    "production_ids_distinct_from_staging": "NOT_VERIFIED",
+    "admin_has_no_vault_control_or_oauth_binding": "NOT_VERIFIED",
+    "preview_service_binding_targets": "NOT_VERIFIED"
+  }
+}

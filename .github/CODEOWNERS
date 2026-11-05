@@ -1,0 +1,7 @@
+# Auth, crypto, migrations, infra and CI changes require maintainer review (docs/03 §7).
+*                       @aireforma
+/apps/auth/             @aireforma
+/apps/admin/            @aireforma
+/packages/contracts/    @aireforma
+/migrations/            @aireforma
+/.github/               @aireforma

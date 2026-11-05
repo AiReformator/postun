@@ -1,0 +1,60 @@
+# Postun Beta — runbook развёртывания
+
+Операторская последовательность для своего Cloudflare-аккаунта. Реальные ID ресурсов, токены и ключи в репозиторий не попадают: они хранятся в приватном inventory оператора (см. `templates/deployment-inventory.example.json`) и в Cloudflare Secrets.
+
+## 0. Доступ оператора
+
+- Bootstrap-токен (создаёт владелец, срок ≤ 7 дней): Account — Workers Scripts, Workers KV Storage, D1, Cloudflare Pages: Edit; Account Settings: Read. Zone (только postun.org) — Workers Routes, DNS: Edit; Zone: Read. Без права выпуска токенов, без Global API Key.
+- На macOS токен хранится в Keychain (`security add-generic-password -a "$USER" -s <keychain-item> -U -w` — ввод скрытый) и подставляется только через `scripts/ops/wrangler-keychain.sh`.
+- Обычный deploy после bootstrap — отдельный токен без DNS-прав.
+- Отзыв: Cloudflare → My Profile → API Tokens → Delete; `security delete-generic-password -s <keychain-item>`.
+
+## 1. DNS с сохранением почты (до привязки Pages к apex)
+
+1. Экспортировать текущую зону в приватную резервную копию (вне Git).
+2. Добавить `mail.<домен>` A → IP почтового сервера (DNS only), перевести MX на `mail.<домен>`.
+3. Поддомены почтового хостинга (autoconfig, autodiscover, webmail, cpanel и т. п.), если они CNAME на apex, перевести на `mail.<домен>`.
+4. SPF/DKIM/DMARC не менять (IP почтового сервера в SPF остаётся).
+5. Проверить `dig MX`, SMTPS/IMAPS до шага 2 раздела 3.
+
+## 2. Ресурсы (создаются один раз)
+
+```bash
+scripts/ops/wrangler-keychain.sh d1 create postun-control
+scripts/ops/wrangler-keychain.sh d1 create postun-admin-meta
+scripts/ops/wrangler-keychain.sh kv namespace create OAUTH_KV
+```
+
+Публичный сайт развёртывается как Workers static assets (`apps/web/wrangler.jsonc`: без кода и привязок, логи выключены, без `workers.dev`/preview). С wrangler 4.15x `pages project create` сам создаёт Worker со static assets и включает observability — не используйте его; используйте конфиг из репозитория.
+
+ID записываются в приватный inventory и подставляются в `wrangler.jsonc` при deploy (не коммитятся). Production и staging используют разные ресурсы и разные секреты.
+
+## 3. Pages (B3 — публичный beta-лендинг)
+
+```bash
+cd apps/web
+npm run build            # из чистого дерева: в /status.json попадёт commit и dirty=false
+../../scripts/ops/wrangler-keychain.sh deploy --message "Postun Beta site <sha>"
+```
+
+Custom domains `postun.org`, `www.postun.org`, `app.postun.org` задаются в `routes` конфига; конфликтующие DNS-записи (старый A/CNAME) удаляются заранее, после резервной копии и переноса почты. До прохождения B2/B4 `status.json` держит `registration_open: false`, и кнопка подключения неактивна.
+
+## 4. Workers (B2)
+
+Порядок: миграции D1 → `postun-admin` → `postun-mcp` → `postun-auth` (service bindings должны указывать на существующие Workers). Секреты вводятся через `wrangler secret put <NAME>` (скрытый ввод или stdin), никогда не аргументом команды.
+
+Ключи шифрования (32 байта, base64url) генерируются локально и сразу передаются в `wrangler secret put` через stdin; резервная копия KEK — в хранилище владельца. Потеря KEK требует повторного подключения Telegram-аккаунтов.
+
+## 4a. Допуск тестеров при закрытой регистрации
+
+Пока `REGISTRATION_OPEN=false`, новые профили создаются только для числовых Telegram ID из необязательного секрета `BETA_TESTER_TELEGRAM_IDS` (через запятую; сверяется с claim `id`, не с `sub`). Некорректный список выключает вход целиком (503). Ввод: `scripts/ops/put-secret.sh auth BETA_TESTER_TELEGRAM_IDS`.
+
+## 4b. IDP для admin
+
+Проект `postun-admin` (роли `postun.viewer`/`postun.operator`/`postun.owner`, проверка роли при входе) и веб-приложение `postun-admin` (BASIC, code + refresh_token, роли в ID-токене) создаются напрямую через Management API служебным Org Owner, вне reconciler infra repo: он аддитивный и не трогает необъявленные проекты, но не умеет confidential-клиенты. Client secret из ответа API сразу передаётся в `wrangler secret bulk` через stdin. Повторный запуск пересоздаёт secret.
+
+## 5. Проверка после выпуска
+
+- Внешний URL, точный commit SHA и deployment ID записываются в `docs/RELEASE_STATUS.md`.
+- `apps/web/status.json` меняется только по результатам приёмки.
+- Откат Worker не откатывает D1/DO.

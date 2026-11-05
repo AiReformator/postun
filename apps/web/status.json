@@ -1,0 +1,69 @@
+{
+  "$comment": "Single source of truth for feature status shown on the site. Only values backed by a recorded acceptance run may be PASS. Allowed: PASS, FAIL, NOT_RUN, UNSUPPORTED, BLOCKED.",
+  "updated": "2026-11-05",
+  "registration_open": true,
+  "quota_daily_success": 10000,
+  "features": [
+    {
+      "id": "landing",
+      "title": "Публичный сайт беты",
+      "status": "PASS",
+      "evidence": "https://postun.org — HTTPS 200, verified externally 2026-11-04"
+    },
+    {
+      "id": "telegram_login",
+      "title": "Вход через Telegram (OIDC)",
+      "status": "PASS",
+      "evidence": "2026-11-05: вход владельца через oauth.telegram.org на production, профиль и сессия созданы"
+    },
+    {
+      "id": "mtproto_link",
+      "title": "Подключение аккаунта по QR",
+      "status": "PASS",
+      "evidence": "2026-11-05: тестовый аккаунт подключён по QR на production, статус active"
+    },
+    {
+      "id": "mtproto_2fa",
+      "title": "Подключение аккаунта с облачным паролем (2FA)",
+      "status": "PASS",
+      "evidence": "2026-11-05: владелец подключил на production тестовый аккаунт с включённым облачным паролем, подключение успешно (подтверждено владельцем)"
+    },
+    {
+      "id": "mcp_chatgpt",
+      "title": "ChatGPT: подключение MCP",
+      "status": "PASS",
+      "evidence": "2026-11-05: OAuth (регистрация клиента, PKCE, согласие) и вызовы инструментов из ChatGPT"
+    },
+    {
+      "id": "mcp_claude_code",
+      "title": "Claude Code: remote HTTP MCP",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "read_tools",
+      "title": "Диалоги и история переписки",
+      "status": "PASS",
+      "evidence": "2026-11-05: ChatGPT прочитал диалоги и историю тестового аккаунта (7 засчитанных вызовов), в том числе после перезапуска сервиса"
+    },
+    {
+      "id": "search",
+      "title": "Поиск по сообщениям",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "channels",
+      "title": "Публичные каналы",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "file_download",
+      "title": "Скачивание оригинала файла",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "file_attachment",
+      "title": "Файл как вложение для ИИ",
+      "status": "NOT_RUN"
+    }
+  ]
+}
