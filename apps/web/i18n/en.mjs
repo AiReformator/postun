@@ -179,6 +179,7 @@ export default {
       CANCELLED: 'Connection cancelled.',
       UPSTREAM: 'Telegram is temporarily unavailable. Try again later.'
     },
+    networkError: 'Cannot reach the service. Check your internet connection and try again.',
     requestError: 'Request error',
     error: 'Error',
     serviceDown: 'The sign-in service is unavailable right now. This is a beta — please try again later.',

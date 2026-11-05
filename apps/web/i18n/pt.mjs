@@ -179,6 +179,7 @@ export default {
       CANCELLED: 'Conexão cancelada.',
       UPSTREAM: 'O Telegram está temporariamente indisponível. Tente novamente mais tarde.'
     },
+    networkError: 'Não foi possível conectar ao serviço. Verifique sua conexão com a internet e tente novamente.',
     requestError: 'Erro na requisição',
     error: 'Erro',
     serviceDown: 'O serviço de login está indisponível no momento. Este é um beta — tente novamente mais tarde.',

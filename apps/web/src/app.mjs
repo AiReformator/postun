@@ -2,6 +2,7 @@
 // All server text is inserted with textContent (no innerHTML with dynamic data).
 import { encodeQR } from 'qr';
 import { ICONS } from './icons.mjs';
+import { createApi } from './api.mjs';
 import en from '../i18n/en.mjs';
 import ru from '../i18n/ru.mjs';
 import es from '../i18n/es.mjs';
@@ -40,25 +41,7 @@ function el(tag, attrs = {}, ...children) {
   return n;
 }
 
-async function api(path, { method = 'GET', body } = {}) {
-  const headers = {};
-  if (method !== 'GET') {
-    headers['content-type'] = 'application/json';
-    headers['x-csrf-token'] = csrf;
-  }
-  const res = await fetch(AUTH + path, { method, headers, credentials: 'include', body: body ? JSON.stringify(body) : undefined });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    // Server messages are Russian; other locales show a localized message for known codes.
-    const code = data.error && data.error.code;
-    const msg = LOCALE === 'ru' && data.error && data.error.message ? data.error.message : LINK_ERRORS[code] || T('requestError');
-    const err = new Error(msg);
-    err.code = data.error && data.error.code;
-    err.reason = data.error && data.error.reason;
-    throw err;
-  }
-  return data;
-}
+const api = createApi({ base: AUTH, locale: LOCALE, t: T, linkErrors: LINK_ERRORS, csrf: () => csrf });
 
 function show(...nodes) {
   root.replaceChildren(...nodes);
