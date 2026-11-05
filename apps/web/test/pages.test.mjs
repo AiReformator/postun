@@ -171,3 +171,40 @@ describe('plainText', () => {
     expect(plainText('it&#39;s &quot;q&quot;')).toBe('it\'s "q"');
   });
 });
+
+describe('design system', () => {
+  const pages = (s) => LOCALES.flatMap((l) => [landing(s, l.code), privacy(l.code), terms(l.code), cabinet(s, l.code)]);
+  it('hero claims AI-client compatibility only from status.json', () => {
+    const hero = (s) => landing(s).match(/<ul class="flow-clients">([\s\S]*?)<\/ul>/)[1];
+    const notRun = hero(withAll(status, 'NOT_RUN'));
+    expect(notRun).not.toContain('pill-ok');
+    expect(notRun.match(/pill-warn/g)).toHaveLength(3);
+    const pass = hero(withAll(status, 'PASS'));
+    expect(pass.match(/pill-ok/g)).toHaveLength(3);
+    const live = hero(status);
+    const st = Object.fromEntries(status.features.map((f) => [f.id, f.status]));
+    expect(live).toMatch(new RegExp(`ChatGPT <span class="pill ${st.mcp_chatgpt === 'PASS' ? 'pill-ok' : 'pill-warn'}"`));
+    expect(live).toMatch(new RegExp(`Claude Code <span class="pill ${st.mcp_claude_code === 'PASS' ? 'pill-ok' : 'pill-warn'}"`));
+  });
+  it('links to the legal documents appear only in the footer', () => {
+    for (const l of LOCALES) {
+      const html = landing(status, l.code);
+      const outside = html.replace(/<footer[\s\S]*<\/footer>/, '');
+      expect(outside, l.code).not.toMatch(/href="[^"]*\/(privacy|terms)\/"/);
+      const footer = html.match(/<footer[\s\S]*<\/footer>/)[0];
+      expect(footer).toContain(`href="${l.prefix}/privacy/"`);
+      expect(footer).toContain(`href="${l.prefix}/terms/"`);
+    }
+  });
+  it('pages carry no inline styles or inline event handlers (CSP style-src/script-src self)', () => {
+    for (const html of pages(status)) {
+      expect(html).not.toMatch(/\sstyle=/);
+      expect(html).not.toMatch(/<style[\s>]/);
+      expect(html).not.toMatch(/\son[a-z]+=/);
+    }
+  });
+  it('the header offers the dashboard only when connecting is available', () => {
+    expect(landing(withAll(status, 'NOT_RUN'))).not.toContain('header-cta');
+    expect(landing(withAll(status, 'PASS'))).toContain('class="btn header-cta" href="https://app.postun.org/app/"');
+  });
+});
