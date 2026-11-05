@@ -9,6 +9,8 @@ import { assertCsrf, destroySession, getSession } from './sessions';
 import type { Session } from './sessions';
 
 export const DELETE_PHRASE = 'УДАЛИТЬ ПРОФИЛЬ';
+/** The cabinet is localized; non-Russian locales ask for the English phrase. */
+export const DELETE_PHRASES: readonly string[] = [DELETE_PHRASE, 'DELETE PROFILE'];
 
 const ACCOUNT_ROUTE = /^\/api\/accounts\/([0-9a-fA-F-]{36})\/(link-status|password|disconnect)$/;
 const GRANT_ROUTE = /^\/api\/grants\/([0-9a-fA-F-]{36})\/revoke$/;
@@ -106,7 +108,7 @@ export async function handleApi(env: Env, cfg: Config, req: Request, url: URL): 
 
   if (path === '/api/profile/delete' && method === 'POST') {
     const body = await readJson(req);
-    if (body['confirm'] !== DELETE_PHRASE) return apiError('INVALID_INPUT', { reason: 'CONFIRM_PHRASE' });
+    if (typeof body['confirm'] !== 'string' || !DELETE_PHRASES.includes(body['confirm'])) return apiError('INVALID_INPUT', { reason: 'CONFIRM_PHRASE' });
     return deleteProfile(env, cfg, oauth(), session);
   }
 

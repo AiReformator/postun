@@ -20,8 +20,8 @@
     "MCP_RESOURCE": "https://mcp.postun.org/mcp",
     "AUTH_ISSUER": "https://auth.postun.org",
     "BETA_MONTHLY_SUCCESS_LIMIT": "100",
-    "MAX_FILE_BYTES": "0",
-    "FEATURE_CHANNELS": "off",
+    "MAX_FILE_BYTES": "512000000",
+    "FEATURE_CHANNELS": "on",
     "TELEGRAM_ADAPTER": "mtcute"
   },
   "env": {

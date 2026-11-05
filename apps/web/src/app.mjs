@@ -1,26 +1,22 @@
 // Postun Beta cabinet. Talks only to the auth origin with credentialed fetch; holds no tokens in storage.
 // All server text is inserted with textContent (no innerHTML with dynamic data).
 import { encodeQR } from 'qr';
+import en from '../i18n/en.mjs';
+import ru from '../i18n/ru.mjs';
+import es from '../i18n/es.mjs';
+import pt from '../i18n/pt.mjs';
+import de from '../i18n/de.mjs';
 
 const root = document.getElementById('app');
 const AUTH = root.dataset.auth;
+const LOCALE = document.documentElement.dataset.locale || 'en';
+const S = ({ en, ru, es, pt, de }[LOCALE] || en).app;
+/** Cabinet text is inserted with textContent, so {vars} are substituted without HTML escaping. */
+const T = (key, vars = {}) => String(S[key]).replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m));
 let csrf = '';
 
-const SCOPE_TITLES = {
-  'accounts:read': 'список аккаунтов',
-  'dialogs:read': 'список диалогов',
-  'messages:read': 'история и поиск',
-  'channels:read': 'публичные каналы',
-  'media:read': 'файлы'
-};
-const LINK_ERRORS = {
-  EXPIRED: 'QR-код истёк. Начните подключение заново.',
-  PASSWORD_INVALID: 'Неверный пароль двухэтапной проверки.',
-  RATE_LIMITED: 'Telegram попросил подождать. Повторите позже.',
-  NOT_ALLOWED: 'Этот аккаунт нельзя подключить к профилю.',
-  CANCELLED: 'Подключение отменено.',
-  UPSTREAM: 'Telegram временно недоступен. Повторите позже.'
-};
+const SCOPE_TITLES = S.scopes;
+const LINK_ERRORS = S.linkErrors;
 
 function el(tag, attrs = {}, ...children) {
   const n = document.createElement(tag);
@@ -42,7 +38,10 @@ async function api(path, { method = 'GET', body } = {}) {
   const res = await fetch(AUTH + path, { method, headers, credentials: 'include', body: body ? JSON.stringify(body) : undefined });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const err = new Error((data.error && data.error.message) || 'Ошибка запроса');
+    // Server messages are Russian; other locales show a localized message for known codes.
+    const code = data.error && data.error.code;
+    const msg = LOCALE === 'ru' && data.error && data.error.message ? data.error.message : LINK_ERRORS[code] || T('requestError');
+    const err = new Error(msg);
     err.code = data.error && data.error.code;
     err.reason = data.error && data.error.reason;
     throw err;
@@ -55,7 +54,7 @@ function show(...nodes) {
 }
 
 function errorBox(e) {
-  return el('p', { class: 'err' }, e.message || 'Ошибка');
+  return el('p', { class: 'err' }, e.message || T('error'));
 }
 
 function qrNode(text) {
@@ -63,7 +62,7 @@ function qrNode(text) {
   const doc = new DOMParser().parseFromString(svg, 'image/svg+xml');
   const node = document.importNode(doc.documentElement, true);
   node.setAttribute('role', 'img');
-  node.setAttribute('aria-label', 'QR-код для входа в Telegram');
+  node.setAttribute('aria-label', T('qrAria'));
   return el('div', { class: 'qr' }, node);
 }
 
@@ -72,23 +71,23 @@ async function main() {
   try {
     s = await api('/api/session');
   } catch {
-    show(el('p', { class: 'err' }, 'Сервис входа сейчас недоступен. Это бета — попробуйте позже.'));
+    show(el('p', { class: 'err' }, T('serviceDown')));
     return;
   }
   if (!s.authenticated) {
-    const intro = el('p', {}, 'Войдите через Telegram, чтобы управлять подключениями. Номер телефона не запрашивается.');
+    const intro = el('p', {}, T('loginIntro'));
     const btn = s.registrationOpen
-      ? el('a', { class: 'btn', href: s.loginUrl }, 'Войти через Telegram')
-      : el('button', { class: 'btn', disabled: '' }, 'Войти через Telegram');
-    const note = s.registrationOpen ? '' : el('p', { class: 'note' }, 'Регистрация бета-тестеров ещё не открыта: идёт проверка безопасности и подключений.');
+      ? el('a', { class: 'btn', href: s.loginUrl }, T('login'))
+      : el('button', { class: 'btn', disabled: '' }, T('login'));
+    const note = s.registrationOpen ? '' : el('p', { class: 'note' }, T('registrationClosed'));
     show(intro, btn, note);
     return;
   }
   csrf = s.csrfToken;
   if (s.termsRequired) {
     show(
-      el('p', {}, 'Перед подключением подтвердите участие в экспериментальной бете и передачу выбранных данных вашему ИИ-провайдеру.'),
-      el('a', { class: 'btn', href: s.termsUrl }, 'Открыть условия беты')
+      el('p', {}, T('termsIntro')),
+      el('a', { class: 'btn', href: s.termsUrl }, T('termsOpen'))
     );
     return;
   }
@@ -103,14 +102,14 @@ async function renderDashboard() {
   ]);
 
   const sections = [];
-  sections.push(el('p', { class: 'note' }, 'Postun — экспериментальный сервис. Доступны только функции, отмеченные «Проверено» на главной странице.'));
+  sections.push(el('p', { class: 'note' }, T('betaNote')));
 
   // Quota
   const u = usage.usage;
   sections.push(
     el('section', { class: 'card' },
-      el('h2', {}, 'Квота беты'),
-      u ? el('p', {}, `Месяц ${u.month}: ${u.successCount} из ${u.monthlySuccessLimit} успешных операций. Передано байтов: ${u.outBytes}.`) : errorBox(usage.error)
+      el('h2', {}, T('quotaTitle')),
+      u ? el('p', {}, T('quota', { month: u.month, used: u.successCount, limit: u.monthlySuccessLimit, bytes: u.outBytes })) : errorBox(usage.error)
     )
   );
 
@@ -119,17 +118,17 @@ async function renderDashboard() {
   for (const a of acc.accounts || []) {
     accList.append(
       el('li', {},
-        `${a.label} — ${a.status === 'active' ? 'подключён' : a.status === 'pending' ? 'подключается' : a.status} `,
-        el('button', { class: 'btn secondary', onclick: () => disconnect(a) }, 'Отключить')
+        `${a.label} — ${a.status === 'active' ? T('accActive') : a.status === 'pending' ? T('accPending') : a.status} `,
+        el('button', { class: 'btn secondary', onclick: () => disconnect(a) }, T('disconnect'))
       )
     );
   }
   sections.push(
     el('section', { class: 'card' },
-      el('h2', {}, 'Telegram-аккаунты'),
-      acc.error ? errorBox(acc.error) : (acc.accounts || []).length ? accList : el('p', { class: 'note' }, 'Аккаунты не подключены.'),
-      el('button', { class: 'btn', onclick: () => startLink() }, 'Подключить аккаунт по QR'),
-      el('p', { class: 'note' }, 'Для бета-теста используйте отдельный тестовый аккаунт.')
+      el('h2', {}, T('accountsTitle')),
+      acc.error ? errorBox(acc.error) : (acc.accounts || []).length ? accList : el('p', { class: 'note' }, T('noAccounts')),
+      el('button', { class: 'btn', onclick: () => startLink() }, T('linkQr')),
+      el('p', { class: 'note' }, T('testAccountNote'))
     )
   );
 
@@ -139,26 +138,26 @@ async function renderDashboard() {
     const scopes = (g.scopes || []).map((x) => SCOPE_TITLES[x] || x).join(', ');
     gl.append(
       el('li', {},
-        `${g.clientName}: ${scopes}; аккаунтов: ${(g.accounts || []).length} `,
-        el('button', { class: 'btn secondary', onclick: () => revoke(g) }, 'Отозвать')
+        `${T('grantLine', { client: g.clientName, scopes, count: (g.accounts || []).length })} `,
+        el('button', { class: 'btn secondary', onclick: () => revoke(g) }, T('revoke'))
       )
     );
   }
   sections.push(
     el('section', { class: 'card' },
-      el('h2', {}, 'Разрешённые ИИ-клиенты'),
-      grants.error ? errorBox(grants.error) : (grants.grants || []).length ? gl : el('p', { class: 'note' }, 'Нет выданных разрешений.'),
-      el('p', { class: 'note' }, 'Адрес MCP-сервера: https://mcp.postun.org/mcp. Новые аккаунты не добавляются в старые разрешения автоматически.')
+      el('h2', {}, T('clientsTitle')),
+      grants.error ? errorBox(grants.error) : (grants.grants || []).length ? gl : el('p', { class: 'note' }, T('noGrants')),
+      el('p', { class: 'note' }, T('mcpNote'))
     )
   );
 
   // Profile
   sections.push(
     el('section', { class: 'card' },
-      el('h2', {}, 'Профиль'),
-      el('button', { class: 'btn secondary', onclick: logout }, 'Выйти'),
+      el('h2', {}, T('profileTitle')),
+      el('button', { class: 'btn secondary', onclick: logout }, T('logout')),
       ' ',
-      el('button', { class: 'btn secondary', onclick: deleteProfile }, 'Удалить профиль')
+      el('button', { class: 'btn secondary', onclick: deleteProfile }, T('deleteProfile'))
     )
   );
   show(...sections);
@@ -169,7 +168,7 @@ async function startLink() {
     const r = await api('/api/accounts/link', { method: 'POST', body: {} });
     await pollLink(r.accountId, r.link);
   } catch (e) {
-    show(errorBox(e), el('button', { class: 'btn', onclick: main }, 'Назад'));
+    show(errorBox(e), el('button', { class: 'btn', onclick: main }, T('back')));
   }
 }
 
@@ -177,11 +176,11 @@ async function pollLink(accountId, state) {
   let lastQr = '';
   for (;;) {
     if (state.state === 'active') {
-      show(el('p', {}, 'Аккаунт подключён.'), el('button', { class: 'btn', onclick: main }, 'В кабинет'));
+      show(el('p', {}, T('linked')), el('button', { class: 'btn', onclick: main }, T('toCabinet')));
       return;
     }
     if (state.state === 'failed') {
-      show(el('p', { class: 'err' }, LINK_ERRORS[state.code] || 'Подключение не удалось.'), el('button', { class: 'btn', onclick: main }, 'В кабинет'));
+      show(el('p', { class: 'err' }, LINK_ERRORS[state.code] || T('linkFailed')), el('button', { class: 'btn', onclick: main }, T('toCabinet')));
       return;
     }
     if (state.state === 'need_password') {
@@ -191,10 +190,10 @@ async function pollLink(accountId, state) {
     if (state.state === 'waiting_scan' && state.qrUrl !== lastQr) {
       lastQr = state.qrUrl;
       show(
-        el('h2', {}, 'Отсканируйте QR в Telegram'),
-        el('p', {}, 'Telegram → Настройки → Устройства → Подключить устройство.'),
+        el('h2', {}, T('scanTitle')),
+        el('p', {}, T('scanHow')),
         qrNode(state.qrUrl),
-        el('p', { class: 'note' }, 'Код обновляется автоматически. Никому не пересылайте его.')
+        el('p', { class: 'note' }, T('qrNote'))
       );
     }
     await new Promise((r) => setTimeout(r, 2000));
@@ -218,7 +217,7 @@ async function pollOnce(accountId) {
 
 function askPassword(accountId, hint, invalidAttempts = 0) {
   return new Promise((resolve) => {
-    const input = el('input', { type: 'password', autocomplete: 'off', 'aria-label': 'Пароль двухэтапной проверки' });
+    const input = el('input', { type: 'password', autocomplete: 'off', 'aria-label': T('passwordAria') });
     const form = el('form', {
       onsubmit: async (ev) => {
         ev.preventDefault();
@@ -227,12 +226,12 @@ function askPassword(accountId, hint, invalidAttempts = 0) {
         const st = await api(`/api/accounts/${accountId}/password`, { method: 'POST', body: { password } }).catch((e) => ({ state: 'failed', code: e.code }));
         resolve(pollLink(accountId, st));
       }
-    }, input, ' ', el('button', { class: 'btn', type: 'submit' }, 'Продолжить'));
+    }, input, ' ', el('button', { class: 'btn', type: 'submit' }, T('continue')));
     show(
-      el('h2', {}, 'Двухэтапная проверка'),
-      el('p', {}, 'Введите облачный пароль Telegram. Он используется один раз и не сохраняется.'),
-      invalidAttempts ? el('p', { class: 'err' }, `Пароль не подошёл (попыток: ${invalidAttempts} из 5). Попробуйте ещё раз.`) : '',
-      hint ? el('p', { class: 'note' }, `Подсказка: ${hint}`) : '',
+      el('h2', {}, T('passwordTitle')),
+      el('p', {}, T('passwordIntro')),
+      invalidAttempts ? el('p', { class: 'err' }, T('passwordWrong', { n: invalidAttempts })) : '',
+      hint ? el('p', { class: 'note' }, T('hint', { hint })) : '',
       form
     );
     input.focus();
@@ -240,13 +239,13 @@ function askPassword(accountId, hint, invalidAttempts = 0) {
 }
 
 async function disconnect(a) {
-  if (!confirm(`Отключить «${a.label}»? Сессия Telegram будет завершена, разрешения на этот аккаунт перестанут работать.`)) return;
+  if (!confirm(T('confirmDisconnect', { label: a.label }))) return;
   await api(`/api/accounts/${a.accountId}/disconnect`, { method: 'POST', body: {} }).catch((e) => alert(e.message));
   main();
 }
 
 async function revoke(g) {
-  if (!confirm(`Отозвать доступ клиента «${g.clientName}»? Клиенту придётся подключиться заново.`)) return;
+  if (!confirm(T('confirmRevoke', { client: g.clientName }))) return;
   await api(`/api/grants/${g.grantId}/revoke`, { method: 'POST', body: {} }).catch((e) => alert(e.message));
   main();
 }
@@ -257,11 +256,11 @@ async function logout() {
 }
 
 async function deleteProfile() {
-  const phrase = prompt('Удаление профиля отключит все аккаунты и клиенты. Удалённые данные не восстанавливаются. Введите: УДАЛИТЬ ПРОФИЛЬ');
+  const phrase = prompt(T('deletePrompt'));
   if (phrase === null) return;
   await api('/api/profile/delete', { method: 'POST', body: { confirm: phrase } })
     .then(() => main())
-    .catch((e) => alert(e.reason === 'CONFIRM_PHRASE' ? 'Фраза не совпала — профиль не удалён.' : e.message));
+    .catch((e) => alert(e.reason === 'CONFIRM_PHRASE' ? T('deleteMismatch') : e.message));
 }
 
 main();

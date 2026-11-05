@@ -12,6 +12,9 @@ code{font:0.92em ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--ca
 nav{display:flex;gap:14px;flex-wrap:wrap}
 nav a{color:var(--muted);text-decoration:none}
 nav a:hover{color:var(--fg)}
+.langs{gap:4px;font-size:.85rem}
+.langs a{padding:2px 6px;border:1px solid transparent;border-radius:6px}
+.langs a[aria-current]{color:var(--fg);border-color:var(--line);font-weight:600}
 .badge{display:inline-block;font-size:.72rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;background:var(--warn);color:var(--bg);padding:2px 7px;border-radius:999px;vertical-align:middle}
 .hero{padding:56px 0 24px}
 .eyebrow{color:var(--warn);font-weight:600;margin:0 0 8px}

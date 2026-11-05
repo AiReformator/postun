@@ -1,6 +1,5 @@
 // Pure rendering helpers shared by build and tests. No secrets, no runtime config beyond public URLs.
 export const STATUSES = ['PASS', 'FAIL', 'NOT_RUN', 'UNSUPPORTED', 'BLOCKED'];
-const LABEL = { PASS: 'Проверено', FAIL: 'Не работает', NOT_RUN: 'Ещё не проверено', UNSUPPORTED: 'Не поддерживается', BLOCKED: 'Заблокировано' };
 
 export function esc(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -26,9 +25,14 @@ export function connectAvailable(status) {
   );
 }
 
-export function statusTable(status) {
+/** Feature titles and status labels come from the locale dictionary; a feature without a translation fails the build. */
+export function statusTable(status, dict) {
   const rows = status.features
-    .map((f) => `<tr><td>${esc(f.title)}</td><td><span class="st st-${esc(f.status.toLowerCase())}">${esc(LABEL[f.status])}</span></td></tr>`)
+    .map((f) => {
+      const title = dict.features[f.id];
+      if (typeof title !== 'string') throw new Error(`missing feature title translation: ${f.id}`);
+      return `<tr><td>${esc(title)}</td><td><span class="st st-${esc(f.status.toLowerCase())}">${esc(dict.status[f.status])}</span></td></tr>`;
+    })
     .join('');
-  return `<table class="status"><thead><tr><th>Функция</th><th>Статус</th></tr></thead><tbody>${rows}</tbody></table>`;
+  return `<table class="status"><thead><tr><th>${esc(dict.status.feature)}</th><th>${esc(dict.status.state)}</th></tr></thead><tbody>${rows}</tbody></table>`;
 }

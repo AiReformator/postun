@@ -27,7 +27,8 @@ export default tseslint.config(
     languageOptions: {
       globals: {
         document: 'readonly', window: 'readonly', location: 'readonly', fetch: 'readonly', URL: 'readonly', Node: 'readonly',
-        DOMParser: 'readonly', setTimeout: 'readonly', confirm: 'readonly', alert: 'readonly', prompt: 'readonly'
+        DOMParser: 'readonly', setTimeout: 'readonly', confirm: 'readonly', alert: 'readonly', prompt: 'readonly',
+        localStorage: 'readonly', navigator: 'readonly'
       }
     }
   }

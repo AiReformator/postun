@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { landing, privacy, terms, cabinet } from './src/pages.mjs';
 import { validateStatus } from './src/render.mjs';
+import { LOCALES, checkLocales } from './i18n/index.mjs';
 import { build as esbuild } from 'esbuild';
 import { execFileSync } from 'node:child_process';
 
@@ -15,7 +16,17 @@ rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
 cpSync(join(here, 'public'), out, { recursive: true });
 
-const pages = { 'index.html': landing(status), 'privacy/index.html': privacy(), 'terms/index.html': terms(), 'app/index.html': cabinet(status) };
+// Every locale must be complete before anything is written (no half-translated site).
+const problems = checkLocales();
+if (problems.length) throw new Error(`incomplete translations:\n${problems.join('\n')}`);
+const pages = {};
+for (const l of LOCALES) {
+  const dir = l.prefix ? `${l.prefix.slice(1)}/` : '';
+  pages[`${dir}index.html`] = landing(status, l.code);
+  pages[`${dir}privacy/index.html`] = privacy(l.code);
+  pages[`${dir}terms/index.html`] = terms(l.code);
+  pages[`${dir}app/index.html`] = cabinet(status, l.code);
+}
 for (const [file, html] of Object.entries(pages)) {
   mkdirSync(dirname(join(out, file)), { recursive: true });
   writeFileSync(join(out, file), html);

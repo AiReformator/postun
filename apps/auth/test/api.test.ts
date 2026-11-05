@@ -214,4 +214,16 @@ describe('account linking', () => {
     const who = await login(e, tg);
     expect(await (await get(e, '/api/usage', who)).json()).toEqual({ usage: vault.usage });
   });
+
+  it('profile deletion requires an exact confirmation phrase (Russian or English)', async () => {
+    const e = makeEnv();
+    const who = await login(e, tg);
+    await acceptTerms(e, who);
+    for (const bad of ['delete profile', 'УДАЛИТЬ', '', 'DELETE PROFILE ']) {
+      const r = await post(e, '/api/profile/delete', { confirm: bad }, who);
+      expect(r.status).toBe(400);
+    }
+    const ok = await post(e, '/api/profile/delete', { confirm: 'DELETE PROFILE' }, who);
+    expect(ok.status).toBeLessThan(300);
+  });
 });
