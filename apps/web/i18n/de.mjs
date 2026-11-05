@@ -174,7 +174,7 @@ export default {
       'media:read': 'Dateien'
     },
     linkErrors: {
-      CONFLICT: 'Eine Verknüpfung läuft bereits in einem anderen Tab oder Fenster. Schließen Sie sie dort ab oder warten Sie bis zu 10 Minuten und versuchen Sie es erneut.',
+      CONFLICT: 'Eine neue Verknüpfung kann gerade nicht starten: Entweder läuft bereits eine (schließen Sie sie ab oder warten Sie bis zu 10 Minuten), oder das Profil hat das Kontolimit erreicht (trennen Sie ein nicht mehr benötigtes Konto).',
       EXPIRED: 'Der QR-Code ist abgelaufen. Starten Sie die Verbindung erneut.',
       PASSWORD_INVALID: 'Falsches Passwort für die Zwei-Schritt-Verifizierung.',
       RATE_LIMITED: 'Telegram hat darum gebeten zu warten. Versuchen Sie es später erneut.',
@@ -219,6 +219,8 @@ export default {
     connectReady: 'Ihr Telegram-Konto ist verknüpft. Kehren Sie zur Verbindung zurück, um Konten und Berechtigungen für den KI-Client zu wählen.',
     connectContinue: 'Verbindung fortsetzen',
     connectSessionExpired: 'Die Zeit für die Verbindung des KI-Clients ist abgelaufen. Starten Sie die Verbindung im Client selbst erneut.',
+    connectResumeLink: 'Verknüpfung fortsetzen',
+    connectDismiss: 'Ausblenden',
     linked: 'Konto verbunden.',
     toCabinet: 'Zum Dashboard',
     linkFailed: 'Verbindung fehlgeschlagen.',

@@ -3,7 +3,7 @@
 import { encodeQR } from 'qr';
 import { ICONS } from './icons.mjs';
 import { createApi } from './api.mjs';
-import { continueFromHash, continueStore, continueUrl } from './continue.mjs';
+import { CONTINUE_TTL_MS, continueFromHash, continueStore, continueUrl } from './continue.mjs';
 import en from '../i18n/en.mjs';
 import ru from '../i18n/ru.mjs';
 import es from '../i18n/es.mjs';
@@ -36,20 +36,28 @@ try {
   /* storage blocked: the target lives in memory for this page view only */
 }
 const CONT = continueStore(sessionStore ?? { getItem: () => null, setItem() {}, removeItem() {} });
-let memoContinue = null;
+let memoContinue = null; // { t, at } when storage is unavailable
+// Arrived just now from the auth Worker? It only sends users without an active account, so a fresh fragment shown to
+// someone who already has one did not come from a real sign-in and is dropped (see renderDashboard).
+let freshContinue = false;
 if (location.hash.startsWith('#continue=')) {
-  memoContinue = continueFromHash(location.hash);
-  if (memoContinue) CONT.save(memoContinue);
+  const t = continueFromHash(location.hash);
+  if (t) {
+    memoContinue = { t, at: Date.now() };
+    freshContinue = true;
+    CONT.save(t);
+  }
   try {
     window.history.replaceState(null, '', location.pathname + location.search);
   } catch {
     /* the fragment stays visible; it is never sent anywhere */
   }
 }
-const pendingContinue = () => CONT.load() ?? memoContinue;
+const pendingContinue = () => CONT.load() ?? (memoContinue && Date.now() - memoContinue.at <= CONTINUE_TTL_MS ? memoContinue.t : null);
 const dropContinue = () => {
   CONT.clear();
   memoContinue = null;
+  freshContinue = false;
 };
 /** User-initiated only: returns to the auth origin, where /authorize re-validates the whole request. */
 function resumeClient() {
@@ -167,11 +175,21 @@ async function renderDashboard() {
   sections.push(el('p', { class: 'notice' }, icon('info'), el('span', {}, T('betaNote'))));
 
   // An AI client is waiting for this user to link a Telegram account.
+  const ready = (acc.accounts || []).some((a) => a.status === 'active');
+  if (freshContinue && ready) dropContinue();
+  freshContinue = false;
   if (pendingContinue()) {
-    const ready = (acc.accounts || []).some((a) => a.status === 'active');
+    // A link started before a reload or Back is still pending on the server: resume it instead of starting another.
+    const pending = (acc.accounts || []).find((a) => a.status === 'pending');
+    const action = ready
+      ? continueButton()
+      : pending
+        ? el('button', { class: 'btn', type: 'button', onclick: () => resumeLink(pending.accountId) }, icon('qr'), T('connectResumeLink'))
+        : el('button', { class: 'btn', type: 'button', onclick: () => startLink() }, icon('qr'), T('linkQr'));
+    const dismiss = el('button', { class: 'btn btn-ghost btn-sm', type: 'button', onclick: () => { dropContinue(); renderDashboard(); } }, T('connectDismiss'));
     const resume = card(T('connectTitle'),
       el('p', {}, T(ready ? 'connectReady' : 'connectNeedAccount')),
-      el('div', { class: 'btn-row' }, ready ? continueButton() : el('button', { class: 'btn', type: 'button', onclick: () => startLink() }, icon('qr'), T('linkQr')))
+      el('div', { class: 'btn-row' }, action, dismiss)
     );
     resume.classList.add('span-2');
     sections.push(resume);
@@ -268,6 +286,14 @@ async function startLink() {
   try {
     const r = await api('/api/accounts/link', { method: 'POST', body: {} });
     await pollLink(r.accountId, r.link);
+  } catch (e) {
+    show(panel(errorBox(e), el('button', { class: 'btn secondary', type: 'button', onclick: main }, T('back'))));
+  }
+}
+
+async function resumeLink(accountId) {
+  try {
+    await pollLink(accountId, await pollOnce(accountId));
   } catch (e) {
     show(panel(errorBox(e), el('button', { class: 'btn secondary', type: 'button', onclick: main }, T('back'))));
   }

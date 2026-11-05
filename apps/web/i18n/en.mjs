@@ -174,7 +174,7 @@ export default {
       'media:read': 'files'
     },
     linkErrors: {
-      CONFLICT: 'Linking is already in progress in another tab or window. Finish it there, or wait up to 10 minutes and try again.',
+      CONFLICT: 'A new link cannot start right now: either one is already in progress (finish it or wait up to 10 minutes), or the profile has reached its account limit (disconnect one you no longer need).',
       EXPIRED: 'The QR code has expired. Start the connection again.',
       PASSWORD_INVALID: 'Incorrect Two-Step Verification password.',
       RATE_LIMITED: 'Telegram asked you to wait. Try again later.',
@@ -219,6 +219,8 @@ export default {
     connectReady: 'Your Telegram account is linked. Return to the connection to choose accounts and permissions for the AI client.',
     connectContinue: 'Continue connecting',
     connectSessionExpired: 'The AI client connection timed out. Start connecting again in the client itself.',
+    connectResumeLink: 'Resume linking',
+    connectDismiss: 'Dismiss',
     linked: 'Account connected.',
     toCabinet: 'Go to dashboard',
     linkFailed: 'Connection failed.',
