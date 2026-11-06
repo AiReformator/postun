@@ -18,8 +18,9 @@ describe('tools/list', () => {
       expect(t.annotations.destructiveHint).toBe(false);
       expect(t.description).toContain('Beta');
     }
-    // No tool accepts a principal id, and none can write.
-    expect(JSON.stringify(tools)).not.toMatch(/principal|send|delete|write/i);
+    // No tool accepts a principal id, and none can write. Output schemas name message senders (senderId/senderName),
+    // so "sender" is allowed while "send" is not.
+    expect(JSON.stringify(tools)).not.toMatch(/principal|send(?!er)|delete|write/i);
   });
 
   it('tools/list does not consume quota and works without touching Telegram', async () => {

@@ -164,7 +164,7 @@ const MCP_JSON = (key, extra = {}) => {
  * Setup steps follow each client's own documentation (docs), checked 2026-11-06.
  */
 export const CLIENTS = [
-  { id: 'chatgpt', name: 'ChatGPT', status: 'mcp_chatgpt', code: MCP_URL, docs: 'https://developers.openai.com/apps-sdk/deploy/connect-chatgpt' },
+  { id: 'chatgpt', name: 'ChatGPT', status: 'mcp_chatgpt', code: MCP_URL, docs: 'https://developers.openai.com/plugins/deploy/connect-chatgpt' },
   { id: 'claudeCode', name: 'Claude Code', status: 'mcp_claude_code', code: `claude mcp add --transport http postun ${MCP_URL}`, docs: 'https://code.claude.com/docs/en/mcp' },
   { id: 'claudeAi', name: 'Claude', code: MCP_URL, docs: 'https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp' },
   { id: 'cursor', name: 'Cursor', code: MCP_JSON('mcpServers'), docs: 'https://cursor.com/docs/context/mcp' },
@@ -181,11 +181,27 @@ function snippet(code, t) {
   return `<div class="snippet snippet-${kind}"><div class="snippet-bar"><span>${kind}</span><button type="button" class="btn btn-sm snippet-copy" data-copy="${esc(code)}" data-copied="${esc(plainText(t('app.copied')))}" hidden>${icon('copy')}<span>${t('app.copy')}</span></button></div><pre><code>${esc(code)}</code></pre></div>`;
 }
 
+/** ChatGPT Business / Enterprise: the admin adds the plugin once, reviews and publishes it; every member signs in alone. */
+const CHATGPT_TEAM_STEPS = 5;
+const CHATGPT_FORM_FIELDS = 5;
+function chatgptWorkspace(t) {
+  const list = (key, n) => Array.from({ length: n }, (_, i) => `<li>${t(`connect.${key}${i + 1}`)}</li>`).join('\n');
+  return `<h4 class="client-sub">${t('connect.chatgptTeamTitle')}</h4>
+<ol class="client-steps">
+${list('chatgptTeam', CHATGPT_TEAM_STEPS)}
+</ol>
+<h4 class="client-sub">${t('connect.chatgptFormTitle')}</h4>
+<ul class="client-steps">
+${list('chatgptForm', CHATGPT_FORM_FIELDS)}
+</ul>
+<p class="note client-privacy">${t('connect.chatgptTeamPrivacy')}</p>`;
+}
+
 function connectSection(status, t) {
   const st = Object.fromEntries(status.features.map((f) => [f.id, f.status]));
   const verified = (c) => Boolean(c.status) && st[c.status] === 'PASS';
   const item = (c, ok) => `<details id="connect-${c.id.toLowerCase()}"><summary><span class="client-name">${esc(c.name)}</span>${ok ? `<span class="pill pill-ok">${t('landing.clientVerified')}</span>` : ''}</summary>
-<div class="client-body"><p>${t(`connect.${c.id}`)}</p>${snippet(c.code, t)}<p class="client-docs"><a href="${c.docs}">${t('connect.docs')}</a></p></div></details>`;
+<div class="client-body"><p>${t(`connect.${c.id}`)}</p>${snippet(c.code, t)}${c.id === 'chatgpt' ? chatgptWorkspace(t) : ''}<p class="client-docs"><a href="${c.docs}">${t('connect.docs')}</a></p></div></details>`;
   const ok = CLIENTS.filter(verified);
   const rest = CLIENTS.filter((c) => !verified(c));
   return `<section id="connect" class="section faq connect">
