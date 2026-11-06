@@ -50,6 +50,10 @@ describe('list_dialogs pagination (mtcute adapter)', () => {
     expect(last.chunkSize).toBe(100);
     expect(last.offsetId).toBe(1800);
     expect(last.offsetPeer.channelId).toBe(800);
+    // mtcute normalizes a numeric offsetDate as milliseconds: the adapter must pass a Date of the real unix time.
+    const sent = (last as unknown as { offsetDate: unknown }).offsetDate;
+    expect(sent).toBeInstanceOf(Date);
+    expect((sent as Date).getTime() / 1000).toBe(2_000_000_000 - 800);
   });
 
   it('has_more is "returned === limit": a short page ends the list', async () => {

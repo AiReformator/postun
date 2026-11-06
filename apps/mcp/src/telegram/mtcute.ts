@@ -182,7 +182,9 @@ export class MtcuteSession implements TelegramSession {
       limit,
       chunkSize: limit,
       pinned: 'exclude',
-      ...(o ? { offsetDate: o.date, offsetId: o.id, offsetPeer: decodePeer(o.peer) } : {})
+      // mtcute treats a numeric offsetDate as milliseconds (normalizeDate divides by 1000); pass a Date so the
+      // Telegram offset is the dialog's real unix time, not a 1970 date that returns an empty page.
+      ...(o ? { offsetDate: new Date(o.date * 1000), offsetId: o.id, offsetPeer: decodePeer(o.peer) } : {})
     })) {
       page.push(d);
       push(d);
