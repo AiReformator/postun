@@ -7,6 +7,7 @@ import { z } from 'zod';
 import type { Config } from './config';
 import { TOOL_INPUT } from './schemas';
 import type { MediaInfoDto, Page, TelegramSession } from './telegram/adapter';
+import { parseDialogOffset } from './telegram/cursors';
 
 export type JsonValue = string | number | boolean | null | JsonValue[] | { [k: string]: JsonValue };
 
@@ -38,6 +39,36 @@ async function paged<T>(env: ToolEnv, tool: ToolName, scope: string, cursor: str
   const offset = cursor === undefined ? null : await decodeCursor(env.cursorKey, binding, cursor);
   const page = await run(offset);
   return { items: page.items, nextCursor: page.next === null ? null : await encodeCursor(env.cursorKey, binding, page.next) };
+}
+
+/**
+ * Cheap cursor check before any pacing slot, lock or Telegram session is spent: the cursor must verify against the
+ * same binding runTool uses, and native dialog / global-search offsets must parse. Old skip cursors and forged or
+ * foreign cursors are refused here with INVALID_INPUT instead of after a Telegram round trip.
+ */
+export async function preflightCursor(env: Pick<ToolEnv, 'principalId' | 'accountId' | 'cursorKey'>, tool: ToolName, rawArgs: unknown): Promise<void> {
+  let cursor: string | undefined;
+  let scope: string;
+  let strict: ((raw: string) => unknown) | null = null;
+  if (tool === 'list_dialogs') {
+    const a = parseToolArgs('list_dialogs', rawArgs);
+    [cursor, scope, strict] = [a.cursor, '*', parseDialogOffset];
+  } else if (tool === 'get_history') {
+    const a = parseToolArgs('get_history', rawArgs);
+    [cursor, scope] = [a.cursor, a.peer];
+  } else if (tool === 'search_messages') {
+    const a = parseToolArgs('search_messages', rawArgs);
+    // Global-search offsets are adapter-specific and are parsed strictly by the adapter itself.
+    [cursor, scope] = [a.cursor, searchScope(a.peer, a.query)];
+  } else if (tool === 'get_channel_posts') {
+    const a = parseToolArgs('get_channel_posts', rawArgs);
+    [cursor, scope] = [a.cursor, a.channel];
+  } else {
+    return;
+  }
+  if (cursor === undefined) return;
+  const offset = await decodeCursor(env.cursorKey, { principalId: env.principalId, accountId: env.accountId, tool, scope }, cursor);
+  if (strict) strict(offset);
 }
 
 export function searchScope(peer: string | undefined, query: string): string {

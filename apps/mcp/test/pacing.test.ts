@@ -158,9 +158,15 @@ describe('native pagination', () => {
       { principalId: w.principalId, accountId: w.accountIds[0] as string, tool: 'list_dialogs', scope: '*' },
       '100'
     );
+    syntheticControl.opens = 0;
     const r = await callTool(w.token, 'list_dialogs', { account_id: w.accountIds[0], limit: 10, cursor });
     expect(err(r)).toMatchObject({ code: 'INVALID_INPUT', reason: 'CURSOR_EXPIRED', message: 'Cursor expired, start again' });
     expect(await reservations(w)).toBe(0);
+    expect(syntheticControl.opens).toBe(0); // refused before pacing, the lock and any Telegram session
+    // A forged cursor is refused the same cheap way.
+    const forged = await callTool(w.token, 'get_history', { account_id: w.accountIds[0], peer: 'c:1:1', limit: 10, cursor: 'x'.repeat(40) });
+    expect(err(forged).code).toBe('INVALID_CURSOR');
+    expect(syntheticControl.opens).toBe(0);
   });
 });
 

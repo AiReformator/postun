@@ -19,7 +19,7 @@ import { TOOL_INPUT } from '../schemas';
 import type { LinkRun, TelegramAdapter, TelegramSession } from '../telegram/adapter';
 import { selectAdapter } from '../telegram/adapter';
 import { mapTelegramError } from '../telegram/errors';
-import { assertFeatureEnabled, parseToolArgs, runTool, type JsonValue } from '../tools';
+import { assertFeatureEnabled, parseToolArgs, preflightCursor, runTool, type JsonValue } from '../tools';
 import { addMessages, admit, limitsView, messageBudgetWait, parsePacing, type CallKind, type PacingState } from './limiter';
 import { KeyedLocks } from './locks';
 import { SCHEMA } from './schema';
@@ -533,6 +533,7 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
       // Refusals below happen before any Telegram client is opened; the reservation is released in `finally`.
       const t0 = Date.now();
       this.assertNoCooldown(accId, t0);
+      await preflightCursor({ principalId: req.principalId, accountId: accId, cursorKey: keys.cursor }, req.tool, req.args);
       const kind: CallKind = req.tool === 'search_channels' || (req.tool === 'search_messages' && (args as { peer?: string }).peer === undefined) ? 'lookup' : 'normal';
       const delayMs = this.admitCall(accId, req.tool, kind, cfg, Date.now());
       if (delayMs > 0) await sleep(delayMs);
@@ -678,7 +679,12 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
       if (unaccounted <= 0) return;
       const n = unaccounted;
       unaccounted = 0;
-      this.addBytes(n);
+      try {
+        this.addBytes(n);
+      } catch (e) {
+        unaccounted += n; // keep the bytes for the next flush instead of losing them
+        throw e;
+      }
     };
     const cleanup = async (): Promise<void> => {
       if (released) return;

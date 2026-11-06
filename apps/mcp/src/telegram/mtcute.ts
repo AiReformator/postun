@@ -160,18 +160,9 @@ export class MtcuteSession implements TelegramSession {
   async listDialogs(limit: number, offset: string | null): Promise<Page<DialogDto>> {
     const o = parseDialogOffset(offset);
     const items: DialogDto[] = [];
-    let raw = 0;
-    let last: Dialog | null = null;
-    // One messages.getDialogs RPC per page (chunkSize = limit), anchored at Telegram's own offset: no re-iteration.
-    for await (const d of this.tg.iterDialogs({
-      limit,
-      chunkSize: limit,
-      ...(o ? { offsetDate: o.date, offsetId: o.id, offsetPeer: decodePeer(o.peer) } : {})
-    })) {
-      raw++;
-      last = d;
+    const push = (d: Dialog) => {
       const p = peerOf(d.peer);
-      if (!p) continue;
+      if (!p) return;
       items.push({
         peerId: p.id,
         kind: p.kind,
@@ -180,11 +171,32 @@ export class MtcuteSession implements TelegramSession {
         unread: d.unreadCount,
         lastMessageDate: d.lastMessage ? d.lastMessage.date.toISOString() : null
       });
+    };
+    // Pinned dialogs come ahead of date order and only with an empty offset, so a date anchor taken from a pinned
+    // dialog would skip chats. The first page therefore returns the whole pinned block (one extra RPC, first page only),
+    // and every page of the date-ordered list excludes pinned dialogs.
+    if (!o) for await (const d of this.tg.iterDialogs({ pinned: 'only' })) push(d);
+    // One messages.getDialogs RPC per page (chunkSize = limit), anchored at Telegram's own offset: no re-iteration.
+    const page: Dialog[] = [];
+    for await (const d of this.tg.iterDialogs({
+      limit,
+      chunkSize: limit,
+      pinned: 'exclude',
+      ...(o ? { offsetDate: o.date, offsetId: o.id, offsetPeer: decodePeer(o.peer) } : {})
+    })) {
+      page.push(d);
+      push(d);
     }
-    const lastPeer = last ? encodePeer(last.peer.inputPeer) : null;
-    if (raw < limit || !last || !lastPeer) return { items, next: null };
-    const date = last.lastMessage ? last.lastMessage.raw.date : (o?.date ?? 0);
-    return { items, next: encodeDialogOffset({ date, id: last.raw.topMessage, peer: lastPeer }) };
+    if (page.length < limit) return { items, next: null };
+    // Anchor on the last dialog that has a date and an encodable peer (Saved Messages and similar cannot be
+    // encoded). Walking back may repeat a few dialogs on the next page, but never skips any.
+    for (let i = page.length - 1; i >= 0; i--) {
+      const d = page[i] as Dialog;
+      const peer = encodePeer(d.peer.inputPeer);
+      const date = d.lastMessage ? d.lastMessage.raw.date : 0;
+      if (peer && date > 0) return { items, next: encodeDialogOffset({ date, id: d.raw.topMessage, peer }) };
+    }
+    return { items, next: null };
   }
 
   async getHistory(q: { peerId: string; limit: number; offset: string | null; fromDate: number | null; toDate: number | null }): Promise<Page<MessageDto>> {
