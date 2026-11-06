@@ -164,7 +164,7 @@ const MCP_JSON = (key, extra = {}) => {
  * Setup steps follow each client's own documentation (docs), checked 2026-11-06.
  */
 export const CLIENTS = [
-  { id: 'chatgpt', name: 'ChatGPT', status: 'mcp_chatgpt', code: MCP_URL, docs: 'https://developers.openai.com/apps-sdk/deploy/connect-chatgpt' },
+  { id: 'chatgpt', name: 'ChatGPT', status: 'mcp_chatgpt', code: MCP_URL, docs: 'https://developers.openai.com/plugins/deploy/connect-chatgpt' },
   { id: 'claudeCode', name: 'Claude Code', status: 'mcp_claude_code', code: `claude mcp add --transport http postun ${MCP_URL}`, docs: 'https://code.claude.com/docs/en/mcp' },
   { id: 'claudeAi', name: 'Claude', code: MCP_URL, docs: 'https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp' },
   { id: 'cursor', name: 'Cursor', code: MCP_JSON('mcpServers'), docs: 'https://cursor.com/docs/context/mcp' },
