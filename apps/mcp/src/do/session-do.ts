@@ -31,9 +31,10 @@ const LOCK_WAIT_MS = 30_000;
 /**
  * Longest a tool call may spend waiting inside Postun (pacing queue, a short Telegram cooldown, the account lock) before
  * the AI client gets a "paused" answer instead. ChatGPT drops a tools/call after about 60 s and progress notifications do
- * not extend that, so waiting plus the Telegram request itself (and one short mtcute flood sleep) must stay well below it.
+ * not extend that. The Telegram phase starts no later than this budget and then takes connect + request + at most one
+ * mtcute flood sleep (FLOOD_AUTO_SLEEP_SECONDS) + one retry, so the whole call normally ends well under 60 s.
  */
-const CALL_WAIT_BUDGET_MS = 30_000;
+const CALL_WAIT_BUDGET_MS = 25_000;
 const REVOCATION_GIVE_UP_MS = 7 * 24 * 60 * 60 * 1000;
 const ALARM_PERIOD_MS = 30 * 60 * 1000;
 const SWEEP_PERIOD_MS = 6 * 60 * 60 * 1000;
@@ -41,7 +42,7 @@ const MAX_REVOKE_BACKOFF_MS = 6 * 60 * 60 * 1000;
 const MAX_LIVE_INTENTS = 50;
 /** Tools whose results are lists of messages; their size is counted against the hourly message budget. */
 const MESSAGE_TOOLS: ReadonlySet<ToolName> = new Set<ToolName>(['get_history', 'get_channel_posts', 'search_messages']);
-const FLOOD_HINT = 'Telegram paused requests for this account for a short time. Wait retryAfterSeconds, then repeat the same call (same cursor); the search is not limited.';
+const FLOOD_HINT = 'Telegram asked this account to pause requests. Wait retryAfterSeconds, then repeat the same call (same cursor).';
 const COOLDOWN_STALE_MS = 25 * 60 * 60 * 1000;
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 /**
@@ -356,7 +357,11 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
         'SELECT state, req_hash, expires_at, replays FROM idem WHERE operation_id = ?', op
       )[0];
       if (row && row.expires_at > now) {
-        if (row.req_hash !== reqHash) throw new PostunError('CONFLICT');
+        if (row.req_hash !== reqHash) {
+          throw new PostunError('CONFLICT', undefined, {
+            hint: 'This operation_id was already used with different arguments. Use a new operation_id for a different request.'
+          });
+        }
         if (row.state === 'committed') {
           // A replay never bypasses the quota, even though it is not counted again.
           const over = this.overQuota(cfg, month, day);
@@ -369,7 +374,8 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
           carriedReplays = row.replays;
           carriedExpiry = row.expires_at;
         } else if (this.inflight.has(op)) {
-          throw new PostunError('CONFLICT');
+          // The same request is still running: a pause, the repeat replays its result once it is done.
+          throw new PostunError('CONFLICT', undefined, { reason: 'ACCOUNT_BUSY' });
         }
         // else: stale 'reserved' row from before a restart: take it over
       }
@@ -469,8 +475,8 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
     this.ensureAlarm();
   }
 
-  /** Local pacing for one Telegram-touching call. Returns a short smoothing delay (at most about 1 s) or throws. */
-  private admitCall(accountId: string, tool: ToolName, kind: CallKind, cfg: Config, now: number): number {
+  /** Local pacing for one Telegram-touching call. Returns a queueing delay (at most min(maxSmoothMs, budgetMs)) or throws. */
+  private admitCall(accountId: string, tool: ToolName, kind: CallKind, cfg: Config, now: number, budgetMs = cfg.pacing.maxSmoothMs): number {
     const { state } = this.pacingRow(accountId);
     if (MESSAGE_TOOLS.has(tool)) {
       const wait = messageBudgetWait(state, cfg.pacing, now);
@@ -481,7 +487,7 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
         });
       }
     }
-    const a = admit(state, cfg.pacing, kind, now);
+    const a = admit(state, { ...cfg.pacing, maxSmoothMs: Math.min(cfg.pacing.maxSmoothMs, budgetMs) }, kind, now);
     if (!a.ok) {
       const hints = {
         LOCAL_PACING: 'Postun spaces out calls for this account. Wait retryAfterSeconds, then repeat the same call; make calls one after another, not in parallel.',
@@ -489,7 +495,11 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
         LOOKUP_CAP: 'Postun spaces out global searches (search_channels, search_messages without peer), about one per second. Wait retryAfterSeconds, then repeat the same call; run searches one after another, not in parallel. Searching inside one chat (peer) is not spaced out.',
         MESSAGE_BUDGET: 'Postun paces how many messages one account returns per hour. Wait retryAfterSeconds, then repeat the same call.'
       } as const;
-      throw new PostunError('RATE_LIMITED', a.retryAfterSeconds, { reason: a.reason, hint: hints[a.reason] });
+      const hint =
+        a.reason === 'LOOKUP_CAP' && a.retryAfterSeconds > 120
+          ? 'Postun\'s daily allowance of global searches for this account is used up (Postun\'s own limit, not Telegram). Searching inside one chat (peer) is not counted.'
+          : hints[a.reason];
+      throw new PostunError('RATE_LIMITED', a.retryAfterSeconds, { reason: a.reason, hint });
     }
     this.savePacing(accountId, a.state, now);
     return a.delayMs;
@@ -552,7 +562,8 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
       await this.waitOutCooldown(accId, cfg, deadline);
       await preflightCursor({ principalId: req.principalId, accountId: accId, cursorKey: keys.cursor }, req.tool, req.args);
       const kind: CallKind = req.tool === 'search_channels' || (req.tool === 'search_messages' && (args as { peer?: string }).peer === undefined) ? 'lookup' : 'normal';
-      const delayMs = this.admitCall(accId, req.tool, kind, cfg, Date.now());
+      // The pacing queue may use what is left of the call's wait budget, never more than PACING_MAX_SMOOTH_MS.
+      const delayMs = this.admitCall(accId, req.tool, kind, cfg, Date.now(), Math.max(0, deadline - Date.now()));
       if (delayMs > 0) await sleep(delayMs);
       // Calls for one account run one at a time; a call that cannot get its turn within the budget is told to repeat.
       const unlock = await this.locks.acquire(accId, Math.min(LOCK_WAIT_MS, Math.max(1000, deadline - Date.now())));

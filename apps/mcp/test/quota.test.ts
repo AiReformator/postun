@@ -77,6 +77,10 @@ describe('Q-02 idempotency', () => {
     await callTool(w.token, 'list_dialogs', { account_id: w.accountIds[0], limit: 1, operation_id: key });
     const r = await callTool(w.token, 'list_dialogs', { account_id: w.accountIds[0], limit: 2, operation_id: key });
     expect(errCode(r)).toBe('CONFLICT');
+    // A real error with a fix, not a "paused" answer the AI would repeat forever.
+    const e = r.data.error as Record<string, unknown>;
+    expect(e.status).toBeUndefined();
+    expect(String(e.hint)).toContain('new operation_id');
   });
 
   it('the idempotency row stores no arguments or results', async () => {

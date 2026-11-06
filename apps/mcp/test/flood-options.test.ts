@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { FLOOD_DEFAULTS, floodMiddlewares, floodOptionsFromEnv } from '../src/telegram/mtcute';
 
 describe('mtcute flood options', () => {
-  it('defaults to sleeping through at most 3 s, once', () => {
+  it('defaults to sleeping through at most 8 s, once', () => {
     expect(floodOptionsFromEnv({})).toEqual({ autoSleepSeconds: 8, maxRetries: 1 });
     expect(FLOOD_DEFAULTS).toEqual({ autoSleepSeconds: 8, maxRetries: 1 });
   });
