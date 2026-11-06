@@ -181,11 +181,22 @@ function snippet(code, t) {
   return `<div class="snippet snippet-${kind}"><div class="snippet-bar"><span>${kind}</span><button type="button" class="btn btn-sm snippet-copy" data-copy="${esc(code)}" data-copied="${esc(plainText(t('app.copied')))}" hidden>${icon('copy')}<span>${t('app.copy')}</span></button></div><pre><code>${esc(code)}</code></pre></div>`;
 }
 
+/** ChatGPT Business / Enterprise: the admin adds the plugin once, reviews and publishes it; every member signs in alone. */
+const CHATGPT_TEAM_STEPS = 4;
+function chatgptWorkspace(t) {
+  const steps = Array.from({ length: CHATGPT_TEAM_STEPS }, (_, i) => `<li>${t(`connect.chatgptTeam${i + 1}`)}</li>`).join('\n');
+  return `<h4 class="client-sub">${t('connect.chatgptTeamTitle')}</h4>
+<ol class="client-steps">
+${steps}
+</ol>
+<p class="note client-privacy">${t('connect.chatgptTeamPrivacy')}</p>`;
+}
+
 function connectSection(status, t) {
   const st = Object.fromEntries(status.features.map((f) => [f.id, f.status]));
   const verified = (c) => Boolean(c.status) && st[c.status] === 'PASS';
   const item = (c, ok) => `<details id="connect-${c.id.toLowerCase()}"><summary><span class="client-name">${esc(c.name)}</span>${ok ? `<span class="pill pill-ok">${t('landing.clientVerified')}</span>` : ''}</summary>
-<div class="client-body"><p>${t(`connect.${c.id}`)}</p>${snippet(c.code, t)}<p class="client-docs"><a href="${c.docs}">${t('connect.docs')}</a></p></div></details>`;
+<div class="client-body"><p>${t(`connect.${c.id}`)}</p>${snippet(c.code, t)}${c.id === 'chatgpt' ? chatgptWorkspace(t) : ''}<p class="client-docs"><a href="${c.docs}">${t('connect.docs')}</a></p></div></details>`;
   const ok = CLIENTS.filter(verified);
   const rest = CLIENTS.filter((c) => !verified(c));
   return `<section id="connect" class="section faq connect">

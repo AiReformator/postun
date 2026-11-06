@@ -282,3 +282,17 @@ describe('client date formatting', () => {
     for (const l of ['ru', 'en', 'es', 'pt-BR', 'de']) expect(() => new Intl.DateTimeFormat(l, opts).format(new Date())).not.toThrow();
   });
 });
+
+describe('ChatGPT workspace instructions', () => {
+  it('every locale explains the admin steps and that each member signs in with their own Telegram', () => {
+    for (const l of LOCALES) {
+      const html = landing(status, l.code);
+      const block = html.slice(html.indexOf('id="connect-chatgpt"'), html.indexOf('</details>', html.indexOf('id="connect-chatgpt"')));
+      expect(block).toContain(l.dict.connect.chatgptTeamTitle);
+      expect(block.match(/<li>/g)).toHaveLength(4);
+      for (let i = 1; i <= 4; i++) expect(block).toContain(l.dict.connect[`chatgptTeam${i}`]);
+      expect(block).toContain(l.dict.connect.chatgptTeamPrivacy);
+      expect(l.dict.connect.chatgptTeam2).toMatch(/8/);
+    }
+  });
+});
