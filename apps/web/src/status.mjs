@@ -24,7 +24,7 @@ if (S) start();
 
 function start() {
   const lang = document.documentElement.lang || 'en';
-  const fill = (tpl, vars) => String(tpl).replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m));
+  const fill = (tpl, vars) => String(tpl).replace(/\{(\w+)\}/g, (m, k) => (Object.hasOwn(vars, k) ? String(vars[k]) : m));
   const safe = (make, fallback) => {
     try {
       return make();
@@ -33,7 +33,7 @@ function start() {
     }
   };
   const dateFmt = safe(() => new Intl.DateTimeFormat(lang, { dateStyle: 'medium', timeZone: 'UTC' }), null);
-  const dateTimeFmt = safe(() => new Intl.DateTimeFormat(lang, { dateStyle: 'medium', timeStyle: 'short' }), null);
+  const dateTimeFmt = safe(() => new Intl.DateTimeFormat(lang, { dateStyle: 'medium', timeStyle: 'short', timeZoneName: 'short' }), null);
   const pctFmt = safe(() => new Intl.NumberFormat(lang, { maximumFractionDigits: 2, minimumFractionDigits: 0 }), null);
   const numFmt = safe(() => new Intl.NumberFormat(lang, { maximumFractionDigits: 0 }), null);
   const relFmt = safe(() => new Intl.RelativeTimeFormat(lang, { numeric: 'always', style: 'short' }), null);
@@ -84,7 +84,7 @@ function start() {
     return wrap;
   }
 
-  function strip(c) {
+  function strip(c, startActive = -1) {
     const box = el('div', 'status-history');
     const bars = el('div', 'status-strip');
     bars.tabIndex = 0;
@@ -116,6 +116,16 @@ function start() {
     };
     nodes.forEach((n, i) => n.addEventListener('mouseenter', () => show(i)));
     bars.addEventListener('mouseleave', () => show(-1));
+    // Bars are ~1-3 px wide on phones: resolve the day from the pointer position so touch and pen work too.
+    const pick = (e) => {
+      const r = bars.getBoundingClientRect();
+      if (!r.width) return;
+      show(Math.min(nodes.length - 1, Math.max(0, Math.floor(((e.clientX - r.left) / r.width) * nodes.length))));
+    };
+    bars.addEventListener('pointerdown', pick);
+    bars.addEventListener('pointermove', (e) => {
+      if (e.pointerType === 'touch' ? e.buttons : true) pick(e);
+    });
     bars.addEventListener('focus', () => {
       if (active < 0) show(nodes.length - 1);
     });
@@ -130,13 +140,14 @@ function start() {
       e.preventDefault();
       show(next);
     });
+    if (startActive >= 0 && startActive < nodes.length) show(startActive);
     const axis = el('div', 'status-axis note');
     axis.append(el('span', null, S.historyFrom), el('span', null, S.historyTo));
     box.append(bars, axis, tip);
     return box;
   }
 
-  function renderComponent(li, c) {
+  function renderComponent(li, c, focus) {
     setPill(li.querySelector('[data-role="pill"]'), c ? c.status : 'unknown');
     const body = li.querySelector('[data-role="body"]');
     body.replaceChildren();
@@ -151,8 +162,9 @@ function start() {
       metric(S.up7d, fmtPct(c.uptime['7d'])),
       metric(S.up90d, fmtPct(c.uptime['90d']))
     );
-    body.append(dl, strip(c));
+    body.append(dl, strip(c, focus ? focus.index : -1));
     body.hidden = false;
+    if (focus) body.querySelector('.status-strip').focus({ preventScroll: true });
   }
 
   function renderIncidents(data) {
@@ -184,13 +196,45 @@ function start() {
   function render(now = Date.now()) {
     const view = evaluate(last, now);
     const byId = new Map((view.data ? view.data.components : []).map((c) => [c.id, c]));
-    for (const li of list.querySelectorAll('[data-component]')) renderComponent(li, byId.get(li.dataset.component) ?? null);
+    // The refresh rebuilds the strips; keep a keyboard user on the strip (and on the selected day) instead of dropping focus.
+    const ae = document.activeElement;
+    const focused = ae && ae.classList && ae.classList.contains('status-strip') ? ae.closest('[data-component]') : null;
+    const focusIndex = focused ? [...ae.children].findIndex((n) => n.classList.contains('is-active')) : -1;
+    for (const li of list.querySelectorAll('[data-component]')) {
+      renderComponent(li, byId.get(li.dataset.component) ?? null, li === focused ? { index: focusIndex } : null);
+    }
     renderIncidents(view.data);
     if (!view.data) {
       setBanner('unknown', S.overall.unknown, S.unavailable);
       return;
     }
     setBanner(view.state, S.overall[view.state], fill(S.updated, { when: fmtAgo(view.ageMs) }));
+  }
+
+  // Reads the body with a hard byte cap, so an oversized or endless response is never buffered whole.
+  async function readCapped(res) {
+    const declared = Number(res.headers.get('content-length'));
+    if (Number.isFinite(declared) && declared > LIMITS.bytes) throw new Error('size');
+    if (!res.body) {
+      const text = await res.text();
+      if (text.length > LIMITS.bytes) throw new Error('size');
+      return text;
+    }
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let got = 0;
+    let text = '';
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      got += value.byteLength;
+      if (got > LIMITS.bytes) {
+        reader.cancel().catch(() => {});
+        throw new Error('size');
+      }
+      text += dec.decode(value, { stream: true });
+    }
+    return text + dec.decode();
   }
 
   async function load() {
@@ -201,7 +245,7 @@ function start() {
     try {
       const res = await fetch(root.dataset.src, { signal: ctl.signal, cache: 'no-store', credentials: 'omit', mode: 'cors', redirect: 'error', headers: { accept: 'application/json' } });
       if (!res.ok) throw new Error('http');
-      last = parseStatusText(await res.text());
+      last = parseStatusText(await readCapped(res));
     } catch {
       last = { ok: false, reason: 'fetch' };
     } finally {

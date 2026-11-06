@@ -102,6 +102,11 @@ export function validateStatusData(raw) {
     need(new Set(all.map((c) => c.id)).size === all.length, 'duplicate component');
     const components = all.filter((c) => COMPONENT_IDS.includes(c.id));
     const incidents = raw.incidents.map(incident).sort((a, b) => b.startMs - a.startMs);
+    // Nothing may lie in the future of the snapshot itself (a day bar for tomorrow, an incident that starts or ends later).
+    const horizonMs = generatedMs + FUTURE_SKEW_MS;
+    const horizonDay = new Date(horizonMs + 24 * 3600 * 1000).toISOString().slice(0, 10);
+    need(all.every((c) => c.days.every((d) => d.date <= horizonDay)), 'future day');
+    need(incidents.every((i) => i.startMs <= horizonMs && (i.endMs === null || i.endMs <= horizonMs)), 'future incident');
     return { ok: true, data: { schema: SCHEMA, generated_at: raw.generated_at, generatedMs, overall: raw.overall, components, incidents } };
   } catch (e) {
     if (e instanceof Invalid) return { ok: false, reason: e.message };
@@ -125,12 +130,18 @@ export function parseStatusText(text) {
  * What the page should show right now: { state, data, ageMs, reason }. Missing, invalid, stale or future-dated data gives
  * state "unknown" (monitoring data unavailable); an outage is only ever shown when fresh, valid data says so.
  */
+const RANK = { operational: 1, degraded: 2, outage: 3 };
+
 export function evaluate(result, now = Date.now()) {
   if (!result || !result.ok) return { state: 'unknown', data: null, ageMs: null, reason: result?.reason ?? 'unavailable' };
   const ageMs = now - result.data.generatedMs;
   if (ageMs > STALE_MS) return { state: 'unknown', data: null, ageMs, reason: 'stale' };
   if (ageMs < -FUTURE_SKEW_MS) return { state: 'unknown', data: null, ageMs, reason: 'future' };
-  return { state: result.data.overall, data: result.data, ageMs: Math.max(0, ageMs), reason: null };
+  // The banner never looks better than the worst component: a feed saying "operational" while a component is down
+  // shows the component's state.
+  let state = result.data.overall;
+  for (const c of result.data.components) if ((RANK[c.status] ?? 0) > (RANK[state] ?? 0)) state = c.status;
+  return { state, data: result.data, ageMs: Math.max(0, ageMs), reason: null };
 }
 
 /** Level of one bar in the 90-day strip. */

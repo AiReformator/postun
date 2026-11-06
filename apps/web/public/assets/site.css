@@ -675,12 +675,12 @@ progress.meter::-moz-progress-bar { background: var(--c-signal); border-radius: 
 .status-list { display: grid; gap: var(--s-3); }
 .status-comp { background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--r-lg); padding: var(--s-4) var(--s-5); box-shadow: var(--shadow-sm); }
 .status-comp-head { display: flex; justify-content: space-between; align-items: center; gap: var(--s-3); }
-.status-comp-head h3 { font-size: var(--text-md); font-weight: var(--weight-semibold); }
+.status-comp-head h2 { font-size: var(--text-md); font-weight: var(--weight-semibold); }
 .status-comp-body { margin-top: var(--s-4); display: grid; gap: var(--s-4); }
 .status-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-3) var(--s-4); margin: 0; }
 .status-metric dt { font-size: var(--text-xs); color: var(--c-ink-3); }
 .status-metric dd { margin: 0; font-weight: var(--weight-semibold); font-variant-numeric: tabular-nums; }
-.status-strip { display: flex; gap: 2px; height: 36px; padding: 2px; border-radius: var(--r-sm); }
+.status-strip { display: flex; gap: 1px; touch-action: pan-y; height: 36px; padding: 2px; border-radius: var(--r-sm); }
 .status-strip:focus-visible { outline: 2px solid var(--c-focus); outline-offset: 2px; }
 .status-day { flex: 1 1 0; min-width: 0; border-radius: 2px; background: var(--c-line); }
 .status-day.day-ok { background: var(--c-ok); }
@@ -699,6 +699,7 @@ progress.meter::-moz-progress-bar { background: var(--c-signal); border-radius: 
 .status-legend ul { display: grid; gap: var(--s-3); color: var(--c-ink-2); font-size: var(--text-sm); }
 .status-legend li { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2) var(--s-3); }
 @media (min-width: 600px) {
+  .status-strip { gap: 2px; }
   .status-metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .status-day { min-width: 3px; }
 }

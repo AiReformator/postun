@@ -334,7 +334,7 @@ export function statusPage(code = 'en') {
   const t = translator(L.dict);
   const comps = COMPONENT_IDS.map(
     (id) => `<li class="status-comp" data-component="${id}">
-<div class="status-comp-head"><h3>${t(`statusPage.comp.${id}`)}</h3><span class="pill pill-unknown" data-role="pill">${t('statusPage.state.unknown')}</span></div>
+<div class="status-comp-head"><h2>${t(`statusPage.comp.${id}`)}</h2><span class="pill pill-unknown" data-role="pill">${t('statusPage.state.unknown')}</span></div>
 <div class="status-comp-body" data-role="body" hidden></div>
 </li>`
   ).join('\n');
@@ -349,9 +349,9 @@ export function statusPage(code = 'en') {
 <p class="lead">${t('statusPage.intro')}</p>
 </header>
 <div id="status-root" data-src="${STATUS_URL}">
-<div class="status-banner is-unknown" id="status-banner" role="status">
+<div class="status-banner is-unknown" id="status-banner">
 <span class="status-banner-ico">${icon('pulse')}</span>
-<div><p class="status-banner-title" id="status-title"><noscript>${t('statusPage.noscript')}</noscript></p><p class="status-banner-text note" id="status-text"></p></div>
+<div><p class="status-banner-title" id="status-title" role="status"><noscript>${t('statusPage.noscript')}</noscript></p><p class="status-banner-text note" id="status-text"></p></div>
 </div>
 <ul class="status-list" id="status-components">
 ${comps}

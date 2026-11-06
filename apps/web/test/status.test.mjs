@@ -86,6 +86,16 @@ describe('status data validator', () => {
   });
 });
 
+describe('validator: nothing after the snapshot time', () => {
+  it('rejects a future day bar and a future incident', () => {
+    const raw = sample();
+    raw.components[0].days.push({ date: '2026-11-20', uptime: 100 });
+    expect(validateStatusData(raw)).toMatchObject({ ok: false, reason: 'future day' });
+    const inc = sample({ incidents: [{ start: '2026-12-01T10:00:00Z', end: null, components: ['mcp'], status: 'ongoing' }] });
+    expect(validateStatusData(inc)).toMatchObject({ ok: false, reason: 'future incident' });
+  });
+});
+
 describe('freshness: stale or missing data is unknown, never outage', () => {
   const ok = (raw) => validateStatusData(raw);
   it('fresh outage data shows the outage', () => {
@@ -142,14 +152,14 @@ describe('status page', () => {
       const html = statusPage(l.code);
       for (const id of COMPONENT_IDS) {
         expect(html).toContain(`data-component="${id}"`);
-        expect(html).toContain(`<h3>${l.dict.statusPage.comp[id]}</h3>`);
+        expect(html).toContain(`<h2>${l.dict.statusPage.comp[id]}</h2>`);
       }
       expect(html).toContain(`<noscript>${l.dict.statusPage.noscript}</noscript>`);
       expect(html).toContain(l.dict.statusPage.legend.outage);
       expect(html).toContain(`data-src="${STATUS_URL}"`);
     }
-    expect(statusPage('en')).toContain('<h3>MCP server (AI clients)</h3>');
-    expect(statusPage('en')).toContain('<h3>Telegram connection</h3>');
+    expect(statusPage('en')).toContain('<h2>MCP server (AI clients)</h2>');
+    expect(statusPage('en')).toContain('<h2>Telegram connection</h2>');
   });
   it('loads only the same-origin status script and has no inline scripts or styles', () => {
     const html = statusPage('en');
@@ -212,5 +222,19 @@ describe('status client source', () => {
   const src = readFileSync(new URL('../src/status.mjs', import.meta.url), 'utf8');
   it('never writes data into the DOM as markup', () => {
     expect(src).not.toMatch(/innerHTML|outerHTML|insertAdjacentHTML|document\.write|\beval\(|new Function/);
+  });
+});
+
+describe('overall banner never hides a failing component', () => {
+  it('uses the worst of overall and component states', async () => {
+    const { validateStatusData, evaluate } = await import('../src/status-data.mjs');
+    const now = Date.parse('2026-11-06T00:30:00Z');
+    const comp = (id, status) => ({ id, status, latency_ms: 100, uptime: { '24h': 100, '7d': 100, '90d': 100 }, days: [] });
+    const raw = { schema: 'postun-status/v1', generated_at: '2026-11-06T00:29:00Z', overall: 'operational', components: [comp('site', 'operational'), comp('mcp', 'outage')], incidents: [] };
+    const r = validateStatusData(raw);
+    expect(r.ok).toBe(true);
+    expect(evaluate(r, now).state).toBe('outage');
+    const r2 = validateStatusData({ ...raw, components: [comp('site', 'operational'), comp('mcp', 'unknown')] });
+    expect(evaluate(r2, now).state).toBe('operational');
   });
 });
