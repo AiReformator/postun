@@ -1,8 +1,9 @@
 import { fromJsonSchema, McpServer, type JsonSchemaType, type jsonSchemaValidator } from '@modelcontextprotocol/server';
-import { TOOLS, mcpCallPoint, writeMetric, type GrantProps, type ToolName } from '@postun/contracts';
+import { TOOLS, TOOL_SCOPE, mcpCallPoint, writeMetric, type GrantProps, type ToolName } from '@postun/contracts';
 import type { Env } from './env';
 import { toolErrorResult } from './pause';
-import { SERVER_INSTRUCTIONS, TOOL_DESCRIPTION, TOOL_INPUT } from './schemas';
+import { TOOL_OUTPUT } from './output';
+import { SERVER_INSTRUCTIONS, TOOL_DESCRIPTION, TOOL_INPUT, TOOL_TITLE } from './schemas';
 
 /**
  * The tools/call handler for one grant. Every call also writes one aggregate metric point (tool, outcome code,
@@ -64,15 +65,40 @@ const passThrough: jsonSchemaValidator = {
 
 const ANNOTATIONS = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true } as const;
 
+/**
+ * Each tool also carries:
+ * - outputSchema: the shape of its structuredContent (output.ts). It goes through the same pass-through validator, so
+ *   the SDK never turns a successful Telegram read into an error over a schema detail; a test pins the schemas instead.
+ * - _meta.securitySchemes: the OAuth scope the tool needs (OpenAI Apps SDK convention; MCP itself has no per-tool auth
+ *   field). Advisory only: the Durable Object enforces TOOL_SCOPE on every call.
+ */
 const TOOL_DEFS = TOOLS.map((tool) => ({
   tool,
   config: {
-    title: tool,
+    title: TOOL_TITLE[tool],
     description: TOOL_DESCRIPTION[tool],
     inputSchema: fromJsonSchema(TOOL_INPUT[tool]['~standard'].jsonSchema.input({ target: 'draft-2020-12' }) as JsonSchemaType, passThrough),
-    annotations: ANNOTATIONS
+    outputSchema: fromJsonSchema(TOOL_OUTPUT[tool]['~standard'].jsonSchema.output({ target: 'draft-2020-12' }) as JsonSchemaType, passThrough),
+    annotations: ANNOTATIONS,
+    _meta: { securitySchemes: [{ type: 'oauth2', scopes: [TOOL_SCOPE[tool]] }] }
   }
 }));
+
+/**
+ * What clients show for the server itself (MCP Implementation: title, description, website, icons). A client that
+ * supports server icons can show the Postun logo even when the user left the icon field of the connector empty.
+ */
+export const SERVER_INFO = {
+  name: 'postun',
+  title: 'Postun Telegram',
+  version: '0.1.0-beta',
+  description: 'Read-only access to your own Telegram chats, channels and messages for AI assistants.',
+  websiteUrl: 'https://postun.org',
+  icons: [
+    { src: 'https://postun.org/assets/postun-icon-256.png', mimeType: 'image/png', sizes: ['256x256'] },
+    { src: 'https://postun.org/assets/favicon.svg', mimeType: 'image/svg+xml', sizes: ['any'] }
+  ]
+};
 
 /**
  * One MCP server per request. The SDK binds a server instance to a single transport (a per-request transport in
@@ -81,7 +107,7 @@ const TOOL_DEFS = TOOLS.map((tool) => ({
  * All 8 tools are read-only; none writes to Telegram.
  */
 export function createMcpServer(env: Env, props: GrantProps): McpServer {
-  const server = new McpServer({ name: 'postun', version: '0.1.0-beta' }, { instructions: SERVER_INSTRUCTIONS });
+  const server = new McpServer(SERVER_INFO, { instructions: SERVER_INSTRUCTIONS });
   const call = toolCaller(env, props);
   for (const { tool, config } of TOOL_DEFS) {
     server.registerTool(tool, config, (args: unknown) => call(tool, (args ?? {}) as Record<string, unknown>));

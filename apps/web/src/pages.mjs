@@ -182,13 +182,18 @@ function snippet(code, t) {
 }
 
 /** ChatGPT Business / Enterprise: the admin adds the plugin once, reviews and publishes it; every member signs in alone. */
-const CHATGPT_TEAM_STEPS = 4;
+const CHATGPT_TEAM_STEPS = 5;
+const CHATGPT_FORM_FIELDS = 5;
 function chatgptWorkspace(t) {
-  const steps = Array.from({ length: CHATGPT_TEAM_STEPS }, (_, i) => `<li>${t(`connect.chatgptTeam${i + 1}`)}</li>`).join('\n');
+  const list = (key, n) => Array.from({ length: n }, (_, i) => `<li>${t(`connect.${key}${i + 1}`)}</li>`).join('\n');
   return `<h4 class="client-sub">${t('connect.chatgptTeamTitle')}</h4>
 <ol class="client-steps">
-${steps}
+${list('chatgptTeam', CHATGPT_TEAM_STEPS)}
 </ol>
+<h4 class="client-sub">${t('connect.chatgptFormTitle')}</h4>
+<ul class="client-steps">
+${list('chatgptForm', CHATGPT_FORM_FIELDS)}
+</ul>
 <p class="note client-privacy">${t('connect.chatgptTeamPrivacy')}</p>`;
 }
 

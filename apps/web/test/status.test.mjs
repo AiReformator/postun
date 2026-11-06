@@ -289,8 +289,11 @@ describe('ChatGPT workspace instructions', () => {
       const html = landing(status, l.code);
       const block = html.slice(html.indexOf('id="connect-chatgpt"'), html.indexOf('</details>', html.indexOf('id="connect-chatgpt"')));
       expect(block).toContain(l.dict.connect.chatgptTeamTitle);
-      expect(block.match(/<li>/g)).toHaveLength(4);
-      for (let i = 1; i <= 4; i++) expect(block).toContain(l.dict.connect[`chatgptTeam${i}`]);
+      expect(block.match(/<li>/g)).toHaveLength(10);
+      for (let i = 1; i <= 5; i++) expect(block).toContain(l.dict.connect[`chatgptTeam${i}`]);
+      expect(block).toContain(l.dict.connect.chatgptFormTitle);
+      for (let i = 1; i <= 5; i++) expect(block).toContain(l.dict.connect[`chatgptForm${i}`]);
+      expect(block).toContain('href="/assets/postun-icon-256.png"');
       expect(block).toContain(l.dict.connect.chatgptTeamPrivacy);
       expect(l.dict.connect.chatgptTeam2).toMatch(/8/);
     }
