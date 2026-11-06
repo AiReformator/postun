@@ -209,7 +209,7 @@ describe('design system', () => {
     expect(names(restAll)).toContain('Claude');
     const [okNone, restNone] = groups(withAll(status, 'NOT_RUN'));
     expect(names(okNone)).toEqual([]);
-    expect(names(restNone)).toEqual(CLIENTS.map((c) => c.name.replace('&', '&amp;')));
+    expect(names(restNone)).toEqual(CLIENTS.map((c) => c.name));
     for (const c of CLIENTS) expect(c.docs).toMatch(/^https:\/\//);
     for (const l of LOCALES) {
       const html = landing(status, l.code);
