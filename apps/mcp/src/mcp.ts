@@ -1,6 +1,5 @@
-import { McpServer } from '@modelcontextprotocol/server';
+import { fromJsonSchema, McpServer, type JsonSchemaType, type jsonSchemaValidator } from '@modelcontextprotocol/server';
 import { TOOLS, mcpCallPoint, writeMetric, type GrantProps, type ToolName } from '@postun/contracts';
-import type { z } from 'zod';
 import type { Env } from './env';
 import { SERVER_INSTRUCTIONS, TOOL_DESCRIPTION, TOOL_INPUT } from './schemas';
 
@@ -59,23 +58,39 @@ export function toolCaller(env: Env, props: GrantProps) {
   };
 }
 
-/** One stateless MCP server per request. All 8 tools are read-only; none writes to Telegram. */
+/**
+ * Tool definitions built once per isolate (module scope, outside any request's CPU). `tools/list` advertises the full
+ * JSON Schema of each tool, computed here once from the Zod schemas instead of on every request. The Worker does not
+ * validate arguments a second time: the Durable Object is the authority and parses them against the same Zod schema
+ * (parseToolArgs) before authorising, reserving quota or touching Telegram; an invalid call costs no quota.
+ */
+const passThrough: jsonSchemaValidator = {
+  getValidator: () => (input: unknown) => ({ valid: true as const, data: input as never, errorMessage: undefined })
+};
+
+const ANNOTATIONS = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true } as const;
+
+const TOOL_DEFS = TOOLS.map((tool) => ({
+  tool,
+  config: {
+    title: tool,
+    description: TOOL_DESCRIPTION[tool],
+    inputSchema: fromJsonSchema(TOOL_INPUT[tool]['~standard'].jsonSchema.input({ target: 'draft-2020-12' }) as JsonSchemaType, passThrough),
+    annotations: ANNOTATIONS
+  }
+}));
+
+/**
+ * One MCP server per request. The SDK binds a server instance to a single transport (a per-request transport in
+ * stateless mode) and its factory contract is one instance per request, so an instance is not shared between concurrent
+ * requests; instead everything expensive (schemas, JSON Schema, descriptions) is cached above and registration is cheap.
+ * All 8 tools are read-only; none writes to Telegram.
+ */
 export function createMcpServer(env: Env, props: GrantProps): McpServer {
   const server = new McpServer({ name: 'postun', version: '0.1.0-beta' }, { instructions: SERVER_INSTRUCTIONS });
   const call = toolCaller(env, props);
-
-  for (const tool of TOOLS) {
-    server.registerTool(
-      tool,
-      {
-        title: tool,
-        description: TOOL_DESCRIPTION[tool],
-        inputSchema: TOOL_INPUT[tool] as unknown as z.ZodObject<z.ZodRawShape>,
-        annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true }
-      },
-      // Arguments were validated against the same schema by the SDK; the DO validates them again.
-      (args: unknown) => call(tool, args as Record<string, unknown>)
-    );
+  for (const { tool, config } of TOOL_DEFS) {
+    server.registerTool(tool, config, (args: unknown) => call(tool, (args ?? {}) as Record<string, unknown>));
   }
   return server;
 }

@@ -44,41 +44,6 @@ export function searchScope(peer: string | undefined, query: string): string {
   return `${peer ?? '*'}#${query}`;
 }
 
-type PreflightEnv = Pick<ToolEnv, 'principalId' | 'accountId' | 'cursorKey' | 'cfg'>;
-
-/**
- * Refuses a cursor that would skip too many items. list_dialogs and global search re-iterate from the start
- * (skip + limit + 1 items), so a deep page costs an unbounded number of RPCs. Runs before any Telegram client is opened.
- */
-export async function preflightTool(env: PreflightEnv, tool: ToolName, rawArgs: unknown): Promise<void> {
-  let cursor: string | undefined;
-  let scope: string;
-  if (tool === 'list_dialogs') {
-    const a = parseToolArgs('list_dialogs', rawArgs);
-    cursor = a.cursor;
-    scope = '*';
-  } else if (tool === 'search_messages') {
-    const a = parseToolArgs('search_messages', rawArgs);
-    if (a.peer !== undefined) return; // per-chat search pages by message id, not by skipping
-    cursor = a.cursor;
-    scope = searchScope(undefined, a.query);
-  } else {
-    return;
-  }
-  if (cursor === undefined) return;
-  const offset = await decodeCursor(env.cursorKey, { principalId: env.principalId, accountId: env.accountId, tool, scope }, cursor);
-  if (Number(offset) > env.cfg.pacing.maxSkip) {
-    throw new PostunError('INVALID_INPUT', undefined, {
-      reason: 'DEEP_PAGING',
-      message: `Cursor is too deep: at most ${env.cfg.pacing.maxSkip} items can be skipped`,
-      hint:
-        tool === 'list_dialogs'
-          ? 'Do not page deeper through all dialogs. Find a chat with search_messages (with or without a peer) or pick a peer you already know.'
-          : 'Do not page deeper through global search. Narrow the query, or search inside one chat by passing peer.'
-    });
-  }
-}
-
 export function parseToolArgs<T extends keyof typeof TOOL_INPUT>(tool: T, args: unknown): z.infer<(typeof TOOL_INPUT)[T]> {
   const r = TOOL_INPUT[tool].safeParse(args);
   if (!r.success) throw new PostunError('INVALID_INPUT');

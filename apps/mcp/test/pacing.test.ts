@@ -3,30 +3,7 @@ import { toSafeError, PostunError } from '@postun/contracts';
 import { describe, expect, it } from 'vitest';
 import { SERVER_INSTRUCTIONS, TOOL_DESCRIPTION } from '../src/schemas';
 import { syntheticControl } from '../src/telegram/synthetic';
-import { callTool, mcpRequest, principalStub, setupWorld, type ToolResult, type World } from './helpers';
-
-type Vars = Record<string, string>;
-
-/** Overrides vars on the Durable Object's own env (read on every call) and restores them afterwards. */
-async function withVars<T>(w: World, vars: Vars, fn: () => Promise<T>): Promise<T> {
-  const stub = principalStub(w.principalId);
-  const prev: Vars = {};
-  await runInDurableObject(stub, (inst) => {
-    const e = (inst as unknown as { env: Vars }).env;
-    for (const [k, v] of Object.entries(vars)) {
-      prev[k] = e[k] as string;
-      e[k] = v;
-    }
-  });
-  try {
-    return await fn();
-  } finally {
-    await runInDurableObject(stub, (inst) => {
-      const e = (inst as unknown as { env: Vars }).env;
-      for (const k of Object.keys(vars)) e[k] = prev[k] as string;
-    });
-  }
-}
+import { callTool, mcpRequest, principalStub, setupWorld, withVars, type ToolResult, type World } from './helpers';
 
 const err = (r: ToolResult) => r.data.error as { code: string; message: string; retryAfterSeconds?: number; reason?: string; hint?: string };
 const dialogs = (w: World, extra: Record<string, unknown> = {}, i = 0) => callTool(w.token, 'list_dialogs', { account_id: w.accountIds[i], limit: 1, ...extra });
@@ -154,24 +131,36 @@ describe('message budget', () => {
   });
 });
 
-describe('deep paging', () => {
-  it('rejects a list_dialogs cursor that skips too many items before Telegram is touched', async () => {
+describe('native pagination', () => {
+  it('list_dialogs pages with Telegram-native offsets: one RPC per page, no skip re-iteration, no look-ahead', async () => {
     const w = await setupWorld();
-    await withVars(w, { PACING_MAX_SKIP: '50' }, async () => {
-      const first = await callTool(w.token, 'list_dialogs', { account_id: w.accountIds[0], limit: 100 });
-      const cursor = first.data.nextCursor as string;
-      expect(cursor).toBeTruthy();
-      syntheticControl.opens = 0;
-      const r = await callTool(w.token, 'list_dialogs', { account_id: w.accountIds[0], limit: 100, cursor });
-      expect(err(r)).toMatchObject({ code: 'INVALID_INPUT', reason: 'DEEP_PAGING' });
-      expect(err(r).message).toMatch(/50/);
-      expect(err(r).hint).toBeTruthy();
-      expect(syntheticControl.opens).toBe(0);
-      expect(await reservations(w)).toBe(0);
-    });
-    // With the default bound (500) the same cursor is fine.
+    syntheticControl.ops = 0;
     const first = await callTool(w.token, 'list_dialogs', { account_id: w.accountIds[0], limit: 100 });
-    expect((await callTool(w.token, 'list_dialogs', { account_id: w.accountIds[0], limit: 100, cursor: first.data.nextCursor })).isError).toBe(false);
+    expect((first.data.dialogs as unknown[]).length).toBe(100);
+    expect(syntheticControl.ops).toBe(1);
+    const cursor = first.data.nextCursor as string;
+    expect(cursor).toBeTruthy();
+    syntheticControl.ops = 0;
+    const second = await callTool(w.token, 'list_dialogs', { account_id: w.accountIds[0], limit: 100, cursor });
+    expect(second.isError).toBe(false);
+    expect(syntheticControl.ops).toBe(1);
+    expect((second.data.dialogs as unknown[]).length).toBe(20);
+    expect(second.data.nextCursor).toBeNull();
+  });
+
+  it('a pre-native skip cursor is refused with INVALID_INPUT "Cursor expired, start again" before reaching Telegram data', async () => {
+    const w = await setupWorld();
+    const { loadKeys } = await import('../src/config');
+    const { env } = await import('cloudflare:workers');
+    const { encodeCursor } = await import('@postun/contracts');
+    const cursor = await encodeCursor(
+      (await loadKeys(env)).cursor,
+      { principalId: w.principalId, accountId: w.accountIds[0] as string, tool: 'list_dialogs', scope: '*' },
+      '100'
+    );
+    const r = await callTool(w.token, 'list_dialogs', { account_id: w.accountIds[0], limit: 10, cursor });
+    expect(err(r)).toMatchObject({ code: 'INVALID_INPUT', reason: 'CURSOR_EXPIRED', message: 'Cursor expired, start again' });
+    expect(await reservations(w)).toBe(0);
   });
 });
 

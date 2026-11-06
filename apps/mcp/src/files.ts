@@ -1,6 +1,8 @@
 /** Pure helpers for the file download endpoint. */
 
 export const CHUNK_BYTES = 1024 * 1024;
+/** A transfer re-checks the grant and accounts its bytes once per this many bytes, and on close/error/cancel. */
+export const TRANSFER_STEP_BYTES = 8 * 1024 * 1024;
 export const CAPABILITY_TTL_MS = 10 * 60 * 1000;
 export const MAX_TRANSFERS_PER_PRINCIPAL = 2;
 

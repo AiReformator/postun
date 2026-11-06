@@ -34,7 +34,7 @@ export type ErrorReason =
   | 'HOURLY_CAP'
   | 'LOOKUP_CAP'
   | 'MESSAGE_BUDGET'
-  | 'DEEP_PAGING'
+  | 'CURSOR_EXPIRED'
   | 'DAILY_QUOTA'
   | 'MONTHLY_QUOTA';
 

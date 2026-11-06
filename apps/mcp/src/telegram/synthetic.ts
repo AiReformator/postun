@@ -10,6 +10,8 @@ import type {
 export const SYNTH_SESSION_MARKER = 'SYNTH-SESSION-MARKER';
 const BASE_DATE = Math.floor(Date.UTC(2026, 10, 1) / 1000);
 const HISTORY_SIZE = 250;
+import { encodeDialogOffset, parseDialogOffset } from './cursors';
+
 const DIALOG_COUNT = 120;
 
 /** Test hooks. Shared by the test and the DO because both run in the same isolate. */
@@ -140,9 +142,14 @@ class SyntheticSession implements TelegramSession {
 
   async listDialogs(limit: number, offset: string | null): Promise<Page<DialogDto>> {
     await this.tick();
-    const skip = offset === null ? 0 : Number(offset);
+    // Native-style continuation: the last dialog's (date, id, peer), parsed strictly like the real adapter does.
+    const o = parseDialogOffset(offset);
+    let start = 0;
+    if (o) {
+      for (let i = 0; i < DIALOG_COUNT; i++) if (this.peer(i) === o.peer) start = i + 1;
+    }
     const items: DialogDto[] = [];
-    for (let i = skip; i < Math.min(DIALOG_COUNT, skip + limit); i++) {
+    for (let i = start; i < Math.min(DIALOG_COUNT, start + limit); i++) {
       items.push({
         peerId: this.peer(i),
         kind: kindOf(i),
@@ -152,8 +159,12 @@ class SyntheticSession implements TelegramSession {
         lastMessageDate: new Date((BASE_DATE - i * 3600) * 1000).toISOString()
       });
     }
-    const end = skip + items.length;
-    return { items, next: end < DIALOG_COUNT ? String(end) : null };
+    const end = start + items.length;
+    const lastIdx = end - 1;
+    return {
+      items,
+      next: items.length === limit && end < DIALOG_COUNT ? encodeDialogOffset({ date: BASE_DATE - lastIdx * 3600, id: lastIdx + 1, peer: this.peer(lastIdx) }) : null
+    };
   }
 
   async getHistory(q: { peerId: string; limit: number; offset: string | null; fromDate: number | null; toDate: number | null }): Promise<Page<MessageDto>> {

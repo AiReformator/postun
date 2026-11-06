@@ -7,6 +7,7 @@
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
+    "bench:cpu": "vitest run --config vitest.bench.config.ts",
     "build": "wrangler deploy --dry-run --outdir dist"
   },
   "dependencies": {

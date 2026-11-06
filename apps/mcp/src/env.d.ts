@@ -29,7 +29,6 @@ export interface Env {
   PACING_LOOKUP_PER_DAY?: string;
   PACING_MESSAGES_PER_HOUR?: string;
   PACING_FLOOD_MARGIN_SECONDS?: string;
-  PACING_MAX_SKIP?: string;
   FLOOD_AUTO_SLEEP_SECONDS?: string;
   FLOOD_AUTO_RETRIES?: string;
   // secrets (never in wrangler.jsonc; see .dev.vars.example)

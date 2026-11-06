@@ -1,3 +1,4 @@
+import { runInDurableObject } from 'cloudflare:test';
 import { env, exports } from 'cloudflare:workers';
 import { toBase64Url, utf8, type GrantProps, type LinkState, type Scope } from '@postun/contracts';
 import { syntheticControl } from '../src/telegram/synthetic';
@@ -92,4 +93,27 @@ export async function fetchFile(intentId: string, capability: string | null, ran
 export function parseDownload(r: ToolResult): { intentId: string; capability: string; url: string } {
   const d = r.data.download as { url: string; authorization: string };
   return { intentId: new URL(d.url).pathname.split('/').pop() as string, capability: d.authorization.replace('Bearer ', ''), url: d.url };
+}
+
+type Vars = Record<string, string>;
+
+/** Overrides vars on the Durable Object's own env (read on every call) and restores them afterwards. */
+export async function withVars<T>(w: World, vars: Vars, fn: () => Promise<T>): Promise<T> {
+  const stub = principalStub(w.principalId);
+  const prev: Vars = {};
+  await runInDurableObject(stub, (inst) => {
+    const e = (inst as unknown as { env: Vars }).env;
+    for (const [k, v] of Object.entries(vars)) {
+      prev[k] = e[k] as string;
+      e[k] = v;
+    }
+  });
+  try {
+    return await fn();
+  } finally {
+    await runInDurableObject(stub, (inst) => {
+      const e = (inst as unknown as { env: Vars }).env;
+      for (const k of Object.keys(vars)) e[k] = prev[k] as string;
+    });
+  }
 }

@@ -5,6 +5,8 @@
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "workers_dev": false,
   "preview_urls": false,
+  // Minified bundle: a smaller script parses and compiles faster in a fresh isolate (Cloudflare Free fit, docs/02). The build still emits a source map next to it.
+  "minify": true,
   "observability": { "enabled": false, "logs": { "enabled": false, "invocation_logs": false } },
   // Template only; the operator fills in the real zone. No account/zone IDs live in the repository.
   // "routes": [{ "pattern": "mcp.postun.org", "custom_domain": true }],
@@ -36,7 +38,6 @@
     "PACING_MESSAGES_PER_HOUR": "0",
     "PACING_MAX_SMOOTH_MS": "3000",
     "PACING_FLOOD_MARGIN_SECONDS": "5",
-    "PACING_MAX_SKIP": "500",
     "FLOOD_AUTO_SLEEP_SECONDS": "3",
     "FLOOD_AUTO_RETRIES": "1",
     "TELEGRAM_ADAPTER": "mtcute"
@@ -46,7 +47,8 @@
       "name": "postun-mcp-staging",
       "workers_dev": false,
       "preview_urls": false,
-      "observability": { "enabled": false, "logs": { "enabled": false, "invocation_logs": false } },
+      "minify": true,
+          "observability": { "enabled": false, "logs": { "enabled": false, "invocation_logs": false } },
       // "routes": [{ "pattern": "mcp.staging.postun.org", "custom_domain": true }],
       "rules": [{ "type": "CompiledWasm", "globs": ["**/*.wasm"], "fallthrough": true }],
       "durable_objects": { "bindings": [{ "name": "SESSIONS", "class_name": "SessionAndQuotaDO" }] },
@@ -74,7 +76,6 @@
         "PACING_MESSAGES_PER_HOUR": "0",
         "PACING_MAX_SMOOTH_MS": "3000",
         "PACING_FLOOD_MARGIN_SECONDS": "5",
-        "PACING_MAX_SKIP": "500",
         "FLOOD_AUTO_SLEEP_SECONDS": "3",
         "FLOOD_AUTO_RETRIES": "1",
         "TELEGRAM_ADAPTER": "mtcute"

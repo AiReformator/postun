@@ -15,16 +15,15 @@ function must(a: Admission): { state: PacingState; delayMs: number } {
 describe('pacingFromEnv', () => {
   it('uses the documented defaults when nothing is set', () => {
     expect(pacingFromEnv({})).toEqual({
-      burst: 60, refillMs: 500, hourlyCap: 5000, lookupPerMin: 60, lookupBurst: 3, lookupPerDay: 2000, messagesPerHour: 0, maxSmoothMs: 3000, floodMarginSeconds: 5, maxSkip: 500
+      burst: 60, refillMs: 500, hourlyCap: 5000, lookupPerMin: 60, lookupBurst: 3, lookupPerDay: 2000, messagesPerHour: 0, maxSmoothMs: 3000, floodMarginSeconds: 5
     });
   });
   it('accepts valid overrides and falls back to the default for invalid ones', () => {
-    const c = pacingFromEnv({ PACING_BURST: '5', PACING_REFILL_MS: 'abc', PACING_HOURLY_CAP: '-1', PACING_LOOKUP_PER_MIN: '1.5', PACING_MAX_SKIP: '0', PACING_MESSAGES_PER_HOUR: '' });
+    const c = pacingFromEnv({ PACING_BURST: '5', PACING_REFILL_MS: 'abc', PACING_HOURLY_CAP: '-1', PACING_LOOKUP_PER_MIN: '1.5', PACING_MESSAGES_PER_HOUR: '' });
     expect(c.burst).toBe(5);
     expect(c.refillMs).toBe(500);
     expect(c.hourlyCap).toBe(5000);
     expect(c.lookupPerMin).toBe(60);
-    expect(c.maxSkip).toBe(0);
     expect(c.messagesPerHour).toBe(0);
     expect(pacingFromEnv({ PACING_MESSAGES_PER_HOUR: '20000', PACING_MAX_SMOOTH_MS: '999999' })).toMatchObject({ messagesPerHour: 20000, maxSmoothMs: 3000 });
   });
