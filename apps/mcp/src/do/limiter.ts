@@ -21,7 +21,8 @@ export interface PacingConfig {
   lookupPerDay: number;
   /** Soft cap of messages returned per rolling hour; 0 turns the budget off (the default). */
   messagesPerHour: number;
-  /** Waits up to this long are queued (slept before the call) instead of refused. */
+  /** Waits up to this long are queued (slept before the call) instead of answered with a pause; kept well under the
+   * AI clients' tools/call timeout (ChatGPT about 60 s), see CALL_WAIT_BUDGET_MS in the Durable Object. */
   maxSmoothMs: number;
   /** Added to a Telegram FLOOD_WAIT before it becomes the stored cooldown. */
   floodMarginSeconds: number;
@@ -38,10 +39,10 @@ export const PACING_DEFAULTS: Readonly<PacingConfig> = {
   refillMs: 500,
   hourlyCap: 5000,
   lookupPerMin: 60,
-  lookupBurst: 3,
+  lookupBurst: 5,
   lookupPerDay: 2000,
   messagesPerHour: 0,
-  maxSmoothMs: 3000,
+  maxSmoothMs: 15000,
   floodMarginSeconds: 5
 };
 

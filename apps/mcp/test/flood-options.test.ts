@@ -3,12 +3,12 @@ import { FLOOD_DEFAULTS, floodMiddlewares, floodOptionsFromEnv } from '../src/te
 
 describe('mtcute flood options', () => {
   it('defaults to sleeping through at most 3 s, once', () => {
-    expect(floodOptionsFromEnv({})).toEqual({ autoSleepSeconds: 3, maxRetries: 1 });
-    expect(FLOOD_DEFAULTS).toEqual({ autoSleepSeconds: 3, maxRetries: 1 });
+    expect(floodOptionsFromEnv({})).toEqual({ autoSleepSeconds: 8, maxRetries: 1 });
+    expect(FLOOD_DEFAULTS).toEqual({ autoSleepSeconds: 8, maxRetries: 1 });
   });
   it('accepts overrides and ignores invalid values', () => {
     expect(floodOptionsFromEnv({ FLOOD_AUTO_SLEEP_SECONDS: '0', FLOOD_AUTO_RETRIES: '2' })).toEqual({ autoSleepSeconds: 0, maxRetries: 2 });
-    expect(floodOptionsFromEnv({ FLOOD_AUTO_SLEEP_SECONDS: '999', FLOOD_AUTO_RETRIES: 'x' })).toEqual({ autoSleepSeconds: 3, maxRetries: 1 });
+    expect(floodOptionsFromEnv({ FLOOD_AUTO_SLEEP_SECONDS: '999', FLOOD_AUTO_RETRIES: 'x' })).toEqual({ autoSleepSeconds: 8, maxRetries: 1 });
   });
 
   // Runs the real mtcute middleware chain against a fake transport result.

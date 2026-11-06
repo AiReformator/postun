@@ -54,12 +54,12 @@ describe('pacing variables are present with the documented defaults', () => {
     PACING_REFILL_MS: '500',
     PACING_HOURLY_CAP: '5000',
     PACING_LOOKUP_PER_MIN: '60',
-    PACING_LOOKUP_BURST: '3',
+    PACING_LOOKUP_BURST: '5',
     PACING_LOOKUP_PER_DAY: '2000',
     PACING_MESSAGES_PER_HOUR: '0',
-    PACING_MAX_SMOOTH_MS: '3000',
+    PACING_MAX_SMOOTH_MS: '15000',
     PACING_FLOOD_MARGIN_SECONDS: '5',
-    FLOOD_AUTO_SLEEP_SECONDS: '3',
+    FLOOD_AUTO_SLEEP_SECONDS: '8',
     FLOOD_AUTO_RETRIES: '1'
   };
   it.each([

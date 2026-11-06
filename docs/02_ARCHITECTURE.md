@@ -96,16 +96,16 @@ KV eventual consistency не даёт гарантии мгновенного г
 
 | Механизм | Переменная (по умолчанию) | Отказ |
 |---|---|---|
-| Сохранённый cooldown после `FLOOD_WAIT` от Telegram: `now + retryAfter + запас`, до открытия клиента | `PACING_FLOOD_MARGIN_SECONDS` (5) | `RATE_LIMITED`, reason `FLOOD_WAIT`, retryAfter = остаток |
-| Авто-ожидание mtcute только коротких flood wait, не более одного повтора | `FLOOD_AUTO_SLEEP_SECONDS` (3), `FLOOD_AUTO_RETRIES` (1) | длиннее — `RATE_LIMITED` и cooldown |
-| Token bucket на аккаунт (только защита от спама) | `PACING_BURST` (60), `PACING_REFILL_MS` (500, около 120 в минуту) | `LOCAL_PACING`; ожидание до `PACING_MAX_SMOOTH_MS` (3000) ставится в очередь сном |
+| Сохранённый cooldown после `FLOOD_WAIT` от Telegram: `now + retryAfter + запас`, до открытия клиента; короткий остаток (до `PACING_MAX_SMOOTH_MS` и в пределах бюджета вызова) пережидается внутри вызова | `PACING_FLOOD_MARGIN_SECONDS` (5) | `RATE_LIMITED`, reason `FLOOD_WAIT`, retryAfter = остаток |
+| Авто-ожидание mtcute только коротких flood wait, не более одного повтора | `FLOOD_AUTO_SLEEP_SECONDS` (8), `FLOOD_AUTO_RETRIES` (1) | длиннее — `RATE_LIMITED` и cooldown |
+| Token bucket на аккаунт (только защита от спама) | `PACING_BURST` (60), `PACING_REFILL_MS` (500, около 120 в минуту) | `LOCAL_PACING`; ожидание до `PACING_MAX_SMOOTH_MS` (15000) ставится в очередь сном |
 | Скользящий часовой лимит вызовов | `PACING_HOURLY_CAP` (5000) | `HOURLY_CAP` |
-| Разнесение `search_channels` и `search_messages` без `peer` (Telegram тормозил contacts.search после ~20 вызовов за 10 с) | `PACING_LOOKUP_PER_MIN` (60, около 1 в секунду), `PACING_LOOKUP_BURST` (3), `PACING_LOOKUP_PER_DAY` (2000) | очередь до 3 с, затем `LOOKUP_CAP` |
+| Разнесение `search_channels` и `search_messages` без `peer` (Telegram тормозил contacts.search после ~20 вызовов за 10 с) | `PACING_LOOKUP_PER_MIN` (60, около 1 в секунду), `PACING_LOOKUP_BURST` (5), `PACING_LOOKUP_PER_DAY` (2000) | очередь до 15 с, затем `LOOKUP_CAP` |
 | Бюджет возвращённых сообщений в час (по умолчанию выключен) | `PACING_MESSAGES_PER_HOUR` (0 = выкл.) | `MESSAGE_BUDGET` |
 
-Порядок в `callToolInner`: авторизация, резерв квоты, проверка cooldown, бюджет сообщений, локальный темп, замок аккаунта, повторная проверка cooldown, MTProto. Любой отказ до MTProto освобождает резерв квоты и не считается успешным вызовом. Суточная квота (10000 вызовов) не менялась; её отказ теперь различает `DAILY_QUOTA` и `MONTHLY_QUOTA`. Ошибка получила необязательные поля `reason` и `hint` (фиксированные тексты, без содержимого Telegram).
+Порядок в `callToolInner`: авторизация, резерв квоты, проверка cooldown, бюджет сообщений, локальный темп, замок аккаунта, повторная проверка cooldown, MTProto. Все ожидания внутри одного вызова (очередь темпа, короткий cooldown, очередь к замку аккаунта) укладываются в бюджет `CALL_WAIT_BUDGET_MS` (30 с): ChatGPT обрывает `tools/call` примерно через 60 с, и уведомления о прогрессе этот срок не продлевают. Не дождавшийся своей очереди вызов получает `CONFLICT` с советом повторить. Любой отказ до MTProto освобождает резерв квоты и не считается успешным вызовом. Суточная квота (10000 вызовов) не менялась; её отказ теперь различает `DAILY_QUOTA` и `MONTHLY_QUOTA`. Ошибка получила необязательные поля `reason` и `hint` (фиксированные тексты, без содержимого Telegram).
 
-Контракт для ИИ: сервер MCP отдаёт `instructions` (читать порциями по `nextCursor`, около одного вызова в 2 секунды, при `RATE_LIMITED` ждать `retryAfterSeconds`, большие чтения занимают минуты), в описании каждого инструмента есть строка о темпе, а успешный результат содержит объект `limits` (`callsRemainingNow`, `messagesRemainingThisHour`, `nextCallNotBeforeSeconds`, `paceSeconds`).
+Контракт для ИИ: сервер MCP отдаёт `instructions` (читать порциями по `nextCursor`, вызовы для одного аккаунта делать последовательно, большие чтения занимают минуты), `RATE_LIMITED` и `CONFLICT` показываются как временная пауза, а не отказ: текст начинается с фразы «PAUSED, not refused», в JSON есть `status: "paused"`, `temporary: true`, `source` (`postun` — собственный темп Postun, `telegram` — FLOOD_WAIT) и `retryAfterSeconds`, а ИИ просят повторить тот же вызов и не сообщать пользователю об «ограничении поиска», в описании каждого инструмента есть строка о темпе, а успешный результат содержит объект `limits` (`callsRemainingNow`, `messagesRemainingThisHour`, `nextCallNotBeforeSeconds`, `paceSeconds`).
 
 ## 6b. Соответствие лимитам Cloudflare Free
 

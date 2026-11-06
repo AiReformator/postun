@@ -1,6 +1,7 @@
 import { fromJsonSchema, McpServer, type JsonSchemaType, type jsonSchemaValidator } from '@modelcontextprotocol/server';
 import { TOOLS, mcpCallPoint, writeMetric, type GrantProps, type ToolName } from '@postun/contracts';
 import type { Env } from './env';
+import { toolErrorResult } from './pause';
 import { SERVER_INSTRUCTIONS, TOOL_DESCRIPTION, TOOL_INPUT } from './schemas';
 
 /**
@@ -47,14 +48,7 @@ export function toolCaller(env: Env, props: GrantProps) {
     if (out.ok) {
       return { content: [{ type: 'text' as const, text: out.json }], structuredContent: JSON.parse(out.json) as Record<string, unknown> };
     }
-    const error = {
-      code: out.code,
-      message: out.message,
-      ...(out.retryAfterSeconds === undefined ? {} : { retryAfterSeconds: out.retryAfterSeconds }),
-      ...(out.reason === undefined ? {} : { reason: out.reason }),
-      ...(out.hint === undefined ? {} : { hint: out.hint })
-    };
-    return { isError: true, content: [{ type: 'text' as const, text: JSON.stringify({ error }) }] };
+    return toolErrorResult(out);
   };
 }
 

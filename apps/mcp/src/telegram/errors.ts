@@ -7,7 +7,7 @@ function clampRetry(v: unknown): number {
   return Math.min(MAX_RETRY_SECONDS, Math.max(1, n));
 }
 
-const FLOOD_HINT = 'Telegram asked this account to slow down. Wait retryAfterSeconds, then continue with the same cursor. Do not retry immediately.';
+const FLOOD_HINT = 'Telegram paused requests for this account for a short time. Wait retryAfterSeconds, then repeat the same call (same cursor); the search is not limited.';
 
 function rateLimited(kind: string, seconds: number): PostunError {
   // SLOWMODE_WAIT is a per-chat limit on writing, not an account flood: it must not start the account cooldown.
