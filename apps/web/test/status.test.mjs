@@ -238,3 +238,26 @@ describe('overall banner never hides a failing component', () => {
     expect(evaluate(r2, now).state).toBe('operational');
   });
 });
+
+describe('null uptime (no probe history) is accepted and shown as no data', () => {
+  it('accepts null uptime values from the monitoring feed', async () => {
+    const { validateStatusData } = await import('../src/status-data.mjs');
+    const r = validateStatusData({
+      schema: 'postun-status/v1', generated_at: '2026-11-06T00:55:15Z', overall: 'operational',
+      components: [{ id: 'telegram', status: 'operational', latency_ms: null, uptime: { '24h': null, '7d': null, '90d': null }, days: [{ date: '2026-11-05', uptime: null }] }],
+      incidents: []
+    });
+    expect(r.ok).toBe(true);
+    expect(r.data.components[0].uptime['24h']).toBeNull();
+  });
+});
+
+describe('client date formatting', () => {
+  it('uses Intl options that do not throw (dateStyle cannot be combined with timeZoneName)', () => {
+    const src = readFileSync(new URL('../src/status.mjs', import.meta.url), 'utf8');
+    const m = /new Intl\.DateTimeFormat\(lang, (\{[^}]*timeZoneName[^}]*\})\)/.exec(src);
+    expect(m).not.toBeNull();
+    const opts = Function(`return (${m[1]})`)();
+    for (const l of ['ru', 'en', 'es', 'pt-BR', 'de']) expect(() => new Intl.DateTimeFormat(l, opts).format(new Date())).not.toThrow();
+  });
+});

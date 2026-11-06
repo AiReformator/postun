@@ -33,12 +33,13 @@ function start() {
     }
   };
   const dateFmt = safe(() => new Intl.DateTimeFormat(lang, { dateStyle: 'medium', timeZone: 'UTC' }), null);
-  const dateTimeFmt = safe(() => new Intl.DateTimeFormat(lang, { dateStyle: 'medium', timeStyle: 'short', timeZoneName: 'short' }), null);
+  // dateStyle/timeStyle cannot be combined with timeZoneName (Intl throws), so the fields are spelled out.
+  const dateTimeFmt = safe(() => new Intl.DateTimeFormat(lang, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' }), null);
   const pctFmt = safe(() => new Intl.NumberFormat(lang, { maximumFractionDigits: 2, minimumFractionDigits: 0 }), null);
   const numFmt = safe(() => new Intl.NumberFormat(lang, { maximumFractionDigits: 0 }), null);
   const relFmt = safe(() => new Intl.RelativeTimeFormat(lang, { numeric: 'always', style: 'short' }), null);
 
-  const fmtPct = (n) => `${pctFmt ? pctFmt.format(n) : n}%`;
+  const fmtPct = (n) => (n === null || n === undefined ? '—' : `${pctFmt ? pctFmt.format(n) : n}%`);
   const fmtDay = (iso) => {
     return dateFmt ? dateFmt.format(new Date(`${iso}T00:00:00Z`)) : iso;
   };

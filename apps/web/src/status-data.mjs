@@ -56,7 +56,8 @@ function component(c) {
   need(isObj(c.uptime), 'uptime');
   const uptime = {};
   for (const k of ['24h', '7d', '90d']) {
-    need(isPct(c.uptime[k]), `uptime ${k}`);
+    // null = no history (e.g. the Telegram check has no probe history); shown as no data, never as 100%.
+    need(c.uptime[k] === null || isPct(c.uptime[k]), `uptime ${k}`);
     uptime[k] = c.uptime[k];
   }
   need(Array.isArray(c.days) && c.days.length <= LIMITS.days, 'days');
