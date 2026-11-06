@@ -192,6 +192,27 @@ describe('status page', () => {
       expect(statusPage(l.code)).toContain(`<a href="${l.prefix}/status/">${l.dict.footer.statusPage}</a>`);
     }
   });
+  it('the header links Features to the landing table and Status to the status page', () => {
+    for (const l of LOCALES) {
+      const home = `${l.prefix}/`;
+      const nav = (html) => html.match(/<nav class="site-nav">([\s\S]*?)<\/nav>/)[1];
+      for (const html of [landing(status, l.code), statusPage(l.code)]) {
+        const n = nav(html);
+        expect(n).toContain(`<a href="${home}#features">${l.dict.nav.features}</a>`);
+        expect(n).toMatch(new RegExp(`<a href="${l.prefix}/status/"( aria-current="page")?>${l.dict.nav.status}</a>`));
+        expect(n).not.toContain('#status');
+      }
+      expect(nav(statusPage(l.code))).toContain(`<a href="${l.prefix}/status/" aria-current="page">`);
+      expect(nav(landing(status, l.code))).not.toContain('aria-current');
+      expect(l.dict.nav.features).not.toBe(l.dict.nav.status);
+    }
+  });
+  it('the feature table answers both #features and the legacy #status anchor', () => {
+    const html = landing(status, 'en');
+    expect(html).toContain('<section id="features" class="section">');
+    expect(html.match(/id="status"/g)).toHaveLength(1);
+    expect(html).toContain('<div id="status" class="status-grid">');
+  });
   it('sitemap and llms.txt include the status pages', () => {
     const xml = sitemapXml('2026-11-06');
     for (const l of LOCALES) expect(xml).toContain(`<loc>https://postun.org${l.prefix}/status/</loc>`);

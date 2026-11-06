@@ -131,5 +131,5 @@ openssl rand -base64 32 | npx wrangler secret put ADMIN_SESSION_KEY
 - Внешний URL отвечает по HTTPS; запомните точный commit SHA и deployment ID у себя (в приватном inventory).
 - Проверьте OAuth-вход, холодный старт и чтение из реального MCP-клиента (Claude Code, ChatGPT, Claude); критерии — [05_ACCEPTANCE.md](05_ACCEPTANCE.md).
 - Убедитесь, что production и staging используют разные D1/KV/DO/секреты и что у `postun-admin` нет привязок к хранилищу сессий и OAuth.
-- Статусы функций в `apps/web/status.json` (на сайте: `/#status`) меняются только по результатам приёмки.
+- Статусы функций в `apps/web/status.json` (на сайте: `/#features`) меняются только по результатам приёмки.
 - Помните: откат Worker не откатывает D1/DO.

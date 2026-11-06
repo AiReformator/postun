@@ -104,7 +104,7 @@ El código es totalmente abierto para que cualquiera pueda comprobar cómo funci
 
 ## Estado de la beta
 
-El estado procede de [apps/web/status.json](apps/web/status.json) (actualizado el 2026-11-05). Solo se marcan como verificadas las funciones con una prueba de aceptación registrada en producción. El estado en vivo también se muestra en https://postun.org/#status.
+El estado procede de [apps/web/status.json](apps/web/status.json) (actualizado el 2026-11-05). Solo se marcan como verificadas las funciones con una prueba de aceptación registrada en producción. La misma tabla está en https://postun.org/#features; la disponibilidad del servicio, en https://postun.org/es/status/.
 
 | Función | Estado |
 |---|---|

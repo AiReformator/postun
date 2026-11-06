@@ -7,6 +7,7 @@ export default {
   },
   nav: {
     how: 'Как это работает',
+    features: 'Функции',
     status: 'Статус',
     faq: 'Вопросы',
     app: 'Кабинет',

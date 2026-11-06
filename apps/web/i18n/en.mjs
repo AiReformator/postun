@@ -6,6 +6,7 @@ export default {
   },
   nav: {
     how: 'How it works',
+    features: 'Features',
     status: 'Status',
     faq: 'FAQ',
     app: 'Dashboard',

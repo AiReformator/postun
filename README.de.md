@@ -103,7 +103,7 @@ Der Code ist vollständig offen, damit jeder prüfen kann, wie Verschlüsselung,
 
 ## Beta-Status
 
-Der Status stammt aus [apps/web/status.json](apps/web/status.json) (Stand 2026-11-05). Nur Funktionen mit einem dokumentierten Abnahmelauf in Produktion gelten als verifiziert. Der Live-Status wird auch unter https://postun.org/#status angezeigt.
+Der Status stammt aus [apps/web/status.json](apps/web/status.json) (Stand 2026-11-05). Nur Funktionen mit einem dokumentierten Abnahmelauf in Produktion gelten als verifiziert. Dieselbe Tabelle steht unter https://postun.org/#features; die Verfügbarkeit des Dienstes unter https://postun.org/de/status/.
 
 | Funktion | Status |
 |---|---|

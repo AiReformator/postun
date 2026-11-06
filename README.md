@@ -103,7 +103,7 @@ The code is fully open so that anyone can check how encryption, access checks an
 
 ## Beta status
 
-Status comes from [apps/web/status.json](apps/web/status.json) (updated 2026-11-05). Only features with a recorded acceptance run on production are marked verified. Live status is also shown at https://postun.org/#status.
+Status comes from [apps/web/status.json](apps/web/status.json) (updated 2026-11-05). Only features with a recorded acceptance run on production are marked verified. The same table is on the site at https://postun.org/#features; service uptime is at https://postun.org/status/.
 
 | Feature | Status |
 |---|---|

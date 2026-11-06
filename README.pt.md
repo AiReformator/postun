@@ -105,7 +105,7 @@ O código é totalmente aberto para que qualquer pessoa possa verificar como a c
 
 ## Status do beta
 
-O status vem de [apps/web/status.json](apps/web/status.json) (atualizado em 2026-11-05). Apenas funções com um teste de aceitação registrado em produção são marcadas como verificadas. O status em tempo real também aparece em https://postun.org/#status.
+O status vem de [apps/web/status.json](apps/web/status.json) (atualizado em 2026-11-05). Apenas funções com um teste de aceitação registrado em produção são marcadas como verificadas. A mesma tabela está em https://postun.org/#features; a disponibilidade do serviço, em https://postun.org/pt/status/.
 
 | Função | Status |
 |---|---|
