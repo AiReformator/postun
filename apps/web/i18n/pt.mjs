@@ -2,7 +2,7 @@
 export default {
   meta: {
     description: 'Postun Beta — conector MCP aberto e experimental para a sua própria conta do Telegram. Estamos convidando beta testers.',
-    languageName: 'Português (Brasil)'
+    languageName: 'Português'
   },
   nav: {
     how: 'Como funciona',
