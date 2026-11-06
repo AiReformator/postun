@@ -14,12 +14,12 @@ import { signFileCapability } from '../capability';
 import type { Config, Keys } from '../config';
 import { loadConfig, loadKeys } from '../config';
 import type { Env } from '../env';
-import { CAPABILITY_TTL_MS, CHUNK_BYTES, fileHeaders, MAX_TRANSFERS_PER_PRINCIPAL, parseRange, safeContentType, safeDisposition } from '../files';
+import { CAPABILITY_TTL_MS, CHUNK_BYTES, fileHeaders, MAX_TRANSFERS_PER_PRINCIPAL, parseRange, safeContentType, safeDisposition, TRANSFER_STEP_BYTES } from '../files';
 import { TOOL_INPUT } from '../schemas';
 import type { LinkRun, TelegramAdapter, TelegramSession } from '../telegram/adapter';
 import { selectAdapter } from '../telegram/adapter';
 import { mapTelegramError } from '../telegram/errors';
-import { assertFeatureEnabled, parseToolArgs, preflightTool, runTool, type JsonValue } from '../tools';
+import { assertFeatureEnabled, parseToolArgs, preflightCursor, runTool, type JsonValue } from '../tools';
 import { addMessages, admit, limitsView, messageBudgetWait, parsePacing, type CallKind, type PacingState } from './limiter';
 import { KeyedLocks } from './locks';
 import { SCHEMA } from './schema';
@@ -533,9 +533,9 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
       // Refusals below happen before any Telegram client is opened; the reservation is released in `finally`.
       const t0 = Date.now();
       this.assertNoCooldown(accId, t0);
-      await preflightTool({ principalId: req.principalId, accountId: accId, cursorKey: keys.cursor, cfg }, req.tool, req.args);
+      await preflightCursor({ principalId: req.principalId, accountId: accId, cursorKey: keys.cursor }, req.tool, req.args);
       const kind: CallKind = req.tool === 'search_channels' || (req.tool === 'search_messages' && (args as { peer?: string }).peer === undefined) ? 'lookup' : 'normal';
-      const delayMs = this.admitCall(accId, req.tool, kind, cfg, Date.now()); // fresh clock: preflight awaited
+      const delayMs = this.admitCall(accId, req.tool, kind, cfg, Date.now());
       if (delayMs > 0) await sleep(delayMs);
       const unlock = await this.locks.acquire(accId, LOCK_WAIT_MS);
       let data: JsonValue;
@@ -647,7 +647,7 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
   }
 
   /** Re-checks everything that can revoke a transfer. Throws a PostunError when it must stop. */
-  private assertTransferAllowed(row: IntentRow, cfg: Config): void {
+  private assertTransferAllowed(row: IntentRow, cfg: Config, pendingBytes = 0): void {
     if (this.getMeta('deleted') === '1' || this.getMeta('suspended') === '1') throw new PostunError('FORBIDDEN');
     const g = this.grant(row.grant_id);
     if (!g) throw new PostunError('FORBIDDEN');
@@ -656,7 +656,7 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
     if (!(JSON.parse(g.accounts) as string[]).includes(row.account_id)) throw new PostunError('ACCOUNT_NOT_IN_GRANT');
     const acc = this.account(row.account_id);
     if (!acc || acc.status !== 'active' || !acc.envelope) throw new PostunError('ACCOUNT_NOT_ACTIVE');
-    if (cfg.quota.monthlyByteLimit !== null && this.usageRow(utcMonth()).out_bytes >= cfg.quota.monthlyByteLimit) throw new PostunError('QUOTA_EXCEEDED');
+    if (cfg.quota.monthlyByteLimit !== null && this.usageRow(utcMonth()).out_bytes + pendingBytes >= cfg.quota.monthlyByteLimit) throw new PostunError('QUOTA_EXCEEDED');
   }
 
   private fileError(e: unknown): Response {
@@ -673,10 +673,28 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
     let keys: Keys | null = null;
     let accountId = '';
     let released = false;
+    // Bytes sent but not yet written to the usage row (flushed in TRANSFER_STEP_BYTES steps and on close/error/cancel).
+    let unaccounted = 0;
+    const flushBytes = (): void => {
+      if (unaccounted <= 0) return;
+      const n = unaccounted;
+      unaccounted = 0;
+      try {
+        this.addBytes(n);
+      } catch (e) {
+        unaccounted += n; // keep the bytes for the next flush instead of losing them
+        throw e;
+      }
+    };
     const cleanup = async (): Promise<void> => {
       if (released) return;
       released = true;
       this.transfers.delete(transferKey);
+      try {
+        flushBytes();
+      } catch {
+        // ignore
+      }
       try {
         if (session && keys) await this.finishSession(accountId, session, tid, keys);
       } catch {
@@ -735,8 +753,20 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
       const reader = media.stream.getReader();
       let delivered = 0;
       let pending: Uint8Array | null = null;
-      const check = () => this.assertTransferAllowed(row, cfg);
-      const count = (n: number) => this.addBytes(n);
+      // The grant was verified just above; it is re-checked every TRANSFER_STEP_BYTES (and the bytes are accounted in the
+      // same step), not on every 128-256 KB chunk: a 512 MB file costs about 64 SQL writes instead of thousands.
+      let sinceCheck = 0;
+      const check = () => {
+        if (sinceCheck >= TRANSFER_STEP_BYTES) {
+          this.assertTransferAllowed(row, cfg, unaccounted);
+          flushBytes();
+          sinceCheck = 0;
+        }
+      };
+      const count = (n: number) => {
+        unaccounted += n;
+        sinceCheck += n;
+      };
       const body = new ReadableStream<Uint8Array>(
         {
           async pull(controller) {

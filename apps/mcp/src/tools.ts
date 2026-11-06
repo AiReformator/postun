@@ -7,6 +7,7 @@ import { z } from 'zod';
 import type { Config } from './config';
 import { TOOL_INPUT } from './schemas';
 import type { MediaInfoDto, Page, TelegramSession } from './telegram/adapter';
+import { parseDialogOffset } from './telegram/cursors';
 
 export type JsonValue = string | number | boolean | null | JsonValue[] | { [k: string]: JsonValue };
 
@@ -40,43 +41,38 @@ async function paged<T>(env: ToolEnv, tool: ToolName, scope: string, cursor: str
   return { items: page.items, nextCursor: page.next === null ? null : await encodeCursor(env.cursorKey, binding, page.next) };
 }
 
-export function searchScope(peer: string | undefined, query: string): string {
-  return `${peer ?? '*'}#${query}`;
-}
-
-type PreflightEnv = Pick<ToolEnv, 'principalId' | 'accountId' | 'cursorKey' | 'cfg'>;
-
 /**
- * Refuses a cursor that would skip too many items. list_dialogs and global search re-iterate from the start
- * (skip + limit + 1 items), so a deep page costs an unbounded number of RPCs. Runs before any Telegram client is opened.
+ * Cheap cursor check before any pacing slot, lock or Telegram session is spent: the cursor must verify against the
+ * same binding runTool uses, and native dialog / global-search offsets must parse. Old skip cursors and forged or
+ * foreign cursors are refused here with INVALID_INPUT instead of after a Telegram round trip.
  */
-export async function preflightTool(env: PreflightEnv, tool: ToolName, rawArgs: unknown): Promise<void> {
+export async function preflightCursor(env: Pick<ToolEnv, 'principalId' | 'accountId' | 'cursorKey'>, tool: ToolName, rawArgs: unknown): Promise<void> {
   let cursor: string | undefined;
   let scope: string;
+  let strict: ((raw: string) => unknown) | null = null;
   if (tool === 'list_dialogs') {
     const a = parseToolArgs('list_dialogs', rawArgs);
-    cursor = a.cursor;
-    scope = '*';
+    [cursor, scope, strict] = [a.cursor, '*', parseDialogOffset];
+  } else if (tool === 'get_history') {
+    const a = parseToolArgs('get_history', rawArgs);
+    [cursor, scope] = [a.cursor, a.peer];
   } else if (tool === 'search_messages') {
     const a = parseToolArgs('search_messages', rawArgs);
-    if (a.peer !== undefined) return; // per-chat search pages by message id, not by skipping
-    cursor = a.cursor;
-    scope = searchScope(undefined, a.query);
+    // Global-search offsets are adapter-specific and are parsed strictly by the adapter itself.
+    [cursor, scope] = [a.cursor, searchScope(a.peer, a.query)];
+  } else if (tool === 'get_channel_posts') {
+    const a = parseToolArgs('get_channel_posts', rawArgs);
+    [cursor, scope] = [a.cursor, a.channel];
   } else {
     return;
   }
   if (cursor === undefined) return;
   const offset = await decodeCursor(env.cursorKey, { principalId: env.principalId, accountId: env.accountId, tool, scope }, cursor);
-  if (Number(offset) > env.cfg.pacing.maxSkip) {
-    throw new PostunError('INVALID_INPUT', undefined, {
-      reason: 'DEEP_PAGING',
-      message: `Cursor is too deep: at most ${env.cfg.pacing.maxSkip} items can be skipped`,
-      hint:
-        tool === 'list_dialogs'
-          ? 'Do not page deeper through all dialogs. Find a chat with search_messages (with or without a peer) or pick a peer you already know.'
-          : 'Do not page deeper through global search. Narrow the query, or search inside one chat by passing peer.'
-    });
-  }
+  if (strict) strict(offset);
+}
+
+export function searchScope(peer: string | undefined, query: string): string {
+  return `${peer ?? '*'}#${query}`;
 }
 
 export function parseToolArgs<T extends keyof typeof TOOL_INPUT>(tool: T, args: unknown): z.infer<(typeof TOOL_INPUT)[T]> {

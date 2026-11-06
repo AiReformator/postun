@@ -3,9 +3,12 @@ import { env } from 'cloudflare:workers';
 import { describe, expect, it } from 'vitest';
 import { signFileCapability } from '../src/capability';
 import { syntheticControl } from '../src/telegram/synthetic';
-import { callTool, errCode, fetchFile, parseDownload, principalStub, setupWorld, type World } from './helpers';
+import { TRANSFER_STEP_BYTES } from '../src/files';
+import { callTool, errCode, fetchFile, parseDownload, principalStub, setupWorld, withVars, type World } from './helpers';
 
 const BIG_OK = 10; // 2.5 MB document in the synthetic account
+const OVER_STEP = 20; // 9 MB document: larger than one 8 MiB transfer step (needs MAX_FILE_BYTES raised)
+const RAISED = { MAX_FILE_BYTES: '20000000' };
 const TOO_BIG = 20; // 9 MB document, above the 5 MB test limit
 const PEER = 'c:1000:7';
 
@@ -137,45 +140,104 @@ describe('get_media and the download endpoint', () => {
     expect((await fetchFile(d.intentId, d.capability, 'bytes=0-9')).status).toBe(404);
   });
 
-  it('AU-05: revoking the grant mid-download stops the stream at the next check; later Range requests fail', async () => {
+  it('AU-05: revoking the grant mid-download stops the stream within one 8 MiB window; later Range requests fail', async () => {
+    const w = await setupWorld();
+    await withVars(w, RAISED, async () => {
+      const d = parseDownload(await issue(w, OVER_STEP));
+      const res = await fetchFile(d.intentId, d.capability);
+      const reader = res.body!.getReader();
+      const first = await reader.read();
+      expect(first.done).toBe(false);
+      await principalStub(w.principalId).denyGrant(w.principalId, w.grantId);
+      let received = first.value!.length;
+      let failed = false;
+      try {
+        for (;;) {
+          const r = await reader.read();
+          if (r.done) break;
+          received += r.value.length;
+        }
+      } catch {
+        failed = true;
+      }
+      expect(failed).toBe(true);
+      // Not the whole file, and at most one step handed out after the last check.
+      expect(received).toBeLessThan(9_000_000);
+      expect(received).toBeLessThanOrEqual(TRANSFER_STEP_BYTES);
+      expect((await fetchFile(d.intentId, d.capability, 'bytes=0-9')).status).toBe(404);
+    });
+  });
+
+  it('a transfer is checked and accounted once per 8 MiB step, not per chunk, and the byte count is exact at the end', async () => {
+    const w = await setupWorld();
+    await withVars(w, RAISED, async () => {
+      const d = parseDownload(await issue(w, OVER_STEP));
+      const calls: number[] = [];
+      let checks = 0;
+      await runInDurableObject(principalStub(w.principalId), (inst) => {
+        const o = inst as unknown as { addBytes(n: number): void; assertTransferAllowed(...a: unknown[]): void };
+        const addBytes = o.addBytes.bind(o);
+        const allowed = o.assertTransferAllowed.bind(o);
+        o.addBytes = (n: number) => {
+          calls.push(n);
+          addBytes(n);
+        };
+        o.assertTransferAllowed = (...a: unknown[]) => {
+          checks++;
+          allowed(...a);
+        };
+      });
+      const res = await fetchFile(d.intentId, d.capability);
+      expect((await bytes(res)).length).toBe(9_000_000);
+      await new Promise((r) => setTimeout(r, 50));
+      // 9 chunks of up to 1 MiB: one write at the 8 MiB step, one for the remainder on close (not 9 writes).
+      expect(calls).toEqual([TRANSFER_STEP_BYTES, 9_000_000 - TRANSFER_STEP_BYTES]);
+      // Two checks before streaming (open + after the account lock) and one at the 8 MiB step; none per chunk.
+      expect(checks).toBe(3);
+      expect((await principalStub(w.principalId).getUsage(w.principalId)).outBytes).toBe(9_000_000);
+    });
+  });
+
+  it('an upstream failure still accounts the bytes already handed out', async () => {
     const w = await setupWorld();
     const d = parseDownload(await issue(w));
+    syntheticControl.streamErrorAfterBytes = 1_000_000;
     const res = await fetchFile(d.intentId, d.capability);
-    const reader = res.body!.getReader();
-    const first = await reader.read();
-    expect(first.done).toBe(false);
-    await principalStub(w.principalId).denyGrant(w.principalId, w.grantId);
-    let received = first.value!.length;
-    let failed = false;
+    let received = 0;
     try {
+      const reader = res.body!.getReader();
       for (;;) {
         const r = await reader.read();
         if (r.done) break;
         received += r.value.length;
       }
     } catch {
-      failed = true;
+      // expected
     }
-    expect(failed).toBe(true);
-    expect(received).toBeLessThan(2_500_000);
-    expect((await fetchFile(d.intentId, d.capability, 'bytes=0-9')).status).toBe(404);
+    await new Promise((r) => setTimeout(r, 50));
+    const out = (await principalStub(w.principalId).getUsage(w.principalId)).outBytes;
+    expect(out).toBeGreaterThanOrEqual(received);
+    expect(out).toBeLessThan(2_500_000);
+    expect(out).toBeGreaterThan(0);
   });
 
-  it('disconnecting the account stops a transfer in progress', async () => {
+  it('disconnecting the account stops a transfer in progress (within one 8 MiB window)', async () => {
     const w = await setupWorld();
-    const d = parseDownload(await issue(w));
-    const res = await fetchFile(d.intentId, d.capability);
-    const reader = res.body!.getReader();
-    await reader.read();
-    const disconnect = principalStub(w.principalId).disconnectAccount(w.principalId, w.accountIds[0] as string);
-    let failed = false;
-    try {
-      for (;;) if ((await reader.read()).done) break;
-    } catch {
-      failed = true;
-    }
-    await disconnect;
-    expect(failed).toBe(true);
+    await withVars(w, RAISED, async () => {
+      const d = parseDownload(await issue(w, OVER_STEP));
+      const res = await fetchFile(d.intentId, d.capability);
+      const reader = res.body!.getReader();
+      await reader.read();
+      const disconnect = principalStub(w.principalId).disconnectAccount(w.principalId, w.accountIds[0] as string);
+      let failed = false;
+      try {
+        for (;;) if ((await reader.read()).done) break;
+      } catch {
+        failed = true;
+      }
+      await disconnect;
+      expect(failed).toBe(true);
+    });
   });
 
   it('limits concurrent transfers: one per account', async () => {

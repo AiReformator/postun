@@ -25,8 +25,6 @@ export interface PacingConfig {
   maxSmoothMs: number;
   /** Added to a Telegram FLOOD_WAIT before it becomes the stored cooldown. */
   floodMarginSeconds: number;
-  /** list_dialogs and global search refuse a cursor that skips more than this many items. */
-  maxSkip: number;
 }
 
 /**
@@ -44,8 +42,7 @@ export const PACING_DEFAULTS: Readonly<PacingConfig> = {
   lookupPerDay: 2000,
   messagesPerHour: 0,
   maxSmoothMs: 3000,
-  floodMarginSeconds: 5,
-  maxSkip: 500
+  floodMarginSeconds: 5
 };
 
 const HOUR_MS = 3_600_000;
@@ -71,8 +68,7 @@ export function pacingFromEnv(env: Readonly<Record<string, string | undefined>>)
     lookupPerDay: intVar(env.PACING_LOOKUP_PER_DAY, d.lookupPerDay, 1, 100_000_000),
     messagesPerHour: intVar(env.PACING_MESSAGES_PER_HOUR, d.messagesPerHour, 0, 1_000_000_000),
     maxSmoothMs: intVar(env.PACING_MAX_SMOOTH_MS, d.maxSmoothMs, 0, 60_000),
-    floodMarginSeconds: intVar(env.PACING_FLOOD_MARGIN_SECONDS, d.floodMarginSeconds, 0, 3600),
-    maxSkip: intVar(env.PACING_MAX_SKIP, d.maxSkip, 0, 100_000)
+    floodMarginSeconds: intVar(env.PACING_FLOOD_MARGIN_SECONDS, d.floodMarginSeconds, 0, 3600)
   };
 }
 

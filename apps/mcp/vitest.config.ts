@@ -78,7 +78,7 @@ const mcpPlugin = () =>
 // @cloudflare/vitest-plugin). Once another file in the same project has transformed mtcute, a later file that
 // reaches it through selectAdapter's dynamic import gets a ~36 MB message, workerd answers 1009 "Message is too
 // large", and the whole shared workerd runtime (every running file) dies. Keep mtcute-importing files apart.
-const MTCUTE_FILES = ["test/mtcute-load.test.ts", "test/review-fixes.test.ts", "test/flood-options.test.ts"];
+const MTCUTE_FILES = ["test/mtcute-load.test.ts", "test/review-fixes.test.ts", "test/flood-options.test.ts", "test/native-pagination.test.ts"];
 
 export default defineConfig({
   test: {

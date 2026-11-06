@@ -4,7 +4,7 @@
  * Never log SDK errors, message text, QR URLs or session strings.
  */
 import { Long } from '@mtcute/core';
-import type { Document, Message, Peer, Photo, tl } from '@mtcute/core';
+import type { Dialog, Document, Message, Peer, Photo, tl } from '@mtcute/core';
 import { MemoryStorage, networkMiddlewares, TelegramClient, WebCryptoProvider, WebSocketTransport } from '@mtcute/web';
 import { PostunError } from '@postun/contracts';
 // Workers forbid compiling WASM from bytes at runtime; a statically imported module is allowed.
@@ -13,6 +13,7 @@ import type {
   ChannelDto, DialogDto, LinkHooks, LinkResult, LinkRun, MediaInfoDto, MediaStream, MessageDto, Page, TelegramAdapter, TelegramSession
 } from './adapter';
 import { isPeerRef } from './adapter';
+import { encodeDialogOffset, encodeSearchOffset, parseDialogOffset, parseSearchOffset } from './cursors';
 import { mapTelegramError } from './errors';
 
 const ALIGN = 4096;
@@ -157,18 +158,11 @@ export class MtcuteSession implements TelegramSession {
   constructor(private readonly tg: TelegramClient, private readonly initial: string) {}
 
   async listDialogs(limit: number, offset: string | null): Promise<Page<DialogDto>> {
-    const skip = boundedNumber(offset) ?? 0;
+    const o = parseDialogOffset(offset);
     const items: DialogDto[] = [];
-    let seen = 0;
-    let more = false;
-    for await (const d of this.tg.iterDialogs({ limit: skip + limit + 1 })) {
-      if (seen++ < skip) continue;
-      if (items.length >= limit) {
-        more = true;
-        break;
-      }
+    const push = (d: Dialog) => {
       const p = peerOf(d.peer);
-      if (!p) continue;
+      if (!p) return;
       items.push({
         peerId: p.id,
         kind: p.kind,
@@ -177,8 +171,32 @@ export class MtcuteSession implements TelegramSession {
         unread: d.unreadCount,
         lastMessageDate: d.lastMessage ? d.lastMessage.date.toISOString() : null
       });
+    };
+    // Pinned dialogs come ahead of date order and only with an empty offset, so a date anchor taken from a pinned
+    // dialog would skip chats. The first page therefore returns the whole pinned block (one extra RPC, first page only),
+    // and every page of the date-ordered list excludes pinned dialogs.
+    if (!o) for await (const d of this.tg.iterDialogs({ pinned: 'only' })) push(d);
+    // One messages.getDialogs RPC per page (chunkSize = limit), anchored at Telegram's own offset: no re-iteration.
+    const page: Dialog[] = [];
+    for await (const d of this.tg.iterDialogs({
+      limit,
+      chunkSize: limit,
+      pinned: 'exclude',
+      ...(o ? { offsetDate: o.date, offsetId: o.id, offsetPeer: decodePeer(o.peer) } : {})
+    })) {
+      page.push(d);
+      push(d);
     }
-    return { items, next: more ? String(skip + limit) : null };
+    if (page.length < limit) return { items, next: null };
+    // Anchor on the last dialog that has a date and an encodable peer (Saved Messages and similar cannot be
+    // encoded). Walking back may repeat a few dialogs on the next page, but never skips any.
+    for (let i = page.length - 1; i >= 0; i--) {
+      const d = page[i] as Dialog;
+      const peer = encodePeer(d.peer.inputPeer);
+      const date = d.lastMessage ? d.lastMessage.raw.date : 0;
+      if (peer && date > 0) return { items, next: encodeDialogOffset({ date, id: d.raw.topMessage, peer }) };
+    }
+    return { items, next: null };
   }
 
   async getHistory(q: { peerId: string; limit: number; offset: string | null; fromDate: number | null; toDate: number | null }): Promise<Page<MessageDto>> {
@@ -202,26 +220,25 @@ export class MtcuteSession implements TelegramSession {
   }
 
   async searchMessages(q: { peerId: string | null; query: string; limit: number; offset: string | null }): Promise<Page<MessageDto>> {
-    const pos = boundedNumber(q.offset);
     if (q.peerId) {
+      const pos = boundedNumber(q.offset);
       const res = await this.tg.searchMessages({ chatId: decodePeer(q.peerId), query: q.query, limit: q.limit, offset: pos ?? undefined });
       const items = [...res].map((m) => mapMessage(m, q.peerId));
       const last = items[items.length - 1];
       return { items, next: last && res.length >= q.limit ? String(last.id) : null };
     }
-    const skip = pos ?? 0;
-    const items: MessageDto[] = [];
-    let seen = 0;
-    let more = false;
-    for await (const m of this.tg.iterSearchGlobal({ query: q.query, limit: skip + q.limit + 1 })) {
-      if (seen++ < skip) continue;
-      if (items.length >= q.limit) {
-        more = true;
-        break;
-      }
-      items.push(mapMessage(m, null));
-    }
-    return { items, next: more ? String(skip + q.limit) : null };
+    // Global search: one messages.searchGlobal RPC per page with Telegram's own offset (rate, peer, id).
+    const o = parseSearchOffset(q.offset);
+    const res = await this.tg.searchGlobal({
+      query: q.query,
+      limit: q.limit,
+      ...(o ? { offset: { rate: o.rate, id: o.id, peer: decodePeer(o.peer) } } : {})
+    });
+    const items = [...res].map((m) => mapMessage(m, null));
+    const next = res.next;
+    const nextPeer = next ? encodePeer(next.peer) : null;
+    if (items.length < q.limit || !next || !nextPeer) return { items, next: null };
+    return { items, next: encodeSearchOffset({ rate: next.rate, id: next.id, peer: nextPeer }) };
   }
 
   async searchChannels(q: { query: string; limit: number }): Promise<ChannelDto[]> {

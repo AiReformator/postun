@@ -59,7 +59,6 @@ describe('pacing variables are present with the documented defaults', () => {
     PACING_MESSAGES_PER_HOUR: '0',
     PACING_MAX_SMOOTH_MS: '3000',
     PACING_FLOOD_MARGIN_SECONDS: '5',
-    PACING_MAX_SKIP: '500',
     FLOOD_AUTO_SLEEP_SECONDS: '3',
     FLOOD_AUTO_RETRIES: '1'
   };

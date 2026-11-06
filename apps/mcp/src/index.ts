@@ -1,10 +1,9 @@
 import { OAuthResourceServer } from '@cloudflare/workers-oauth-provider';
-import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/server';
-import { GrantPropsSchema, HTTP_STATUS, jsonResponse, PostunError, toSafeError, withSecurityHeaders, type ErrorCode, type GrantProps } from '@postun/contracts';
+import { HTTP_STATUS, jsonResponse, PostunError, toSafeError, withSecurityHeaders, type ErrorCode, type GrantProps } from '@postun/contracts';
 import { FILE_CAP_RE, verifyFileCapabilityMac } from './capability';
 import { loadConfig, loadKeys, type Config } from './config';
 import type { Env } from './env';
-import { createMcpServer } from './mcp';
+import { handleMcp } from './mcp-handler';
 
 export { SessionAndQuotaDO } from './do/session-do';
 export { VaultControl } from './vault';
@@ -12,25 +11,6 @@ export { VaultControl } from './vault';
 function errorResponse(code: ErrorCode, extra: Record<string, string> = {}): Response {
   const s = toSafeError(new PostunError(code));
   return jsonResponse({ error: { code: s.code, message: s.message } }, HTTP_STATUS[code], extra);
-}
-
-async function handleMcp(request: Request, env: Env, props: unknown): Promise<Response> {
-  // Anything that is not a well-formed grant is refused before any DO or Telegram call (AU-01).
-  const parsed = GrantPropsSchema.safeParse(props);
-  if (!parsed.success) return errorResponse('FORBIDDEN');
-  const grant: GrantProps = parsed.data;
-  const server = createMcpServer(env, grant);
-  const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
-  await server.connect(transport);
-  try {
-    return withSecurityHeaders(await transport.handleRequest(request), { 'cache-control': 'no-store' });
-  } finally {
-    ctxClose(server);
-  }
-}
-
-function ctxClose(server: { close(): Promise<void> }): void {
-  void server.close().catch(() => undefined);
 }
 
 const resourceServers = new Map<string, OAuthResourceServer<Env, GrantProps>>();
