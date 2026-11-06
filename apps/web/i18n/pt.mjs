@@ -10,7 +10,9 @@ export default {
     faq: 'Perguntas',
     app: 'Painel',
     language: 'Idioma',
-    skip: 'Pular para o conteúdo'
+    skip: 'Pular para o conteúdo',
+    connect: "Conectar",
+    security: "Segurança"
   },
   footer: {
     about: 'Postun é um projeto experimental em beta aberto. Sem SLA e sem garantia de disponibilidade. O código-fonte é aberto sob a licença Apache-2.0.',
@@ -20,7 +22,9 @@ export default {
     source: 'Código-fonte',
     vuln: 'Relatar uma vulnerabilidade',
     issues: 'Feedback',
+    support: "Suporte no Telegram",
     issuesNote: 'Erros e sugestões vão no <a href="{repo}/issues">GitHub Issues</a>, sem conversas, documentos, códigos de login nem tokens. Vulnerabilidades devem ser relatadas apenas pelo canal privado descrito em <a href="{repo}/blob/main/SECURITY.md">SECURITY.md</a>.',
+    trademarks: "ChatGPT, Claude, Telegram e outros nomes de produtos são marcas de seus respectivos donos. O Postun é um projeto independente, sem vínculo com eles e sem o endosso deles.",
     terms: 'Termos do beta',
     privacy: 'Tratamento de dados'
   },
@@ -66,7 +70,7 @@ export default {
     flowAi: 'Sua IA',
     clientVerified: 'verificado',
     clientTesting: 'em teste',
-    clientOther: 'Outros clientes MCP',
+    clientOther: "Claude, Cursor, Gemini CLI e outros: como conectar",
     uspTitle: 'Por que o Postun',
     usp1Title: 'Sua conta, não um bot',
     usp1: 'O Postun conecta a sua própria conta do Telegram como um dispositivo vinculado. Escaneie um QR code e em cerca de um minuto está pronto — sem chaves de API e sem configuração de desenvolvedor.',
@@ -98,6 +102,49 @@ export default {
     finalTitle: 'Conecte o Telegram à sua IA',
     finalText: 'Grátis durante o beta. Só trânsito, sem armazenar mensagens. Revogue o acesso quando quiser.'
   },
+  connect: {
+    title: "Conecte seu cliente de IA",
+    intro: "Todos os clientes usam o mesmo endereço: <code>https://mcp.postun.org/mcp</code>. Depois de adicioná-lo, o cliente abre uma janela do navegador: entre com o Telegram, vincule sua conta se ainda não fez isso e escolha quais contas e dados esse cliente pode ler.",
+    verified: "Verificado em produção",
+    verifiedNote: "Testamos o caminho completo: login, vinculação da conta e leitura de conversas.",
+    protocol: "Compatíveis com o protocolo, ainda não testados por nós",
+    protocolNote: "Segundo a própria documentação, esses clientes aceitam servidores MCP remotos com login OAuth. Ainda não os testamos, então menus e comandos podem variar na sua versão.",
+    docs: "Documentação do cliente",
+    chatgpt: "No ChatGPT, adicione um conector MCP personalizado com este endereço e escolha o login OAuth. Os conectores personalizados dependem do seu plano e das configurações do workspace; no Business e no Enterprise, talvez um administrador precise liberá-los.",
+    claudeCode: "Execute o comando e depois digite <code>/mcp</code> no Claude Code, escolha postun e entre pelo navegador.",
+    claudeAi: "No Claude (site ou app desktop): Customize → Connectors → Add custom connector, e informe o nome e o endereço. O plano Free permite um conector personalizado; no Team e no Enterprise, quem adiciona é o proprietário da organização.",
+    cursor: "Adicione isto a <code>~/.cursor/mcp.json</code> (ou a <code>.cursor/mcp.json</code> em um projeto). O Cursor vai oferecer o login.",
+    vscode: "Adicione isto a <code>.vscode/mcp.json</code> ou execute “MCP: Add Server” e escolha HTTP. No Copilot Business e no Enterprise, a organização precisa permitir servidores MCP.",
+    gemini: "Execute o comando e depois <code>/mcp auth postun</code> dentro do Gemini CLI para entrar pelo navegador.",
+    codex: "Execute os dois comandos: o primeiro adiciona o servidor e o segundo abre o login no navegador.",
+    zed: "Adicione isto às configurações do Zed (settings.json). O Zed inicia o login OAuth no primeiro uso.",
+    qwen: "Execute o comando e depois abra <code>/mcp</code> no Qwen Code para entrar."
+  },
+  security: {
+    title: "Segurança em detalhes",
+    intro: "O que protege sua conta, exatamente como está implementado no código.",
+    s1Title: "As sessões do Telegram são criptografadas",
+    s1: "AES-256-GCM com uma chave aleatória de 256 bits diferente para cada conta vinculada. Essa chave é, por sua vez, criptografada com uma chave mestra guardada nos segredos da Cloudflare, nunca no código nem no banco de dados.",
+    s2Title: "Seu ID do Telegram não fica guardado em texto aberto",
+    s2: "Guardamos apenas um índice HMAC-SHA-256 para encontrar seu perfil e uma cópia do ID criptografada com AES-256-GCM.",
+    s3Title: "Acesso só com o seu consentimento",
+    s3: "Os clientes de IA entram com OAuth 2.1 e PKCE: só o método S256 é aceito, e clientes públicos como o ChatGPT e o Claude Code são obrigados a usá-lo. Na tela de consentimento, você escolhe as contas e as permissões de leitura de cada cliente e pode revogá-las a qualquer momento.",
+    s4Title: "Conexões criptografadas e CSP rigorosa",
+    s4: "Somente HTTPS, com HSTS por um ano em todos os subdomínios. Uma Content Security Policy rigorosa: o painel não carrega código de terceiros, e as páginas públicas carregam apenas o Cloudflare Web Analytics.",
+    s5Title: "Logs desligados, verificado no CI",
+    s5: "Os logs e o rastreamento da Cloudflare estão desativados em todos os serviços do Postun. O build falha se os logs forem ativados ou se o código tentar gravar dados em log.",
+    s6Title: "Código aberto, chaves secretas",
+    s6: "Princípio de Kerckhoffs: um sistema deve continuar seguro mesmo que tudo sobre ele, exceto as chaves, seja público. Todo o código do Postun é aberto sob Apache-2.0, e a segurança depende apenas das chaves guardadas nos segredos da Cloudflare.",
+    moreTitle: "Também",
+    m1: "Os tokens OAuth são guardados apenas como hashes. Tokens de acesso expiram em uma hora; tokens de atualização, em 30 dias.",
+    m2: "O login com o Telegram usa o fluxo oficial OpenID Connect com PKCE, state e nonce; as assinaturas dos tokens são verificadas.",
+    m3: "Os cookies de sessão usam o prefixo __Host- com Secure, HttpOnly e SameSite. Cada alteração é protegida por verificação de origem e token CSRF.",
+    m4: "As sessões e permissões de cada titular ficam em um objeto de armazenamento separado e isolado (um Durable Object da Cloudflare).",
+    m5: "Os dados criptografados ficam vinculados ao titular e à conta (dados autenticados no AES-GCM), e a chave mestra pode ser trocada sem vincular as contas de novo.",
+    m6: "Os resultados das ferramentas marcam o conteúdo do Telegram como dados não confiáveis, para que sua IA trate as mensagens como dados, não como instruções.",
+    m7: "O CI também procura segredos no repositório a cada build.",
+    note: "A Cloudflare e o Telegram, como infraestrutura, mantêm seus próprios metadados técnicos; veja o documento de tratamento de dados no rodapé."
+  },
   faq: {
     title: 'Perguntas frequentes',
     claudeTesting: 'ainda está em teste e não foi verificado em produção',
@@ -115,7 +162,9 @@ export default {
     q6: 'Posso revogar o acesso?',
     a6: 'Sim, a qualquer momento. No painel você pode revogar um cliente de IA específico, desconectar uma conta do Telegram (a sessão é encerrada) ou excluir o perfil. Você também pode encerrar a sessão no Telegram, em Configurações → Dispositivos.',
     q7: 'O Postun é gratuito?',
-    a7: 'Sim. O beta é gratuito, com limite de {quota} operações bem-sucedidas por dia (UTC) por titular. Solicitações de serviço e erros não são contabilizados. Não há pagamentos no beta, e o limite pode mudar.'
+    a7: 'Sim. O beta é gratuito, com limite de {quota} operações bem-sucedidas por dia (UTC) por titular. Solicitações de serviço e erros não são contabilizados. Não há pagamentos no beta, e o limite pode mudar.',
+    q8: "Quais outros clientes de IA posso usar?",
+    a8: "Qualquer cliente MCP que aceite servidores remotos via HTTP com login OAuth. Na seção <a href=\"#connect\">Conectar</a> você vê quais clientes foram verificados em produção e o passo a passo de cada um."
   },
   legal: {
     translationNote: 'Esta é uma tradução de conveniência. Em caso de divergência, prevalece a versão em inglês.'

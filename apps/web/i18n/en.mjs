@@ -10,7 +10,9 @@ export default {
     faq: 'FAQ',
     app: 'Dashboard',
     language: 'Language',
-    skip: 'Skip to content'
+    skip: 'Skip to content',
+    connect: "Connect",
+    security: "Security"
   },
   footer: {
     about: 'Postun is an experimental project in open beta. No SLA and no availability guarantees. The source code is open under the Apache-2.0 license.',
@@ -20,7 +22,9 @@ export default {
     source: 'Source code',
     vuln: 'Report a vulnerability',
     issues: 'Feedback',
+    support: "Support in Telegram",
     issuesNote: 'Report bugs and suggestions in <a href="{repo}/issues">GitHub Issues</a> without messages, documents, sign-in codes or tokens. Report vulnerabilities only through the private channel described in <a href="{repo}/blob/main/SECURITY.md">SECURITY.md</a>.',
+    trademarks: "ChatGPT, Claude, Telegram and other product names are trademarks of their owners. Postun is an independent project; it is not affiliated with or endorsed by them.",
     terms: 'Beta terms',
     privacy: 'Data handling'
   },
@@ -66,7 +70,7 @@ export default {
     flowAi: 'Your AI',
     clientVerified: 'verified',
     clientTesting: 'in testing',
-    clientOther: 'Other MCP clients',
+    clientOther: "Claude, Cursor, Gemini CLI and more — how to connect",
     uspTitle: 'Why Postun',
     usp1Title: 'Your account, not a bot',
     usp1: 'Postun connects your own Telegram account the way a linked device does. Scan a QR code and you are done in about a minute — no API keys, no developer setup.',
@@ -98,6 +102,49 @@ export default {
     finalTitle: 'Connect Telegram to your AI',
     finalText: 'Free during the beta. Transit only, no message storage. Revoke access at any time.'
   },
+  connect: {
+    title: "Connect your AI client",
+    intro: "Every client uses the same address, <code>https://mcp.postun.org/mcp</code>. After you add it, the client opens a browser window: sign in with Telegram, link your account if you have not yet, and choose which accounts and data this client may read.",
+    verified: "Verified on production",
+    verifiedNote: "Tested end to end by us: sign-in, account linking and reading chats.",
+    protocol: "Supports the protocol, not yet tested by us",
+    protocolNote: "According to their own documentation, these clients support remote MCP servers with OAuth sign-in. We have not tested them yet, so menus and commands may differ in your version.",
+    docs: "Client documentation",
+    chatgpt: "In ChatGPT, add a custom MCP connector with this address and choose OAuth sign-in. Custom connectors depend on your plan and workspace settings; in Business and Enterprise an admin may need to allow them.",
+    claudeCode: "Run the command, then type <code>/mcp</code> in Claude Code, pick postun and sign in in the browser.",
+    claudeAi: "In Claude (web or desktop app): Customize → Connectors → Add custom connector, then enter the name and the address. The Free plan allows one custom connector; on Team and Enterprise an owner adds it for the organization.",
+    cursor: "Add this to <code>~/.cursor/mcp.json</code> (or <code>.cursor/mcp.json</code> in a project). Cursor will offer to sign in.",
+    vscode: "Add this to <code>.vscode/mcp.json</code> or run “MCP: Add Server” and choose HTTP. In Copilot Business and Enterprise the organization must allow MCP servers.",
+    gemini: "Run the command, then <code>/mcp auth postun</code> inside Gemini CLI to sign in in the browser.",
+    codex: "Run both commands: the first adds the server, the second opens the sign-in in the browser.",
+    zed: "Add this to Zed settings (settings.json). Zed starts the OAuth sign-in on first use.",
+    qwen: "Run the command, then open <code>/mcp</code> in Qwen Code to sign in."
+  },
+  security: {
+    title: "Security, in detail",
+    intro: "What protects your account, exactly as it is implemented in the code.",
+    s1Title: "Telegram sessions are encrypted",
+    s1: "AES-256-GCM with a separate random 256-bit key for each linked account. That key is itself encrypted with a master key kept in Cloudflare secrets — never in the code or the database.",
+    s2Title: "Your Telegram ID is not stored in plain form",
+    s2: "We keep only an HMAC-SHA-256 index to find your profile and an AES-256-GCM encrypted copy of the ID.",
+    s3Title: "Access only with your consent",
+    s3: "AI clients sign in with OAuth 2.1 and PKCE; only the S256 method is accepted, and public clients such as ChatGPT and Claude Code must use it. On the consent screen you choose the accounts and read permissions for each client and can revoke them at any time.",
+    s4Title: "Encrypted connections, strict CSP",
+    s4: "HTTPS only, with HSTS for a year on all subdomains. A strict Content Security Policy: the dashboard loads no third-party code; public pages load only Cloudflare Web Analytics.",
+    s5Title: "Logs switched off — checked in CI",
+    s5: "Cloudflare logs and tracing are disabled for every Postun service. The build fails if logging is turned on or if code tries to write data to a log.",
+    s6Title: "Open code, secret keys",
+    s6: "Kerckhoffs’s principle: a system must stay secure even if everything about it except the keys is public. All Postun code is open under Apache-2.0, and its security rests only on keys kept in Cloudflare secrets.",
+    moreTitle: "Also in place",
+    m1: "OAuth tokens are stored only as hashes. Access tokens expire after an hour, refresh tokens after 30 days.",
+    m2: "Telegram sign-in uses the official OpenID Connect flow with PKCE, state and nonce; token signatures are verified.",
+    m3: "Session cookies carry the __Host- prefix with Secure, HttpOnly and SameSite. Every change is protected by an origin check and a CSRF token.",
+    m4: "Each owner’s sessions and permissions live in a separate isolated storage object (a Cloudflare Durable Object).",
+    m5: "Encrypted data is bound to its owner and account (authenticated data in AES-GCM), and the master key can be rotated without relinking accounts.",
+    m6: "Tool results mark Telegram content as untrusted data, so your AI treats messages as data, not as instructions.",
+    m7: "CI also scans the repository for secrets on every build.",
+    note: "Cloudflare and Telegram, as infrastructure, keep their own technical metadata; see the data handling document in the footer."
+  },
   faq: {
     title: 'Questions and answers',
     claudeTesting: 'still in testing and not yet verified on production',
@@ -115,7 +162,9 @@ export default {
     q6: 'Can I revoke access?',
     a6: 'Yes, at any time. In the dashboard you can revoke a single AI client, disconnect a Telegram account (its session is terminated) or delete your profile. You can also end the session in Telegram under Settings → Devices.',
     q7: 'Is Postun free?',
-    a7: 'Yes. The beta is free, with a limit of {quota} successful operations per UTC day per owner. Service requests and errors are not counted. There are no payments in the beta, and the limit may change.'
+    a7: 'Yes. The beta is free, with a limit of {quota} successful operations per UTC day per owner. Service requests and errors are not counted. There are no payments in the beta, and the limit may change.',
+    q8: "Which other AI clients can I use?",
+    a8: "Any MCP client that supports remote servers over HTTP with OAuth sign-in. The <a href=\"#connect\">Connect</a> section shows which clients are verified on production and gives the setup steps for each."
   },
   legal: {
     translationNote: ''

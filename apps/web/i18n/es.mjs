@@ -10,7 +10,9 @@ export default {
     faq: 'Preguntas',
     app: 'Panel',
     language: 'Idioma',
-    skip: 'Saltar al contenido'
+    skip: 'Saltar al contenido',
+    connect: "Conectar",
+    security: "Seguridad"
   },
   footer: {
     about: 'Postun es un proyecto experimental en beta abierta. Sin SLA ni garantía de disponibilidad. El código fuente es abierto bajo la licencia Apache-2.0.',
@@ -20,7 +22,9 @@ export default {
     source: 'Código fuente',
     vuln: 'Informar de una vulnerabilidad',
     issues: 'Comentarios',
+    support: "Soporte en Telegram",
     issuesNote: 'Errores y sugerencias: en <a href="{repo}/issues">GitHub Issues</a>, sin conversaciones, documentos, códigos de acceso ni tokens. Las vulnerabilidades, solo a través del canal privado indicado en <a href="{repo}/blob/main/SECURITY.md">SECURITY.md</a>.',
+    trademarks: "ChatGPT, Claude, Telegram y los demás nombres de productos son marcas de sus respectivos titulares. Postun es un proyecto independiente, sin relación con ellos y sin su respaldo.",
     terms: 'Condiciones de la beta',
     privacy: 'Tratamiento de datos'
   },
@@ -66,7 +70,7 @@ export default {
     flowAi: 'Tu IA',
     clientVerified: 'verificado',
     clientTesting: 'en pruebas',
-    clientOther: 'Otros clientes MCP',
+    clientOther: "Claude, Cursor, Gemini CLI y más: cómo conectar",
     uspTitle: 'Por qué Postun',
     usp1Title: 'Tu cuenta, no un bot',
     usp1: 'Postun conecta tu propia cuenta de Telegram como un dispositivo vinculado. Escanea un código QR y en un minuto aproximadamente estará listo: sin claves de API ni configuración de desarrollador.',
@@ -98,6 +102,49 @@ export default {
     finalTitle: 'Conecta Telegram con tu IA',
     finalText: 'Gratis durante la beta. Solo tránsito, sin guardar mensajes. Revoca el acceso cuando quieras.'
   },
+  connect: {
+    title: "Conecta tu cliente de IA",
+    intro: "Todos los clientes usan la misma dirección: <code>https://mcp.postun.org/mcp</code>. Al añadirla, el cliente abre una ventana del navegador: inicia sesión con Telegram, vincula tu cuenta si aún no lo has hecho y elige qué cuentas y datos podrá leer este cliente.",
+    verified: "Verificado en producción",
+    verifiedNote: "Lo hemos probado de principio a fin: inicio de sesión, vinculación de la cuenta y lectura de chats.",
+    protocol: "Compatibles con el protocolo, aún sin probar por nosotros",
+    protocolNote: "Según su propia documentación, estos clientes admiten servidores MCP remotos con inicio de sesión OAuth. Todavía no los hemos probado, así que los menús y comandos pueden variar en tu versión.",
+    docs: "Documentación del cliente",
+    chatgpt: "En ChatGPT, añade un conector MCP personalizado con esta dirección y elige el inicio de sesión OAuth. Los conectores personalizados dependen de tu plan y de la configuración del espacio de trabajo; en Business y Enterprise puede que un administrador tenga que permitirlos.",
+    claudeCode: "Ejecuta el comando y luego escribe <code>/mcp</code> en Claude Code, elige postun e inicia sesión en el navegador.",
+    claudeAi: "En Claude (web o app de escritorio): Customize → Connectors → Add custom connector, e introduce el nombre y la dirección. El plan Free permite un conector personalizado; en Team y Enterprise lo añade el propietario de la organización.",
+    cursor: "Añade esto a <code>~/.cursor/mcp.json</code> (o a <code>.cursor/mcp.json</code> en un proyecto). Cursor te ofrecerá iniciar sesión.",
+    vscode: "Añade esto a <code>.vscode/mcp.json</code> o ejecuta «MCP: Add Server» y elige HTTP. En Copilot Business y Enterprise, la organización debe permitir los servidores MCP.",
+    gemini: "Ejecuta el comando y luego <code>/mcp auth postun</code> dentro de Gemini CLI para iniciar sesión en el navegador.",
+    codex: "Ejecuta los dos comandos: el primero añade el servidor y el segundo abre el inicio de sesión en el navegador.",
+    zed: "Añade esto a la configuración de Zed (settings.json). Zed inicia el acceso OAuth la primera vez que lo usas.",
+    qwen: "Ejecuta el comando y luego abre <code>/mcp</code> en Qwen Code para iniciar sesión."
+  },
+  security: {
+    title: "La seguridad, en detalle",
+    intro: "Qué protege tu cuenta, tal como está implementado en el código.",
+    s1Title: "Las sesiones de Telegram van cifradas",
+    s1: "AES-256-GCM con una clave aleatoria de 256 bits distinta para cada cuenta vinculada. Esa clave se cifra a su vez con una clave maestra guardada en los secretos de Cloudflare, nunca en el código ni en la base de datos.",
+    s2Title: "Tu ID de Telegram no se guarda en claro",
+    s2: "Solo guardamos un índice HMAC-SHA-256 para encontrar tu perfil y una copia del ID cifrada con AES-256-GCM.",
+    s3Title: "Acceso solo con tu consentimiento",
+    s3: "Los clientes de IA inician sesión con OAuth 2.1 y PKCE: solo se acepta el método S256, y los clientes públicos como ChatGPT y Claude Code están obligados a usarlo. En la pantalla de consentimiento eliges las cuentas y los permisos de lectura de cada cliente, y puedes revocarlos cuando quieras.",
+    s4Title: "Conexiones cifradas y CSP estricta",
+    s4: "Solo HTTPS, con HSTS durante un año en todos los subdominios. Una Content Security Policy estricta: el panel no carga código de terceros y las páginas públicas solo cargan Cloudflare Web Analytics.",
+    s5Title: "Registros desactivados, comprobado en CI",
+    s5: "Los registros y el rastreo de Cloudflare están desactivados en todos los servicios de Postun. La compilación falla si se activan los registros o si el código intenta escribir datos en ellos.",
+    s6Title: "Código abierto, claves secretas",
+    s6: "Principio de Kerckhoffs: un sistema debe seguir siendo seguro aunque todo sobre él, salvo las claves, sea público. Todo el código de Postun es abierto bajo Apache-2.0, y su seguridad depende solo de las claves guardadas en los secretos de Cloudflare.",
+    moreTitle: "Además",
+    m1: "Los tokens OAuth se guardan solo como hashes. Los tokens de acceso caducan en una hora y los de actualización, en 30 días.",
+    m2: "El inicio de sesión con Telegram usa el flujo oficial OpenID Connect con PKCE, state y nonce; las firmas de los tokens se verifican.",
+    m3: "Las cookies de sesión llevan el prefijo __Host- con Secure, HttpOnly y SameSite. Cada cambio está protegido con una comprobación de origen y un token CSRF.",
+    m4: "Las sesiones y los permisos de cada titular viven en un objeto de almacenamiento aislado y separado (un Durable Object de Cloudflare).",
+    m5: "Los datos cifrados están vinculados a su titular y a su cuenta (datos autenticados en AES-GCM), y la clave maestra puede rotarse sin volver a vincular las cuentas.",
+    m6: "Los resultados de las herramientas marcan el contenido de Telegram como datos no confiables, para que tu IA trate los mensajes como datos y no como instrucciones.",
+    m7: "Además, CI revisa el repositorio en busca de secretos en cada compilación.",
+    note: "Cloudflare y Telegram, como infraestructura, conservan sus propios metadatos técnicos; consulta el documento de tratamiento de datos al pie de la página."
+  },
   faq: {
     title: 'Preguntas frecuentes',
     claudeTesting: 'sigue en pruebas y aún no está verificado en producción',
@@ -115,7 +162,9 @@ export default {
     q6: '¿Puedo revocar el acceso?',
     a6: 'Sí, en cualquier momento. En el panel puedes revocar un cliente de IA concreto, desconectar una cuenta de Telegram (su sesión se cierra) o eliminar tu perfil. También puedes cerrar la sesión en Telegram, en Ajustes → Dispositivos.',
     q7: '¿Postun es gratuito?',
-    a7: 'Sí. La beta es gratuita, con un límite de {quota} operaciones exitosas por día (UTC) por titular. Las solicitudes de servicio y los errores no cuentan. No hay pagos en la beta y el límite puede cambiar.'
+    a7: 'Sí. La beta es gratuita, con un límite de {quota} operaciones exitosas por día (UTC) por titular. Las solicitudes de servicio y los errores no cuentan. No hay pagos en la beta y el límite puede cambiar.',
+    q8: "¿Qué otros clientes de IA puedo usar?",
+    a8: "Cualquier cliente MCP que admita servidores remotos por HTTP con inicio de sesión OAuth. En la sección <a href=\"#connect\">Conectar</a> verás qué clientes están verificados en producción y los pasos para cada uno."
   },
   legal: {
     translationNote: 'Esta es una traducción de conveniencia. En caso de discrepancia, prevalece la versión en inglés.'
