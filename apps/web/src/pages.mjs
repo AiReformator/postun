@@ -1,12 +1,13 @@
 import { connectAvailable, esc, statusTable } from './render.mjs';
 import { LOCALES, SITE, locale, translator } from '../i18n/index.mjs';
 import { BRAND_MARK, icon } from './icons.mjs';
+import { COMPONENT_IDS, PILL_CLASS, STATES, STATUS_URL } from './status-data.mjs';
 
 const REPO = 'https://github.com/AiReformator/postun';
 const SUPPORT = 'https://t.me/postun_org';
 
 /** Page ids and their path below a locale prefix. */
-export const PAGES = { home: '/', privacy: '/privacy/', terms: '/terms/', cabinet: '/app/' };
+export const PAGES = { home: '/', status: '/status/', privacy: '/privacy/', terms: '/terms/', cabinet: '/app/' };
 
 const DASHBOARD = (L) => `https://app.postun.org${L.prefix}/app/`;
 
@@ -58,7 +59,7 @@ ${headerCta}</div></header>
 <main id="main" class="wrap">${body}</main>
 <footer class="site-footer"><div class="wrap foot-grid">
 <div class="foot-brand"><a class="brand" href="${home}">${BRAND_MARK}Postun</a><p>${t('footer.about')}</p></div>
-<div class="foot-col"><h2>${t('footer.product')}</h2><ul><li><a href="${home}#how">${t('nav.how')}</a></li><li><a href="${home}#status">${t('nav.status')}</a></li><li><a href="${home}#faq">${t('nav.faq')}</a></li><li><a href="${DASHBOARD(L)}">${t('nav.app')}</a></li></ul></div>
+<div class="foot-col"><h2>${t('footer.product')}</h2><ul><li><a href="${home}#how">${t('nav.how')}</a></li><li><a href="${home}#status">${t('nav.status')}</a></li><li><a href="${home}#faq">${t('nav.faq')}</a></li><li><a href="${L.prefix}/status/">${t('footer.statusPage')}</a></li><li><a href="${DASHBOARD(L)}">${t('nav.app')}</a></li></ul></div>
 <div class="foot-col"><h2>${t('footer.project')}</h2><ul><li><a href="${REPO}">${t('footer.source')}</a></li><li><a href="${REPO}/blob/main/SECURITY.md">${t('footer.vuln')}</a></li><li><a href="${REPO}/issues">${t('footer.issues')}</a></li><li><a href="${SUPPORT}">${t('footer.support')}</a></li></ul></div>
 <div class="foot-col"><h2>${t('footer.legal')}</h2><ul><li><a href="${L.prefix}/terms/">${t('footer.terms')}</a></li><li><a href="${L.prefix}/privacy/">${t('footer.privacy')}</a></li></ul></div>
 <p class="foot-note">${t('footer.issuesNote', { repo: REPO })}</p>
@@ -317,6 +318,57 @@ ${faqItems(status, code).map((f) => `<details><summary>${f.q}</summary><p>${f.ht
 ${open ? ctaLink() : ''}
 </div>
 </section>`
+  });
+}
+
+/** JSON for a <script type="application/json"> data block: "<" is escaped so it can never close the tag. */
+const dataBlock = (id, obj) => `<script type="application/json" id="${id}">${JSON.stringify(obj).replace(/</g, '\\u003c')}</script>`;
+
+/**
+ * Public status page. The server renders the whole skeleton (title, intro, component names, legend) so it works without
+ * JavaScript; assets/status.js fetches STATUS_URL and fills in the live state. Strings for the script travel as a JSON data
+ * block (inert under CSP), so the bundle carries no dictionaries.
+ */
+export function statusPage(code = 'en') {
+  const L = locale(code);
+  const t = translator(L.dict);
+  const comps = COMPONENT_IDS.map(
+    (id) => `<li class="status-comp" data-component="${id}">
+<div class="status-comp-head"><h2>${t(`statusPage.comp.${id}`)}</h2><span class="pill pill-unknown" data-role="pill">${t('statusPage.state.unknown')}</span></div>
+<div class="status-comp-body" data-role="body" hidden></div>
+</li>`
+  ).join('\n');
+  const legend = STATES.map((s) => `<li><span class="pill ${PILL_CLASS[s]}">${t(`statusPage.state.${s}`)}</span><span>${t(`statusPage.legend.${s}`)}</span></li>`).join('\n');
+  return layout(L, 'status', {
+    title: t('statusPage.title'),
+    description: t('statusPage.metaDescription'),
+    script: '/assets/status.js',
+    body: `<article class="status-page">
+<header class="status-head">
+<h1>${t('statusPage.h1')}</h1>
+<p class="lead">${t('statusPage.intro')}</p>
+</header>
+<div id="status-root" data-src="${STATUS_URL}">
+<div class="status-banner is-unknown" id="status-banner">
+<span class="status-banner-ico">${icon('pulse')}</span>
+<div><p class="status-banner-title" id="status-title" role="status"><noscript>${t('statusPage.noscript')}</noscript></p><p class="status-banner-text note" id="status-text"></p></div>
+</div>
+<ul class="status-list" id="status-components">
+${comps}
+</ul>
+<section class="status-incidents" aria-labelledby="inc-title" id="status-incidents-section" hidden>
+<h2 id="inc-title">${t('statusPage.incidentsTitle')}</h2>
+<ul class="status-incident-list" id="status-incidents"></ul>
+</section>
+</div>
+<section class="status-legend" aria-labelledby="legend-title">
+<h2 id="legend-title">${t('statusPage.legendTitle')}</h2>
+<ul>
+${legend}
+</ul>
+</section>
+${dataBlock('status-i18n', L.dict.statusPage)}
+</article>`
   });
 }
 

@@ -3,7 +3,7 @@ import { LOCALES, SITE } from '../i18n/index.mjs';
 
 const REPO = 'https://github.com/AiReformator/postun';
 /** Indexable pages (the cabinet /app/ is intentionally excluded). */
-const PAGES = ['/', '/privacy/', '/terms/'];
+const PAGES = ['/', '/status/', '/privacy/', '/terms/'];
 
 export const robotsTxt = () => `User-agent: *\nAllow: /\n\nSitemap: ${SITE}/sitemap.xml\n`;
 
@@ -46,6 +46,7 @@ export function llmsTxt(status) {
 ## Site
 
 ${LOCALES.map((l) => `- [${names[l.code]}](${SITE}${l.prefix}/)`).join('\n')}
+- [Service status](${SITE}/status/)
 - [Data handling](${SITE}/privacy/)
 - [Beta terms](${SITE}/terms/)
 

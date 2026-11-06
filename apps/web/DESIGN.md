@@ -65,6 +65,7 @@ colours (the QR code keeps a white plate so it always scans).
 | Flow diagram (Telegram → Postun → AI clients) | `.flow`, `.flow-node`, `.flow-core`, `.flow-link`, `.flow-clients` | hero |
 | USP grid | `.usp-grid`, `.usp`, `.usp-lead`, `.usp-figure` | landing |
 | Numbered steps | `.steps` | landing |
+| Status page (banner, component rows, 90-day strip, incidents, legend; filled by `assets/status.js` from `src/status-data.mjs`) | `.status-banner`, `.status-comp`, `.status-strip`, `.status-day`, `.status-incident`, `.status-legend`, `.pill-unknown` | `/status/` |
 | Table | `.table-wrap` + `table.status` | status, data handling |
 | FAQ accordion | `.faq details` | landing (FAQ, Connect) |
 | Connect: client list grouped by status, code block with copy | `.connect-groups`, `.connect-group`, `.client-body`, `.snippet` (`-terminal` / `-json` / `-url`) | landing `#connect` |

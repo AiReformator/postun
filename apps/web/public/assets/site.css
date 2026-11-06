@@ -648,3 +648,58 @@ progress.meter::-moz-progress-bar { background: var(--c-signal); border-radius: 
 .auth-card .btn { margin-top: 0; }
 .auth-card form { display: grid; gap: var(--s-4); width: 100%; }
 .card-title { font-size: var(--text-lg); }
+
+/* ───────────── 9. Status page (/status/) ─────────────
+   Uses only existing tokens. Restyle by editing this section; markup hooks are the .status-* classes. */
+.pill-unknown { background: var(--c-surface-2); color: var(--c-ink-2); }
+.status-page { padding-block: var(--s-10) 0; max-width: 820px; }
+.status-head h1 { font-size: var(--text-2xl); font-weight: var(--weight-black); letter-spacing: var(--tracking-display); line-height: 1.08; margin-bottom: var(--s-4); }
+.status-head .lead { color: var(--c-ink-2); max-width: var(--measure); margin-bottom: var(--s-8); }
+.status-banner { display: flex; gap: var(--s-4); align-items: center; padding: var(--s-5); border-radius: var(--r-lg); border: 1px solid var(--c-line); background: var(--c-surface); margin-bottom: var(--s-6); }
+.status-banner-ico { flex: none; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; background: var(--c-surface-2); color: var(--c-ink-2); }
+.status-banner-ico .icon { width: 24px; height: 24px; }
+.status-banner-title { font-size: var(--text-lg); font-weight: var(--weight-bold); line-height: var(--leading-snug); }
+.status-banner-text:empty { display: none; }
+.status-banner.is-operational { background: var(--c-ok-soft); border-color: transparent; }
+.status-banner.is-operational .status-banner-ico { background: var(--c-ok); color: var(--c-surface); }
+.status-banner.is-operational .status-banner-title { color: var(--c-ok); }
+.status-banner.is-degraded { background: var(--c-warn-soft); border-color: transparent; }
+.status-banner.is-degraded .status-banner-ico { background: var(--c-warn); color: var(--c-surface); }
+.status-banner.is-degraded .status-banner-title { color: var(--c-warn); }
+.status-banner.is-outage { background: var(--c-bad-soft); border-color: transparent; }
+.status-banner.is-outage .status-banner-ico { background: var(--c-bad); color: var(--c-surface); }
+.status-banner.is-outage .status-banner-title { color: var(--c-bad); }
+.status-banner.is-operational .note, .status-banner.is-degraded .note, .status-banner.is-outage .note { color: var(--c-ink-2); }
+
+.status-list, .status-legend ul, .status-incident-list { list-style: none; padding: 0; margin: 0; }
+.status-list { display: grid; gap: var(--s-3); }
+.status-comp { background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--r-lg); padding: var(--s-4) var(--s-5); box-shadow: var(--shadow-sm); }
+.status-comp-head { display: flex; justify-content: space-between; align-items: center; gap: var(--s-3); }
+.status-comp-head h2 { font-size: var(--text-md); font-weight: var(--weight-semibold); }
+.status-comp-body { margin-top: var(--s-4); display: grid; gap: var(--s-4); }
+.status-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-3) var(--s-4); margin: 0; }
+.status-metric dt { font-size: var(--text-xs); color: var(--c-ink-3); }
+.status-metric dd { margin: 0; font-weight: var(--weight-semibold); font-variant-numeric: tabular-nums; }
+.status-strip { display: flex; gap: 1px; touch-action: pan-y; height: 36px; padding: 2px; border-radius: var(--r-sm); }
+.status-strip:focus-visible { outline: 2px solid var(--c-focus); outline-offset: 2px; }
+.status-day { flex: 1 1 0; min-width: 0; border-radius: 2px; background: var(--c-line); }
+.status-day.day-ok { background: var(--c-ok); }
+.status-day.day-warn { background: var(--c-warn); }
+.status-day.day-bad { background: var(--c-bad); }
+.status-day.is-active { outline: 2px solid var(--c-ink); outline-offset: 1px; }
+.status-axis { display: flex; justify-content: space-between; margin-top: var(--s-1); font-size: var(--text-xs); }
+.status-tip { min-height: 1.5em; margin-top: var(--s-1); font-variant-numeric: tabular-nums; }
+
+.status-incidents, .status-legend { margin-top: var(--s-10); }
+.status-incidents h2, .status-legend h2 { font-size: var(--text-lg); margin-bottom: var(--s-4); }
+.status-incident-list { display: grid; gap: var(--s-3); }
+.status-incident { background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--r-lg); padding: var(--s-4) var(--s-5); }
+.status-incident-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2) var(--s-3); font-size: var(--text-sm); }
+.status-incident .note { margin-top: var(--s-2); }
+.status-legend ul { display: grid; gap: var(--s-3); color: var(--c-ink-2); font-size: var(--text-sm); }
+.status-legend li { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2) var(--s-3); }
+@media (min-width: 600px) {
+  .status-strip { gap: 2px; }
+  .status-metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .status-day { min-width: 3px; }
+}
