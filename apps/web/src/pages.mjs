@@ -52,14 +52,14 @@ ${head}</head>
 <a class="skip-link" href="#main">${t('nav.skip')}</a>
 <header class="site-header"><div class="wrap">
 <a class="brand" href="${home}">${BRAND_MARK}Postun <span class="badge">Beta</span></a>
-<nav class="site-nav"><a href="${home}#how">${t('nav.how')}</a><a href="${home}#connect">${t('nav.connect')}</a><a href="${home}#security">${t('nav.security')}</a><a href="${home}#status">${t('nav.status')}</a><a href="${home}#faq">${t('nav.faq')}</a><a href="${REPO}">GitHub</a></nav>
+<nav class="site-nav"><a href="${home}#how">${t('nav.how')}</a><a href="${home}#connect">${t('nav.connect')}</a><a href="${home}#security">${t('nav.security')}</a><a href="${home}#features">${t('nav.features')}</a><a href="${L.prefix}/status/"${page === 'status' ? ' aria-current="page"' : ''}>${t('nav.status')}</a><a href="${home}#faq">${t('nav.faq')}</a><a href="${REPO}">GitHub</a></nav>
 <details class="lang"><summary aria-label="${esc(t('nav.language'))}: ${esc(L.dict.meta.languageName)}">${icon('globe')}${L.short}${icon('chevron')}</summary>
 <nav class="langs" aria-label="${esc(t('nav.language'))}">${switcher}</nav></details>
 ${headerCta}</div></header>
 <main id="main" class="wrap">${body}</main>
 <footer class="site-footer"><div class="wrap foot-grid">
 <div class="foot-brand"><a class="brand" href="${home}">${BRAND_MARK}Postun</a><p>${t('footer.about')}</p></div>
-<div class="foot-col"><h2>${t('footer.product')}</h2><ul><li><a href="${home}#how">${t('nav.how')}</a></li><li><a href="${home}#status">${t('nav.status')}</a></li><li><a href="${home}#faq">${t('nav.faq')}</a></li><li><a href="${L.prefix}/status/">${t('footer.statusPage')}</a></li><li><a href="${DASHBOARD(L)}">${t('nav.app')}</a></li></ul></div>
+<div class="foot-col"><h2>${t('footer.product')}</h2><ul><li><a href="${home}#how">${t('nav.how')}</a></li><li><a href="${home}#features">${t('nav.features')}</a></li><li><a href="${home}#faq">${t('nav.faq')}</a></li><li><a href="${L.prefix}/status/">${t('footer.statusPage')}</a></li><li><a href="${DASHBOARD(L)}">${t('nav.app')}</a></li></ul></div>
 <div class="foot-col"><h2>${t('footer.project')}</h2><ul><li><a href="${REPO}">${t('footer.source')}</a></li><li><a href="${REPO}/blob/main/SECURITY.md">${t('footer.vuln')}</a></li><li><a href="${REPO}/issues">${t('footer.issues')}</a></li><li><a href="${SUPPORT}">${t('footer.support')}</a></li></ul></div>
 <div class="foot-col"><h2>${t('footer.legal')}</h2><ul><li><a href="${L.prefix}/terms/">${t('footer.terms')}</a></li><li><a href="${L.prefix}/privacy/">${t('footer.privacy')}</a></li></ul></div>
 <p class="foot-note">${t('footer.issuesNote', { repo: REPO })}</p>
@@ -285,8 +285,8 @@ ${connectSection(status, t)}
 
 ${securitySection(t)}
 
-<section id="status" class="section">
-<div class="status-grid">
+<section id="features" class="section">
+<div id="status" class="status-grid">
 <div class="status-intro section-head">
 <h2>${t('landing.statusTitle')}</h2>
 <p>${t('landing.can')}</p>

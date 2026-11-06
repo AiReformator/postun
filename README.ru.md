@@ -103,7 +103,7 @@ claude mcp add --scope user --transport http postun https://mcp.postun.org/mcp
 
 ## Статус беты
 
-Статус берётся из [apps/web/status.json](apps/web/status.json) (обновлён 2026-11-05). «Проверено» отмечены только функции с записанной приёмкой на production. Актуальный статус также виден на https://postun.org/#status.
+Статус берётся из [apps/web/status.json](apps/web/status.json) (обновлён 2026-11-05). «Проверено» отмечены только функции с записанной приёмкой на production. Та же таблица есть на сайте: https://postun.org/#features; доступность сервиса — на https://postun.org/ru/status/.
 
 | Функция | Статус |
 |---|---|
