@@ -15,7 +15,7 @@ function must(a: Admission): { state: PacingState; delayMs: number } {
 describe('pacingFromEnv', () => {
   it('uses the documented defaults when nothing is set', () => {
     expect(pacingFromEnv({})).toEqual({
-      burst: 60, refillMs: 500, hourlyCap: 5000, lookupPerMin: 60, lookupBurst: 3, lookupPerDay: 2000, messagesPerHour: 0, maxSmoothMs: 3000, floodMarginSeconds: 5
+      burst: 60, refillMs: 500, hourlyCap: 5000, lookupPerMin: 60, lookupBurst: 5, lookupPerDay: 2000, messagesPerHour: 0, maxSmoothMs: 15000, floodMarginSeconds: 5
     });
   });
   it('accepts valid overrides and falls back to the default for invalid ones', () => {
@@ -25,7 +25,7 @@ describe('pacingFromEnv', () => {
     expect(c.hourlyCap).toBe(5000);
     expect(c.lookupPerMin).toBe(60);
     expect(c.messagesPerHour).toBe(0);
-    expect(pacingFromEnv({ PACING_MESSAGES_PER_HOUR: '20000', PACING_MAX_SMOOTH_MS: '999999' })).toMatchObject({ messagesPerHour: 20000, maxSmoothMs: 3000 });
+    expect(pacingFromEnv({ PACING_MESSAGES_PER_HOUR: '20000', PACING_MAX_SMOOTH_MS: '999999' })).toMatchObject({ messagesPerHour: 20000, maxSmoothMs: 15000 });
   });
 });
 
@@ -164,20 +164,21 @@ describe('message budget and limits view', () => {
     expect(limitsView(s, cfg(), T0, 'normal', true)).not.toHaveProperty('messagesRemainingThisHour');
   });
   it('queues lookups to about one per second instead of refusing (Telegram slowed contacts.search after ~20 in 10 s)', () => {
+    // A client firing 20 global searches at once (ChatGPT does this) gets them all, spaced about one per second.
     let s = emptyPacing();
     const delays: number[] = [];
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 20; i++) {
       const a = must(admit(s, cfg(), 'lookup', T0));
       delays.push(a.delayMs);
       s = a.state;
     }
-    expect(delays.slice(0, 3)).toEqual([0, 0, 0]);
-    expect(delays.slice(3)).toEqual([1000, 2000, 3000]);
+    expect(delays.slice(0, 5)).toEqual([0, 0, 0, 0, 0]);
+    expect(delays.slice(5)).toEqual(Array.from({ length: 15 }, (_, i) => (i + 1) * 1000));
     const r = admit(s, cfg(), 'lookup', T0);
     expect(!r.ok && r.reason).toBe('LOOKUP_CAP');
     const v = limitsView(s, cfg(), T0, 'lookup');
     expect(v.lookupsRemainingNow).toBe(0);
-    expect(v.nextCallNotBeforeSeconds).toBe(4);
+    expect(v.nextCallNotBeforeSeconds).toBe(16);
     expect(v.paceSeconds).toBe(1);
   });
   it('limitsView is capped by the hourly allowance', () => {

@@ -29,7 +29,7 @@ export class KeyedLocks {
     };
     if (!got) {
       void prev.then(done);
-      throw new PostunError('CONFLICT');
+      throw new PostunError('CONFLICT', undefined, { reason: 'ACCOUNT_BUSY' });
     }
     return done;
   }

@@ -35,7 +35,7 @@ export interface FloodOptions {
   maxRetries: number;
 }
 
-export const FLOOD_DEFAULTS: Readonly<FloodOptions> = { autoSleepSeconds: 3, maxRetries: 1 };
+export const FLOOD_DEFAULTS: Readonly<FloodOptions> = { autoSleepSeconds: 8, maxRetries: 1 };
 
 function boundedInt(raw: string | undefined, def: number, min: number, max: number): number {
   if (raw === undefined || raw.trim() === '') return def;

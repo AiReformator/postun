@@ -62,6 +62,31 @@ describe('persisted flood cooldown', () => {
     expect(err(first)).toMatchObject({ code: 'RATE_LIMITED', retryAfterSeconds: 20, reason: 'SLOWMODE_WAIT' });
     expect((await dialogs(w)).isError).toBe(false);
   });
+
+  it('the AI sees a Telegram flood as a pause from Telegram, not a refusal', async () => {
+    const w = await setupWorld();
+    syntheticControl.throwNext = Object.assign(new Error('raw'), { text: 'FLOOD_WAIT_%d', seconds: 30, code: 420 });
+    const e = err(await dialogs(w));
+    expect(e).toMatchObject({ status: 'paused', temporary: true, source: 'telegram', code: 'RATE_LIMITED', retryAfterSeconds: 30 });
+    expect(String(e.message)).toMatch(/^PAUSED, not refused/);
+  });
+
+  it('a short remaining cooldown is sat out inside the call instead of being returned to the AI', async () => {
+    const w = await setupWorld();
+    await runInDurableObject(principalStub(w.principalId), (inst) => {
+      (inst as unknown as { ctx: DurableObjectState }).ctx.storage.sql.exec(
+        `INSERT INTO pacing(account_id, state, cooldown_until, updated_at) VALUES(?, '{}', ?, ?)
+         ON CONFLICT(account_id) DO UPDATE SET cooldown_until = excluded.cooldown_until`,
+        w.accountIds[0], Date.now() + 1200, Date.now()
+      );
+    });
+    syntheticControl.opens = 0;
+    const t0 = Date.now();
+    const r = await dialogs(w);
+    expect(r.isError).toBe(false);
+    expect(Date.now() - t0).toBeGreaterThanOrEqual(1000);
+    expect(syntheticControl.opens).toBe(1);
+  });
 });
 
 describe('local pacing', () => {
