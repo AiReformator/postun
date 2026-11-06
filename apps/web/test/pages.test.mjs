@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync, existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { landing, cabinet, privacy, terms, faqItems, WEB_ANALYTICS_TOKEN, BEACON_SRC, CLIENTS } from '../src/pages.mjs';
+import { landing, statusPage, cabinet, privacy, terms, faqItems, WEB_ANALYTICS_TOKEN, BEACON_SRC, CLIENTS } from '../src/pages.mjs';
 import { robotsTxt, sitemapXml, llmsTxt } from '../src/seo.mjs';
 import { connectAvailable, validateStatus } from '../src/render.mjs';
 import { LOCALES, checkLocales, translator } from '../i18n/index.mjs';
@@ -138,13 +138,13 @@ describe('SEO: semantic core', () => {
   });
   it('sitemap lists every locale page with hreflang alternates and x-default, but not the cabinet', () => {
     const xml = sitemapXml('2026-11-05');
-    for (const l of LOCALES) for (const p of ['/', '/privacy/', '/terms/']) {
+    for (const l of LOCALES) for (const p of ['/', '/status/', '/privacy/', '/terms/']) {
       expect(xml).toContain(`<loc>https://postun.org${l.prefix}${p}</loc>`);
       expect(xml).toContain(`hreflang="${l.htmlLang}" href="https://postun.org${l.prefix}${p}"`);
     }
     expect(xml).toContain('hreflang="x-default" href="https://postun.org/"');
     expect(xml).not.toContain('/app/');
-    expect((xml.match(/<url>/g) ?? []).length).toBe(LOCALES.length * 3);
+    expect((xml.match(/<url>/g) ?? []).length).toBe(LOCALES.length * 4);
   });
   it('robots.txt allows all and points to the sitemap; llms.txt follows llmstxt.org and links everything', () => {
     expect(robotsTxt()).toBe('User-agent: *\nAllow: /\n\nSitemap: https://postun.org/sitemap.xml\n');
@@ -173,7 +173,7 @@ describe('plainText', () => {
 });
 
 describe('design system', () => {
-  const pages = (s) => LOCALES.flatMap((l) => [landing(s, l.code), privacy(l.code), terms(l.code), cabinet(s, l.code)]);
+  const pages = (s) => LOCALES.flatMap((l) => [landing(s, l.code), statusPage(l.code), privacy(l.code), terms(l.code), cabinet(s, l.code)]);
   it('hero claims AI-client compatibility only from status.json', () => {
     const hero = (s) => landing(s).match(/<ul class="flow-clients">([\s\S]*?)<\/ul>/)[1];
     const notRun = hero(withAll(status, 'NOT_RUN'));
@@ -284,7 +284,7 @@ describe('web analytics', () => {
   it('the site CSP allows only the beacon script and its endpoint; the cabinet adds a strict policy without them', () => {
     const [site] = csp('/*');
     expect(site).toContain(`script-src 'self' ${BEACON_SRC};`);
-    expect(site).toContain('connect-src https://auth.postun.org https://cloudflareinsights.com;');
+    expect(site).toContain('connect-src https://auth.postun.org https://status.postun.org https://cloudflareinsights.com;');
     expect(site).not.toMatch(/unsafe-inline|unsafe-eval|\*/);
     for (const block of ['/app/*', '/:lang/app/*']) {
       const policies = csp(block);

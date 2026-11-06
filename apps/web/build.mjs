@@ -2,7 +2,7 @@
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { landing, privacy, terms, cabinet } from './src/pages.mjs';
+import { landing, statusPage, privacy, terms, cabinet } from './src/pages.mjs';
 import { robotsTxt, sitemapXml, llmsTxt } from './src/seo.mjs';
 import { validateStatus } from './src/render.mjs';
 import { LOCALES, checkLocales } from './i18n/index.mjs';
@@ -24,6 +24,7 @@ const pages = {};
 for (const l of LOCALES) {
   const dir = l.prefix ? `${l.prefix.slice(1)}/` : '';
   pages[`${dir}index.html`] = landing(status, l.code);
+  pages[`${dir}status/index.html`] = statusPage(l.code);
   pages[`${dir}privacy/index.html`] = privacy(l.code);
   pages[`${dir}terms/index.html`] = terms(l.code);
   pages[`${dir}app/index.html`] = cabinet(status, l.code);
@@ -51,6 +52,18 @@ writeFileSync(join(out, 'status.json'), JSON.stringify({ ...status, build }, nul
 await esbuild({
   entryPoints: [join(here, 'src/app.mjs')],
   outfile: join(out, 'assets/app.js'),
+  bundle: true,
+  format: 'iife',
+  target: 'es2022',
+  minify: true,
+  legalComments: 'none',
+  logLevel: 'warning'
+});
+
+// Status page client (fetches the public monitoring JSON; no dictionaries inside, strings come from the page).
+await esbuild({
+  entryPoints: [join(here, 'src/status.mjs')],
+  outfile: join(out, 'assets/status.js'),
   bundle: true,
   format: 'iife',
   target: 'es2022',

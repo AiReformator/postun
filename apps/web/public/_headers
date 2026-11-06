@@ -1,7 +1,7 @@
 # Public pages allow only the Cloudflare Web Analytics beacon. The cabinet adds a second, strict policy; a browser enforces
 # every policy it receives (Cloudflare joins repeated headers with a comma), so third-party scripts stay blocked there.
 /*
-  Content-Security-Policy: default-src 'none'; script-src 'self' https://static.cloudflareinsights.com/beacon.min.js; style-src 'self'; img-src 'self' data:; connect-src https://auth.postun.org https://cloudflareinsights.com; form-action https://auth.postun.org; base-uri 'none'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'none'; script-src 'self' https://static.cloudflareinsights.com/beacon.min.js; style-src 'self'; img-src 'self' data:; connect-src https://auth.postun.org https://status.postun.org https://cloudflareinsights.com; form-action https://auth.postun.org; base-uri 'none'; frame-ancestors 'none'
   X-Content-Type-Options: nosniff
   Referrer-Policy: no-referrer
   X-Frame-Options: DENY

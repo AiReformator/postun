@@ -28,7 +28,8 @@ export default tseslint.config(
       globals: {
         document: 'readonly', window: 'readonly', location: 'readonly', fetch: 'readonly', URL: 'readonly', Node: 'readonly',
         DOMParser: 'readonly', setTimeout: 'readonly', confirm: 'readonly', alert: 'readonly', prompt: 'readonly',
-        localStorage: 'readonly', navigator: 'readonly'
+        localStorage: 'readonly', navigator: 'readonly', AbortController: 'readonly', Intl: 'readonly', clearTimeout: 'readonly',
+        setInterval: 'readonly'
       }
     }
   }

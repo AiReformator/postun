@@ -25,6 +25,7 @@ export default {
     support: "Support auf Telegram",
     issuesNote: 'Fehler und Vorschläge bitte über <a href="{repo}/issues">GitHub Issues</a> melden – ohne Nachrichten, Dokumente, Anmeldecodes und Tokens. Sicherheitslücken nur über den nicht öffentlichen Kanal aus <a href="{repo}/blob/main/SECURITY.md">SECURITY.md</a>.',
     trademarks: "ChatGPT, Claude, Telegram und andere Produktnamen sind Marken ihrer jeweiligen Inhaber. Postun ist ein unabhängiges Projekt, steht mit ihnen in keiner Verbindung und wird nicht von ihnen unterstützt.",
+    statusPage: 'Dienststatus',
     terms: 'Beta-Bedingungen',
     privacy: 'Datenverarbeitung'
   },
@@ -165,6 +166,61 @@ export default {
     a7: 'Ja. Die Beta ist kostenlos, mit einem Limit von {quota} erfolgreichen Vorgängen pro Tag (UTC) und Inhaber. Dienstanfragen und Fehler werden nicht gezählt. In der Beta gibt es keine Zahlungen, und das Limit kann sich ändern.',
     q8: "Welche anderen KI-Clients kann ich nutzen?",
     a8: "Jeden MCP-Client, der entfernte Server über HTTP mit OAuth-Anmeldung unterstützt. Im Abschnitt <a href=\"#connect\">Verbinden</a> siehst du, welche Clients in der Produktion verifiziert sind, und die Schritte für jeden einzelnen."
+  },
+  statusPage: {
+    title: 'Postun Dienststatus',
+    metaDescription: 'Läuft Postun gerade: Website, Dashboard, Anmeldung, MCP-Server und Telegram-Verbindung. Verfügbarkeit für 24 Stunden, 7 und 90 Tage sowie aktuelle Störungen.',
+    h1: 'Dienststatus',
+    intro: 'Diese Seite zeigt, ob Postun gerade funktioniert. Die Daten stammen aus einem unabhängigen Monitoring und werden jede Minute aktualisiert. Postun befindet sich in einer offenen Beta ohne SLA: Das ist keine Verfügbarkeitsgarantie, sondern ein ehrliches Bild dessen, was wir beobachten.',
+    noscript: 'Der Status wird mit JavaScript geladen. Aktivieren Sie es, um den aktuellen Zustand zu sehen.',
+    loading: 'Status wird geladen…',
+    legendTitle: 'Legende',
+    overall: {
+      operational: 'Alle Systeme laufen',
+      degraded: 'Einige Systeme sind beeinträchtigt',
+      outage: 'Schwerwiegender Ausfall des Dienstes',
+      unknown: 'Monitoring-Daten nicht verfügbar'
+    },
+    state: {
+      operational: 'In Betrieb',
+      degraded: 'Beeinträchtigt',
+      outage: 'Ausgefallen',
+      unknown: 'Keine Daten'
+    },
+    legend: {
+      operational: 'Die Komponente antwortet normal.',
+      degraded: 'Die Komponente arbeitet mit Unterbrechungen oder langsamer als gewöhnlich.',
+      outage: 'Die Komponente ist nicht erreichbar.',
+      unknown: 'Das Monitoring hat keine aktuellen Daten geliefert. Das bedeutet nicht, dass etwas defekt ist.'
+    },
+    unavailable: 'Das Monitoring antwortet nicht oder seine Daten sind veraltet. Wir kennen den aktuellen Zustand nicht, aber das bedeutet nicht, dass der Dienst ausgefallen ist.',
+    comp: {
+      site: 'Website',
+      app: 'Dashboard',
+      auth: 'Anmeldung',
+      mcp: 'MCP-Server (KI-Clients)',
+      telegram: 'Telegram-Verbindung'
+    },
+    latency: 'Antwortzeit',
+    ms: '{ms} ms',
+    up24h: 'Letzte 24 Stunden',
+    up7d: 'Letzte 7 Tage',
+    up90d: 'Letzte 90 Tage',
+    history: 'Letzte 90 Tage',
+    historyHelp: 'Fahren Sie mit der Maus über den Streifen oder fokussieren Sie ihn per Tastatur und wählen Sie mit den Pfeiltasten links und rechts einen Tag.',
+    dayNoData: '{date}: keine Daten',
+    dayUptime: '{date}: Verfügbarkeit {uptime}',
+    historyFrom: 'Vor 90 Tagen',
+    historyTo: 'Heute',
+    incidentsTitle: 'Aktuelle Störungen',
+    incidentsNone: 'Keine Störungen.',
+    incOngoing: 'Andauernd',
+    incResolved: 'Behoben',
+    incSince: 'Seit {start}',
+    incRange: '{start} — {end}',
+    incAffected: 'Betroffen: {list}',
+    updated: 'Aktualisiert {when}',
+    justNow: 'gerade eben'
   },
   legal: {
     translationNote: 'Dies ist eine Übersetzung zur Orientierung. Bei Abweichungen gilt die englische Fassung.'
