@@ -10,7 +10,9 @@ export default {
     faq: 'FAQ',
     app: 'Dashboard',
     language: 'Sprache',
-    skip: 'Zum Inhalt springen'
+    skip: 'Zum Inhalt springen',
+    connect: "Verbinden",
+    security: "Sicherheit"
   },
   footer: {
     about: 'Postun ist ein experimentelles Projekt in der offenen Beta. Ohne SLA und ohne Verfügbarkeitsgarantie. Der Quellcode ist unter der Lizenz Apache-2.0 offen.',
@@ -20,7 +22,9 @@ export default {
     source: 'Quellcode',
     vuln: 'Sicherheitslücke melden',
     issues: 'Feedback',
+    support: "Support auf Telegram",
     issuesNote: 'Fehler und Vorschläge bitte über <a href="{repo}/issues">GitHub Issues</a> melden – ohne Nachrichten, Dokumente, Anmeldecodes und Tokens. Sicherheitslücken nur über den nicht öffentlichen Kanal aus <a href="{repo}/blob/main/SECURITY.md">SECURITY.md</a>.',
+    trademarks: "ChatGPT, Claude, Telegram und andere Produktnamen sind Marken ihrer jeweiligen Inhaber. Postun ist ein unabhängiges Projekt, steht mit ihnen in keiner Verbindung und wird nicht von ihnen unterstützt.",
     terms: 'Beta-Bedingungen',
     privacy: 'Datenverarbeitung'
   },
@@ -66,7 +70,7 @@ export default {
     flowAi: 'Ihre KI',
     clientVerified: 'geprüft',
     clientTesting: 'im Test',
-    clientOther: 'Weitere MCP-Clients',
+    clientOther: "Claude, Cursor, Gemini CLI und mehr – so verbindest du sie",
     uspTitle: 'Warum Postun',
     usp1Title: 'Ihr Konto, kein Bot',
     usp1: 'Postun verbindet Ihr eigenes Telegram-Konto wie ein verknüpftes Gerät. QR-Code scannen – nach etwa einer Minute ist alles bereit, ohne API-Schlüssel und ohne Entwickler-Setup.',
@@ -98,6 +102,49 @@ export default {
     finalTitle: 'Verbinden Sie Telegram mit Ihrer KI',
     finalText: 'Kostenlos während der Beta. Nur Transit, keine Speicherung von Nachrichten. Zugriff jederzeit widerrufbar.'
   },
+  connect: {
+    title: "Verbinde deinen KI-Client",
+    intro: "Alle Clients nutzen dieselbe Adresse: <code>https://mcp.postun.org/mcp</code>. Nach dem Hinzufügen öffnet der Client ein Browserfenster: Melde dich mit Telegram an, verknüpfe dein Konto, falls noch nicht geschehen, und wähle, welche Konten und Daten dieser Client lesen darf.",
+    verified: "In der Produktion verifiziert",
+    verifiedNote: "Von uns komplett getestet: Anmeldung, Kontoverknüpfung und Lesen von Chats.",
+    protocol: "Unterstützen das Protokoll, von uns noch nicht getestet",
+    protocolNote: "Laut ihrer eigenen Dokumentation unterstützen diese Clients entfernte MCP-Server mit OAuth-Anmeldung. Wir haben sie noch nicht getestet; Menüs und Befehle können in deiner Version abweichen.",
+    docs: "Dokumentation des Clients",
+    chatgpt: "Füge in ChatGPT einen benutzerdefinierten MCP-Connector mit dieser Adresse hinzu und wähle die Anmeldung per OAuth. Benutzerdefinierte Connectoren hängen von deinem Tarif und den Workspace-Einstellungen ab; in Business und Enterprise muss sie eventuell ein Admin freigeben.",
+    claudeCode: "Führe den Befehl aus, tippe dann in Claude Code <code>/mcp</code>, wähle postun und melde dich im Browser an.",
+    claudeAi: "In Claude (Web oder Desktop-App): Customize → Connectors → Add custom connector, dann Name und Adresse eingeben. Im Free-Tarif ist ein benutzerdefinierter Connector möglich; in Team und Enterprise fügt ihn der Inhaber der Organisation hinzu.",
+    cursor: "Füge das in <code>~/.cursor/mcp.json</code> ein (oder in <code>.cursor/mcp.json</code> im Projekt). Cursor bietet dann die Anmeldung an.",
+    vscode: "Füge das in <code>.vscode/mcp.json</code> ein oder führe „MCP: Add Server“ aus und wähle HTTP. In Copilot Business und Enterprise muss die Organisation MCP-Server erlauben.",
+    gemini: "Führe den Befehl aus und dann <code>/mcp auth postun</code> in Gemini CLI, um dich im Browser anzumelden.",
+    codex: "Führe beide Befehle aus: Der erste fügt den Server hinzu, der zweite öffnet die Anmeldung im Browser.",
+    zed: "Füge das in die Zed-Einstellungen (settings.json) ein. Zed startet die OAuth-Anmeldung bei der ersten Nutzung.",
+    qwen: "Führe den Befehl aus und öffne dann <code>/mcp</code> in Qwen Code, um dich anzumelden."
+  },
+  security: {
+    title: "Sicherheit im Detail",
+    intro: "Was dein Konto schützt – genau so, wie es im Code umgesetzt ist.",
+    s1Title: "Telegram-Sitzungen sind verschlüsselt",
+    s1: "AES-256-GCM mit einem eigenen zufälligen 256-Bit-Schlüssel für jedes verknüpfte Konto. Dieser Schlüssel ist seinerseits mit einem Hauptschlüssel verschlüsselt, der in den Cloudflare-Secrets liegt – nie im Code oder in der Datenbank.",
+    s2Title: "Deine Telegram-ID wird nicht im Klartext gespeichert",
+    s2: "Wir speichern nur einen HMAC-SHA-256-Index, um dein Profil zu finden, und eine mit AES-256-GCM verschlüsselte Kopie der ID.",
+    s3Title: "Zugriff nur mit deiner Zustimmung",
+    s3: "KI-Clients melden sich mit OAuth 2.1 und PKCE an: Nur die Methode S256 wird akzeptiert, und öffentliche Clients wie ChatGPT und Claude Code müssen sie verwenden. Auf dem Zustimmungsbildschirm wählst du für jeden Client die Konten und Leserechte und kannst sie jederzeit widerrufen.",
+    s4Title: "Verschlüsselte Verbindungen, strenge CSP",
+    s4: "Nur HTTPS, mit HSTS für ein Jahr auf allen Subdomains. Eine strenge Content Security Policy: Das Dashboard lädt keinen Fremdcode, öffentliche Seiten laden nur Cloudflare Web Analytics.",
+    s5Title: "Logs abgeschaltet – in der CI geprüft",
+    s5: "Logs und Tracing von Cloudflare sind in allen Postun-Diensten deaktiviert. Der Build schlägt fehl, wenn Logging eingeschaltet wird oder Code versucht, Daten ins Log zu schreiben.",
+    s6Title: "Offener Code, geheime Schlüssel",
+    s6: "Kerckhoffs’ Prinzip: Ein System muss sicher bleiben, auch wenn alles außer den Schlüsseln öffentlich ist. Der gesamte Code von Postun ist unter Apache-2.0 offen, und die Sicherheit beruht allein auf den Schlüsseln in den Cloudflare-Secrets.",
+    moreTitle: "Außerdem",
+    m1: "OAuth-Tokens werden nur als Hashes gespeichert. Zugriffstokens laufen nach einer Stunde ab, Refresh-Tokens nach 30 Tagen.",
+    m2: "Die Telegram-Anmeldung nutzt den offiziellen OpenID-Connect-Ablauf mit PKCE, state und nonce; Token-Signaturen werden geprüft.",
+    m3: "Sitzungs-Cookies tragen das Präfix __Host- mit Secure, HttpOnly und SameSite. Jede Änderung ist durch eine Herkunftsprüfung und ein CSRF-Token geschützt.",
+    m4: "Die Sitzungen und Berechtigungen jedes Inhabers liegen in einem eigenen, isolierten Speicherobjekt (einem Cloudflare Durable Object).",
+    m5: "Verschlüsselte Daten sind an Inhaber und Konto gebunden (authentifizierte Daten in AES-GCM), und der Hauptschlüssel lässt sich wechseln, ohne Konten neu zu verknüpfen.",
+    m6: "Werkzeugergebnisse kennzeichnen Telegram-Inhalte als nicht vertrauenswürdige Daten, damit deine KI Nachrichten als Daten und nicht als Anweisungen behandelt.",
+    m7: "Die CI durchsucht das Repository außerdem bei jedem Build nach Secrets.",
+    note: "Cloudflare und Telegram speichern als Infrastruktur eigene technische Metadaten; Details stehen im Dokument zur Datenverarbeitung in der Fußzeile."
+  },
   faq: {
     title: 'Häufige Fragen',
     claudeTesting: 'noch im Test und in der Produktion noch nicht verifiziert',
@@ -115,7 +162,9 @@ export default {
     q6: 'Kann ich den Zugriff widerrufen?',
     a6: 'Ja, jederzeit. Im Dashboard können Sie einzelne KI-Clients widerrufen, ein Telegram-Konto trennen (die Sitzung wird beendet) oder Ihr Profil löschen. Die Sitzung lässt sich auch in Telegram unter Einstellungen → Geräte beenden.',
     q7: 'Ist Postun kostenlos?',
-    a7: 'Ja. Die Beta ist kostenlos, mit einem Limit von {quota} erfolgreichen Vorgängen pro Tag (UTC) und Inhaber. Dienstanfragen und Fehler werden nicht gezählt. In der Beta gibt es keine Zahlungen, und das Limit kann sich ändern.'
+    a7: 'Ja. Die Beta ist kostenlos, mit einem Limit von {quota} erfolgreichen Vorgängen pro Tag (UTC) und Inhaber. Dienstanfragen und Fehler werden nicht gezählt. In der Beta gibt es keine Zahlungen, und das Limit kann sich ändern.',
+    q8: "Welche anderen KI-Clients kann ich nutzen?",
+    a8: "Jeden MCP-Client, der entfernte Server über HTTP mit OAuth-Anmeldung unterstützt. Im Abschnitt <a href=\"#connect\">Verbinden</a> siehst du, welche Clients in der Produktion verifiziert sind, und die Schritte für jeden einzelnen."
   },
   legal: {
     translationNote: 'Dies ist eine Übersetzung zur Orientierung. Bei Abweichungen gilt die englische Fassung.'

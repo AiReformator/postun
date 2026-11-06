@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync, existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { landing, cabinet, privacy, terms, faqItems, WEB_ANALYTICS_TOKEN, BEACON_SRC } from '../src/pages.mjs';
+import { landing, cabinet, privacy, terms, faqItems, WEB_ANALYTICS_TOKEN, BEACON_SRC, CLIENTS } from '../src/pages.mjs';
 import { robotsTxt, sitemapXml, llmsTxt } from '../src/seo.mjs';
 import { connectAvailable, validateStatus } from '../src/render.mjs';
 import { LOCALES, checkLocales, translator } from '../i18n/index.mjs';
@@ -178,9 +178,11 @@ describe('design system', () => {
     const hero = (s) => landing(s).match(/<ul class="flow-clients">([\s\S]*?)<\/ul>/)[1];
     const notRun = hero(withAll(status, 'NOT_RUN'));
     expect(notRun).not.toContain('pill-ok');
-    expect(notRun.match(/pill-warn/g)).toHaveLength(3);
+    expect(notRun.match(/pill-warn/g)).toHaveLength(2);
     const pass = hero(withAll(status, 'PASS'));
-    expect(pass.match(/pill-ok/g)).toHaveLength(3);
+    expect(pass.match(/pill-ok/g)).toHaveLength(2);
+    // Claude (claude.ai) has no status entry of its own, so the hero never shows it as verified.
+    expect(pass).not.toMatch(/<li>Claude <span/);
     const live = hero(status);
     const st = Object.fromEntries(status.features.map((f) => [f.id, f.status]));
     expect(live).toMatch(new RegExp(`ChatGPT <span class="pill ${st.mcp_chatgpt === 'PASS' ? 'pill-ok' : 'pill-warn'}"`));
@@ -195,6 +197,33 @@ describe('design system', () => {
         expect(at, l.code).toBeLessThan(hero.indexOf('class="btn-row"'));
         // The copy button ships hidden and is revealed by host.js only where the Clipboard API exists.
         expect(hero).toMatch(/<button type="button" class="btn btn-sm endpoint-copy" data-copy="https:\/\/mcp\.postun\.org\/mcp" data-copied="[^"]+" hidden>/);
+      }
+    }
+  });
+  it('connect section groups clients by status.json and never claims an untested client', () => {
+    const section = (st) => landing(st).match(/<section id="connect"[\s\S]*?<\/section>/)[0];
+    const groups = (st) => section(st).split('<div class="connect-group">').slice(1);
+    const names = (g) => [...g.matchAll(/<span class="client-name">([^<]+)<\/span>/g)].map((m) => m[1]);
+    const [okAll, restAll] = groups(withAll(status, 'PASS'));
+    expect(names(okAll)).toEqual(['ChatGPT', 'Claude Code']);
+    expect(names(restAll)).toContain('Claude');
+    const [okNone, restNone] = groups(withAll(status, 'NOT_RUN'));
+    expect(names(okNone)).toEqual([]);
+    expect(names(restNone)).toEqual(CLIENTS.map((c) => c.name));
+    for (const c of CLIENTS) expect(c.docs).toMatch(/^https:\/\//);
+    for (const l of LOCALES) {
+      const html = landing(status, l.code);
+      expect(html).toContain('id="connect"');
+      expect(html).toContain('id="security"');
+      expect(html).toContain('claude mcp add --transport http postun https://mcp.postun.org/mcp');
+    }
+  });
+  it('footer carries the trademark note and the Telegram support link on every page', () => {
+    for (const l of LOCALES) {
+      for (const html of [landing(status, l.code), privacy(l.code), terms(l.code), cabinet(status, l.code)]) {
+        const footer = html.match(/<footer[\s\S]*<\/footer>/)[0];
+        expect(footer).toContain('href="https://t.me/postun_org"');
+        expect(footer).toContain('class="foot-note foot-tm"');
       }
     }
   });

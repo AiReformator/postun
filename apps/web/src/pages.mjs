@@ -3,6 +3,7 @@ import { LOCALES, SITE, locale, translator } from '../i18n/index.mjs';
 import { BRAND_MARK, icon } from './icons.mjs';
 
 const REPO = 'https://github.com/AiReformator/postun';
+const SUPPORT = 'https://t.me/postun_org';
 
 /** Page ids and their path below a locale prefix. */
 export const PAGES = { home: '/', privacy: '/privacy/', terms: '/terms/', cabinet: '/app/' };
@@ -50,7 +51,7 @@ ${head}</head>
 <a class="skip-link" href="#main">${t('nav.skip')}</a>
 <header class="site-header"><div class="wrap">
 <a class="brand" href="${home}">${BRAND_MARK}Postun <span class="badge">Beta</span></a>
-<nav class="site-nav"><a href="${home}#how">${t('nav.how')}</a><a href="${home}#status">${t('nav.status')}</a><a href="${home}#faq">${t('nav.faq')}</a><a href="${REPO}">GitHub</a></nav>
+<nav class="site-nav"><a href="${home}#how">${t('nav.how')}</a><a href="${home}#connect">${t('nav.connect')}</a><a href="${home}#security">${t('nav.security')}</a><a href="${home}#status">${t('nav.status')}</a><a href="${home}#faq">${t('nav.faq')}</a><a href="${REPO}">GitHub</a></nav>
 <details class="lang"><summary aria-label="${esc(t('nav.language'))}: ${esc(L.dict.meta.languageName)}">${icon('globe')}${L.short}${icon('chevron')}</summary>
 <nav class="langs" aria-label="${esc(t('nav.language'))}">${switcher}</nav></details>
 ${headerCta}</div></header>
@@ -58,9 +59,10 @@ ${headerCta}</div></header>
 <footer class="site-footer"><div class="wrap foot-grid">
 <div class="foot-brand"><a class="brand" href="${home}">${BRAND_MARK}Postun</a><p>${t('footer.about')}</p></div>
 <div class="foot-col"><h2>${t('footer.product')}</h2><ul><li><a href="${home}#how">${t('nav.how')}</a></li><li><a href="${home}#status">${t('nav.status')}</a></li><li><a href="${home}#faq">${t('nav.faq')}</a></li><li><a href="${DASHBOARD(L)}">${t('nav.app')}</a></li></ul></div>
-<div class="foot-col"><h2>${t('footer.project')}</h2><ul><li><a href="${REPO}">${t('footer.source')}</a></li><li><a href="${REPO}/blob/main/SECURITY.md">${t('footer.vuln')}</a></li><li><a href="${REPO}/issues">${t('footer.issues')}</a></li></ul></div>
+<div class="foot-col"><h2>${t('footer.project')}</h2><ul><li><a href="${REPO}">${t('footer.source')}</a></li><li><a href="${REPO}/blob/main/SECURITY.md">${t('footer.vuln')}</a></li><li><a href="${REPO}/issues">${t('footer.issues')}</a></li><li><a href="${SUPPORT}">${t('footer.support')}</a></li></ul></div>
 <div class="foot-col"><h2>${t('footer.legal')}</h2><ul><li><a href="${L.prefix}/terms/">${t('footer.terms')}</a></li><li><a href="${L.prefix}/privacy/">${t('footer.privacy')}</a></li></ul></div>
 <p class="foot-note">${t('footer.issuesNote', { repo: REPO })}</p>
+<p class="foot-note foot-tm">${t('footer.trademarks')}</p>
 </div></footer>
 ${script ? `<script src="${script}" defer></script>` : ''}
 ${analytics ? beacon() : ''}</body>
@@ -81,7 +83,7 @@ export function plainText(html) {
   return s.replace(/&(amp|lt|gt|quot|#39);/g, (_, e) => ENTITIES[e]);
 }
 
-export const FAQ_COUNT = 7;
+export const FAQ_COUNT = 8;
 
 /** FAQ entries for a locale: answers are HTML (visible page) and plain text (JSON-LD). Claude Code wording follows status.json. */
 export function faqItems(status, code = 'en') {
@@ -125,16 +127,15 @@ export function jsonLd(status, code = 'en') {
 }
 
 
-/** AI clients in the hero diagram. Compatibility is claimed only from status.json: PASS → verified, anything else → in testing. */
+/** AI clients in the hero diagram: only clients with their own status.json entry (PASS → verified, else in testing). Others link to #connect. */
 function clientList(status, t) {
   const st = Object.fromEntries(status.features.map((f) => [f.id, f.status]));
   const pill = (id) =>
     st[id] === 'PASS' ? `<span class="pill pill-ok">${t('landing.clientVerified')}</span>` : `<span class="pill pill-warn">${t('landing.clientTesting')}</span>`;
   return `<ul class="flow-clients">
 <li>ChatGPT ${pill('mcp_chatgpt')}</li>
-<li>Claude ${pill('mcp_claude_code')}</li>
 <li>Claude Code ${pill('mcp_claude_code')}</li>
-<li class="more">${t('landing.clientOther')}</li>
+<li class="more"><a href="#connect">${t('landing.clientOther')}</a></li>
 </ul>`;
 }
 
@@ -149,6 +150,74 @@ function endpoint(t) {
 </div>`;
 }
 
+
+/** Compact JSON config, so it fits a phone screen: {"key": {"postun": {\n  ...fields\n}}} */
+const MCP_JSON = (key, extra = {}) => {
+  const fields = Object.entries({ ...extra, url: MCP_URL }).map(([k, v]) => `  ${JSON.stringify(k)}: ${JSON.stringify(v)}`);
+  return `{${JSON.stringify(key)}: {"postun": {\n${fields.join(',\n')}\n}}}`;
+};
+
+/**
+ * MCP clients for the Connect section. `status` links a client to its status.json feature: only PASS puts it in
+ * "verified on production"; every other client is listed as "supports the protocol, not tested by us".
+ * Setup steps follow each client's own documentation (docs), checked 2026-11-06.
+ */
+export const CLIENTS = [
+  { id: 'chatgpt', name: 'ChatGPT', status: 'mcp_chatgpt', code: MCP_URL, docs: 'https://developers.openai.com/apps-sdk/deploy/connect-chatgpt' },
+  { id: 'claudeCode', name: 'Claude Code', status: 'mcp_claude_code', code: `claude mcp add --transport http postun ${MCP_URL}`, docs: 'https://code.claude.com/docs/en/mcp' },
+  { id: 'claudeAi', name: 'Claude', code: MCP_URL, docs: 'https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp' },
+  { id: 'cursor', name: 'Cursor', code: MCP_JSON('mcpServers'), docs: 'https://cursor.com/docs/context/mcp' },
+  { id: 'vscode', name: 'VS Code · GitHub Copilot', code: MCP_JSON('servers', { type: 'http' }), docs: 'https://code.visualstudio.com/docs/agents/reference/mcp-configuration' },
+  { id: 'gemini', name: 'Gemini CLI', code: `gemini mcp add --transport http postun ${MCP_URL}`, docs: 'https://geminicli.com/docs/tools/mcp-server/' },
+  { id: 'codex', name: 'Codex CLI', code: `codex mcp add postun --url ${MCP_URL}\ncodex mcp login postun`, docs: 'https://developers.openai.com/codex/mcp' },
+  { id: 'zed', name: 'Zed', code: MCP_JSON('context_servers'), docs: 'https://zed.dev/docs/ai/mcp' },
+  { id: 'qwen', name: 'Qwen Code', code: `qwen mcp add --transport http postun ${MCP_URL}`, docs: 'https://qwenlm.github.io/qwen-code-docs/en/users/features/mcp/' }
+];
+
+/** A code block with a copy button (revealed by host.js only where the Clipboard API exists). */
+function snippet(code, t) {
+  const kind = code.startsWith('{') ? 'json' : code.startsWith('https://') ? 'url' : 'terminal';
+  return `<div class="snippet snippet-${kind}"><div class="snippet-bar"><span>${kind}</span><button type="button" class="btn btn-sm snippet-copy" data-copy="${esc(code)}" data-copied="${esc(plainText(t('app.copied')))}" hidden>${icon('copy')}<span>${t('app.copy')}</span></button></div><pre><code>${esc(code)}</code></pre></div>`;
+}
+
+function connectSection(status, t) {
+  const st = Object.fromEntries(status.features.map((f) => [f.id, f.status]));
+  const verified = (c) => Boolean(c.status) && st[c.status] === 'PASS';
+  const item = (c, ok) => `<details id="connect-${c.id.toLowerCase()}"><summary><span class="client-name">${esc(c.name)}</span>${ok ? `<span class="pill pill-ok">${t('landing.clientVerified')}</span>` : ''}</summary>
+<div class="client-body"><p>${t(`connect.${c.id}`)}</p>${snippet(c.code, t)}<p class="client-docs"><a href="${c.docs}">${t('connect.docs')}</a></p></div></details>`;
+  const ok = CLIENTS.filter(verified);
+  const rest = CLIENTS.filter((c) => !verified(c));
+  return `<section id="connect" class="section faq connect">
+<div class="section-head"><h2>${t('connect.title')}</h2><p>${t('connect.intro')}</p></div>
+<div class="connect-groups">
+<div class="connect-group"><h3 class="group-title">${t('connect.verified')}</h3><p class="note">${t('connect.verifiedNote')}</p>
+<div class="faq-list">${ok.map((c) => item(c, true)).join('\n')}</div></div>
+<div class="connect-group"><h3 class="group-title">${t('connect.protocol')}</h3><p class="note">${t('connect.protocolNote')}</p>
+<div class="faq-list">${rest.map((c) => item(c, false)).join('\n')}</div></div>
+</div>
+</section>`;
+}
+
+/** Security facts, each checked against the code (see docs/03_SECURITY_PRIVACY.md). Labels are technical names, not translated. */
+const SECURITY_LABELS = ['AES-256-GCM', 'HMAC-SHA-256', 'OAuth 2.1 · PKCE S256', 'TLS · HSTS · CSP', 'logs: off', 'Kerckhoffs · Apache-2.0'];
+const SECURITY_ICONS = ['lock', 'eye', 'check', 'link', 'info', 'code'];
+const SECURITY_MORE = 7;
+
+function securitySection(t) {
+  const items = SECURITY_LABELS.map((label, i) => `<li class="spec-item ticked"><p class="spec-label">${icon(SECURITY_ICONS[i])}<code>${esc(label)}</code></p><h3>${t(`security.s${i + 1}Title`)}</h3><p>${t(`security.s${i + 1}`)}</p></li>`).join('\n');
+  const more = Array.from({ length: SECURITY_MORE }, (_, i) => `<li>${t(`security.m${i + 1}`)}</li>`).join('\n');
+  return `<section id="security" class="section">
+<div class="section-head"><h2>${t('security.title')}</h2><p>${t('security.intro')}</p></div>
+<ul class="spec">
+${items}
+</ul>
+<div class="spec-more"><h3>${t('security.moreTitle')}</h3><ul>
+${more}
+</ul></div>
+<p class="note spec-note">${t('security.note')}</p>
+</section>`;
+}
+
 export function landing(status, code = 'en') {
   const L = locale(code);
   const t = translator(L.dict);
@@ -159,7 +228,7 @@ export function landing(status, code = 'en') {
     ? `<div class="btn-row">${ctaLink()}<a class="btn secondary" href="#how">${t('landing.ctaSecondary')}</a></div>`
     : `<div class="btn-row"><button class="btn" disabled aria-describedby="cta-note">${t('landing.cta')}</button><a class="btn secondary" href="#how">${t('landing.ctaSecondary')}</a></div>
 <p id="cta-note" class="note cta-note">${t('landing.ctaClosed')}</p>`;
-  const usp = (i, ico, extra = '', cls = 'usp') =>
+  const usp = (i, ico, extra = '', cls = 'usp ticked') =>
     `<li class="${cls}"><span class="usp-ico">${icon(ico)}</span><h3>${t(`landing.usp${i}Title`)}</h3>${extra}<p>${i === 6 ? t('landing.quota', { quota }) : t(`landing.usp${i}`)}</p></li>`;
   const step = (i) => `<li><h3>${t(`landing.step${i}Title`)}</h3><p>${t(`landing.step${i}`)}</p></li>`;
   return layout(L, 'home', {
@@ -182,8 +251,8 @@ ${cta}
 <li>${icon('check')}${t('landing.trust3')}</li>
 </ul>
 </div>
-<figure class="flow" aria-label="${esc(plainText(t('landing.flowLabel')))}">
-<div class="flow-node"><span class="flow-ico">${icon('phone')}</span><strong>${t('landing.flowYou')}</strong><small>${t('landing.flowYouNote')}</small></div>
+<figure class="flow ticked" aria-label="${esc(plainText(t('landing.flowLabel')))}">
+<div class="flow-node"><span class="flow-ico flow-tg"><img src="/assets/telegram.svg" alt="" width="44" height="44"></span><strong>${t('landing.flowYou')}</strong><small>${t('landing.flowYouNote')}</small></div>
 <div class="flow-link" aria-hidden="true"></div>
 <div class="flow-node flow-core"><span class="flow-ico">${BRAND_MARK}</span><strong>Postun</strong><small>${t('landing.flowCoreNote')}</small></div>
 <div class="flow-link" aria-hidden="true"></div>
@@ -195,7 +264,7 @@ ${clientList(status, t)}
 <section id="why" class="section">
 <div class="section-head"><h2>${t('landing.uspTitle')}</h2></div>
 <ul class="usp-grid">
-${usp(1, 'qr', '', 'usp usp-lead')}
+${usp(1, 'qr', '', 'usp usp-lead ticked')}
 ${usp(2, 'spark')}
 ${usp(3, 'eye')}
 ${usp(4, 'lock')}
@@ -210,6 +279,10 @@ ${usp(6, 'gift', `<p class="usp-figure">${esc(quota)}</p>`)}
 ${[1, 2, 3, 4].map(step).join('\n')}
 </ol>
 </section>
+
+${connectSection(status, t)}
+
+${securitySection(t)}
 
 <section id="status" class="section">
 <div class="status-grid">
@@ -238,7 +311,7 @@ ${faqItems(status, code).map((f) => `<details><summary>${f.q}</summary><p>${f.ht
 </section>
 
 <section class="section">
-<div class="final">
+<div class="final ticked">
 <h2>${t('landing.finalTitle')}</h2>
 <p>${t('landing.finalText')}</p>
 ${open ? ctaLink() : ''}

@@ -61,7 +61,8 @@
         },
         function () {
           // Clipboard refused: select the address so the user can copy it by hand.
-          var code = btn.parentNode && btn.parentNode.querySelector('code');
+          var box = btn.closest('.snippet, .copy-field');
+          var code = box && box.querySelector('code');
           var sel = window.getSelection && window.getSelection();
           if (!code || !sel) return;
           var range = document.createRange();
