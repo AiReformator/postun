@@ -12,7 +12,7 @@
  * Telegram data and is written with textContent only.
  */
 
-export const MEDIA_WIDGET_URI = 'ui://postun/media-card-v1.html';
+export const MEDIA_WIDGET_URI = 'ui://postun/media-card-v2.html';
 export const MCP_APP_MIME = 'text/html;profile=mcp-app';
 
 /** Types ChatGPT accepts as an attachment the model can read (images and PDF). Anything else is offered as a download. */
@@ -252,7 +252,7 @@ async function onDownload() {
 function render(sc) {
   if (!sc || typeof sc !== 'object' || !sc.media) return;
   data = sc;
-  $('card').hidden = false;
+  $('row').hidden = false;
   $('name').textContent = fileName();
   $('meta').textContent = [mime(), fmtSize(sc.media.size)].filter(Boolean).join(' · ');
   $('attach').textContent = T.attach;
@@ -266,31 +266,63 @@ function render(sc) {
   if (!download()) status(T.failed, true);
   else if (already) status(T.attached);
   else if (!attachable) status(T.notAttachable);
+  reportSize();
 }
 
-// ChatGPT: window.openai carries the tool result and announces late values with openai:set_globals.
+// MCP Apps bridge (ChatGPT and other hosts): JSON-RPC 2.0 over postMessage with the parent window. The host waits for
+// ui/initialize from the card and drops it on a timeout otherwise, so the handshake always runs, also when ChatGPT's
+// window.openai compatibility object is present.
+const embedded = window.parent && window.parent !== window;
+const INIT_ID = 1;
+let initialized = false;
+function post(msg) {
+  if (embedded) window.parent.postMessage(msg, '*');
+}
+let lastSize = '';
+function reportSize() {
+  if (!initialized) return;
+  const el = document.documentElement;
+  const width = Math.ceil(el.scrollWidth || 0);
+  const height = Math.ceil(el.scrollHeight || 0);
+  const key = width + 'x' + height;
+  if (key === lastSize) return;
+  lastSize = key;
+  post({ jsonrpc: '2.0', method: 'ui/notifications/size-changed', params: { width, height } });
+}
+
+window.addEventListener('message', (ev) => {
+  if (!embedded || ev.source !== window.parent) return;
+  const m = ev.data;
+  if (!m || m.jsonrpc !== '2.0') return;
+  if (m.id === INIT_ID && !m.method) {
+    if (m.result && !initialized) {
+      initialized = true;
+      post({ jsonrpc: '2.0', method: 'ui/notifications/initialized' });
+      reportSize();
+    }
+    return;
+  }
+  if (m.method === 'ui/notifications/tool-result' && m.params) {
+    render(m.params.structuredContent);
+    return;
+  }
+  // Any request from the host (ping, teardown, ...) gets an empty result so the host never waits on the card.
+  if (m.method && m.id !== undefined && m.id !== null) post({ jsonrpc: '2.0', id: m.id, result: {} });
+});
+
+// ChatGPT compatibility: window.openai carries the tool result and announces late values with openai:set_globals.
 function fromOpenAi() {
   const api = oa();
   if (api && api.toolOutput) render(api.toolOutput);
 }
 window.addEventListener('openai:set_globals', fromOpenAi, { passive: true });
 
-// Other MCP Apps hosts: JSON-RPC over postMessage with the parent window.
-window.addEventListener('message', (ev) => {
-  if (ev.source !== window.parent) return;
-  const m = ev.data;
-  if (!m || m.jsonrpc !== '2.0') return;
-  if (m.method === 'ui/notifications/tool-result' && m.params) render(m.params.structuredContent);
-  else if (m.id === 'postun-init' && m.result) window.parent.postMessage({ jsonrpc: '2.0', method: 'ui/notifications/initialized', params: {} }, '*');
-});
-
 $('attach').addEventListener('click', onAttach);
 $('dl').addEventListener('click', onDownload);
 $('label').textContent = T.file;
 fromOpenAi();
-if (!oa() && window.parent !== window) {
-  window.parent.postMessage({ jsonrpc: '2.0', id: 'postun-init', method: 'ui/initialize', params: { protocolVersion: '2026-01-26', appInfo: { name: 'postun-media-card', version: '1' }, clientInfo: { name: 'postun-media-card', version: '1' }, appCapabilities: {} } }, '*');
-}
+post({ jsonrpc: '2.0', id: INIT_ID, method: 'ui/initialize', params: { appInfo: { name: 'postun-media-card', version: '1.1.0' }, appCapabilities: {}, protocolVersion: '2026-01-26' } });
+if (typeof ResizeObserver === 'function') new ResizeObserver(reportSize).observe(document.documentElement);
 `;
 }
 
@@ -324,8 +356,8 @@ export function mediaWidgetHtml(origin: string): string {
     html =
       `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">` +
       `<style>${STYLE}</style></head><body>` +
-      `<div class="card" id="card" hidden><div class="label" id="label"></div><div class="name" id="name"></div><div class="meta" id="meta"></div>` +
-      `<div class="row"><button class="primary" id="attach" type="button"></button><button id="dl" type="button"></button></div>` +
+      `<div class="card" id="card"><div class="label" id="label"></div><div class="name" id="name"></div><div class="meta" id="meta"></div>` +
+      `<div class="row" id="row" hidden><button class="primary" id="attach" type="button"></button><button id="dl" type="button"></button></div>` +
       `<div class="status" id="status" role="status" aria-live="polite"></div></div>` +
       `<script type="module">${escapeScript(script(origin))}</script></body></html>`;
     htmlCache.set(origin, html);

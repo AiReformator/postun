@@ -25,11 +25,11 @@ function el(id) {
   };
 }
 
-function run({ output, locale = 'ru', fetchImpl, openai = true }) {
+function run({ output, locale = 'ru', fetchImpl, openai = true, embedded = false }) {
   const html = mediaWidgetHtml(ORIGIN);
   const code = /<script type="module">([\s\S]*)<\/script>/.exec(html)[1];
-  const els = Object.fromEntries(['card', 'label', 'name', 'meta', 'attach', 'dl', 'status'].map((i) => [i, el(i)]));
-  els.card.hidden = true; // the page starts with the card hidden
+  const els = Object.fromEntries(['card', 'label', 'name', 'meta', 'row', 'attach', 'dl', 'status'].map((i) => [i, el(i)]));
+  els.row.hidden = true; // the page starts with the buttons hidden
   const calls = { fetch: [], upload: [], state: [], followUp: [] };
   const api = openai
     ? {
@@ -44,11 +44,14 @@ function run({ output, locale = 'ru', fetchImpl, openai = true }) {
         sendFollowUpMessage: async (m) => calls.followUp.push(m)
       }
     : undefined;
-  const window = { openai: api, addEventListener() {}, parent: null, postMessage() {} };
-  window.parent = window;
+  const listeners = {};
+  const sent = [];
+  const window = { openai: api, addEventListener: (t, f) => (listeners[t] = f), parent: null };
+  window.parent = embedded ? { postMessage: (m) => sent.push(JSON.parse(JSON.stringify(m))) } : window;
+  const fromHost = (data) => listeners.message?.({ source: window.parent, data });
   const sandbox = {
     window,
-    document: { getElementById: (id) => els[id], createElement: () => el('a'), body: { appendChild() {} } },
+    document: { getElementById: (id) => els[id], createElement: () => el('a'), body: { appendChild() {} }, documentElement: { scrollWidth: 320, scrollHeight: 140 } },
     navigator: { language: locale },
     fetch: async (url, init) => {
       calls.fetch.push({ url, init });
@@ -62,7 +65,7 @@ function run({ output, locale = 'ru', fetchImpl, openai = true }) {
   };
   vm.createContext(sandbox);
   vm.runInContext(code, sandbox);
-  return { els, calls };
+  return { els, calls, sent, fromHost };
 }
 
 const okFetch = (body = new Uint8Array([1, 2, 3, 4])) => async () =>
@@ -77,7 +80,7 @@ const photo = (url = GOOD_URL) => ({
 
 test('renders the file and attaches it: fetch only to the pinned origin, upload, imageIds, follow-up', async () => {
   const { els, calls } = run({ output: photo(), fetchImpl: okFetch() });
-  assert.equal(els.card.hidden, false);
+  assert.equal(els.row.hidden, false);
   assert.equal(els.name.textContent, 'telegram-photo.jpg');
   assert.equal(els.attach.textContent, 'Передать в чат');
   assert.equal(els.attach.hidden, false);
@@ -141,7 +144,25 @@ test('file names from Telegram are shown as text only', () => {
 
 test('without the ChatGPT bridge the card waits for the tool result from the host', async () => {
   const { els, calls } = run({ output: photo(), openai: false, fetchImpl: okFetch() });
-  // No window.openai: the card waits for ui/notifications/tool-result and stays hidden.
-  assert.equal(els.card.hidden, true);
+  // No window.openai and no result yet: no buttons, nothing fetched.
+  assert.equal(els.row.hidden, true);
   assert.equal(calls.fetch.length, 0);
+});
+
+test('MCP Apps handshake: ui/initialize always, then initialized and size; result via the bridge; host requests answered', () => {
+  // window.openai is present (ChatGPT) and the card is embedded: the handshake must still run.
+  const { els, sent, fromHost } = run({ output: null, embedded: true, fetchImpl: okFetch() });
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].method, 'ui/initialize');
+  assert.equal(sent[0].params.protocolVersion, '2026-01-26');
+  assert.equal(sent[0].params.appInfo.name, 'postun-media-card');
+  fromHost({ jsonrpc: '2.0', id: sent[0].id, result: { protocolVersion: '2026-01-26', hostContext: {} } });
+  assert.equal(sent[1].method, 'ui/notifications/initialized');
+  assert.equal(sent[2].method, 'ui/notifications/size-changed');
+  assert.equal(JSON.stringify(sent[2].params), JSON.stringify({ width: 320, height: 140 }));
+  fromHost({ jsonrpc: '2.0', method: 'ui/notifications/tool-result', params: { structuredContent: photo() } });
+  assert.equal(els.row.hidden, false);
+  assert.equal(els.name.textContent, 'telegram-photo.jpg');
+  fromHost({ jsonrpc: '2.0', id: 7, method: 'ping' });
+  assert.equal(JSON.stringify(sent.at(-1)), JSON.stringify({ jsonrpc: '2.0', id: 7, result: {} }));
 });
