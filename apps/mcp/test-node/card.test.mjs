@@ -25,16 +25,17 @@ function el(id) {
   };
 }
 
-function run({ output, locale = 'ru', fetchImpl, openai = true, embedded = false }) {
+function run({ output, meta = null, locale = 'ru', fetchImpl, openai = true, embedded = false, hostCapabilities, reply = () => ({}) }) {
   const html = mediaWidgetHtml(ORIGIN);
   const code = /<script type="module">([\s\S]*)<\/script>/.exec(html)[1];
-  const els = Object.fromEntries(['card', 'label', 'name', 'meta', 'row', 'attach', 'dl', 'status'].map((i) => [i, el(i)]));
+  const els = Object.fromEntries(['card', 'label', 'name', 'meta', 'row', 'attach', 'dl', 'status', 'diag'].map((i) => [i, el(i)]));
   els.row.hidden = true; // the page starts with the buttons hidden
   const calls = { fetch: [], upload: [], state: [], followUp: [] };
   const api = openai
     ? {
         locale,
         toolOutput: output,
+        toolResponseMetadata: meta,
         widgetState: null,
         uploadFile: async (file) => {
           calls.upload.push({ name: file.name, type: file.type, size: file.size });
@@ -47,8 +48,19 @@ function run({ output, locale = 'ru', fetchImpl, openai = true, embedded = false
   const listeners = {};
   const sent = [];
   const window = { openai: api, addEventListener: (t, f) => (listeners[t] = f), parent: null };
-  window.parent = embedded ? { postMessage: (m) => sent.push(JSON.parse(JSON.stringify(m))) } : window;
   const fromHost = (data) => listeners.message?.({ source: window.parent, data });
+  // A scripted host: answers ui/initialize with hostCapabilities (when given) and every later request with reply().
+  window.parent = embedded
+    ? {
+        postMessage: (m) => {
+          const msg = JSON.parse(JSON.stringify(m));
+          sent.push(msg);
+          if (hostCapabilities === undefined || msg.id === undefined || msg.result !== undefined) return;
+          const result = msg.method === 'ui/initialize' ? { protocolVersion: '2026-01-26', hostCapabilities } : reply(msg);
+          setTimeout(() => fromHost(result && result.error ? { jsonrpc: '2.0', id: msg.id, error: result.error } : { jsonrpc: '2.0', id: msg.id, result }), 0);
+        }
+      }
+    : window;
   const sandbox = {
     window,
     document: { getElementById: (id) => els[id], createElement: () => el('a'), body: { appendChild() {} }, documentElement: { scrollWidth: 320, scrollHeight: 140 } },
@@ -59,8 +71,10 @@ function run({ output, locale = 'ru', fetchImpl, openai = true, embedded = false
     },
     Blob,
     File,
+    btoa,
     URL,
     setTimeout,
+    clearTimeout,
     console
   };
   vm.createContext(sandbox);
@@ -165,4 +179,82 @@ test('MCP Apps handshake: ui/initialize always, then initialized and size; resul
   assert.equal(els.name.textContent, 'telegram-photo.jpg');
   fromHost({ jsonrpc: '2.0', id: 7, method: 'ping' });
   assert.equal(JSON.stringify(sent.at(-1)), JSON.stringify({ jsonrpc: '2.0', id: 7, result: {} }));
+});
+
+const methods = (sent) => sent.map((m) => m.method).filter(Boolean);
+
+test('ChatGPT path: capability read from widget-only _meta; host with ui/message image support gets the image itself', async () => {
+  const hidden = { ...photo(), download: { url: GOOD_URL, expiresAt: '2030-01-01T00:00:00.000Z', note: 'card only' } };
+  const { els, calls, sent } = run({
+    output: hidden,
+    meta: { 'postun/download': { url: GOOD_URL, authorization: CAP, expiresAt: '2030-01-01T00:00:00.000Z' } },
+    embedded: true,
+    hostCapabilities: { message: { text: {}, image: {} } },
+    fetchImpl: okFetch()
+  });
+  await flush();
+  assert.notEqual(els.status.className, 'status err', 'the card must accept the _meta capability');
+  els.attach.fire('click');
+  await flush();
+  assert.equal(calls.fetch[0].init.headers.authorization, CAP);
+  const msg = sent.find((m) => m.method === 'ui/message');
+  assert.ok(msg, 'ui/message sent');
+  assert.equal(msg.params.role, 'user');
+  assert.equal(msg.params.content[1].type, 'image');
+  assert.equal(msg.params.content[1].mimeType, 'image/jpeg');
+  assert.equal(msg.params.content[1].data, 'AQIDBA==');
+  assert.match(msg.params.content[0].text, /telegram-photo\.jpg/);
+  assert.equal(calls.upload.length, 0, 'no legacy upload');
+  assert.equal(calls.followUp.length, 0, 'no second message');
+  assert.match(els.diag.textContent, /^ui\/message/);
+  // A second click sends nothing more.
+  els.attach.fire('click');
+  await flush();
+  assert.equal(methods(sent).filter((m) => m === 'ui/message').length, 1);
+});
+
+test('host that takes images only as model context: update-model-context with the image, then one text message', async () => {
+  const { els, calls, sent } = run({
+    output: photo(),
+    embedded: true,
+    hostCapabilities: { message: { text: {} }, updateModelContext: { image: {}, text: {} } },
+    fetchImpl: okFetch()
+  });
+  await flush();
+  els.attach.fire('click');
+  await flush();
+  const ctx = sent.find((m) => m.method === 'ui/update-model-context');
+  assert.equal(ctx.params.content[0].type, 'image');
+  const msgs = sent.filter((m) => m.method === 'ui/message');
+  assert.equal(msgs.length, 1);
+  assert.equal(msgs[0].params.content.length, 1);
+  assert.equal(calls.upload.length, 0);
+  assert.match(els.diag.textContent, /^ui\/update-model-context/);
+});
+
+test('a host error on ui/message falls back to the next way instead of failing', async () => {
+  const { els, calls } = run({
+    output: photo(),
+    embedded: true,
+    hostCapabilities: { message: { text: {}, image: {} } },
+    reply: (m) => (m.method === 'ui/message' ? { error: { code: -32000, message: 'no' } } : {}),
+    fetchImpl: okFetch()
+  });
+  await flush();
+  els.attach.fire('click');
+  await flush();
+  assert.equal(calls.upload.length, 1, 'legacy upload used');
+  assert.match(els.diag.textContent, /^uploadFile/);
+});
+
+test('a PDF goes as an embedded resource block', async () => {
+  const pdf = { ...photo(), media: { kind: 'document', fileName: 'scan.pdf', mimeType: 'application/pdf', size: 4 } };
+  const { els, sent } = run({ output: pdf, embedded: true, hostCapabilities: { message: { text: {}, resource: {} } }, fetchImpl: okFetch() });
+  await flush();
+  els.attach.fire('click');
+  await flush();
+  const msg = sent.find((m) => m.method === 'ui/message');
+  assert.equal(msg.params.content[1].type, 'resource');
+  assert.equal(msg.params.content[1].resource.mimeType, 'application/pdf');
+  assert.equal(msg.params.content[1].resource.blob, 'AQIDBA==');
 });

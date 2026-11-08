@@ -3,7 +3,7 @@ import { TOOLS, TOOL_SCOPE, mcpCallPoint, writeMetric, type GrantProps, type Too
 import { loadConfig } from './config';
 import type { Env } from './env';
 import { toolErrorResult } from './pause';
-import { MCP_APP_MIME, MEDIA_TOOL_UI_META, MEDIA_WIDGET_URI, mediaWidgetHtml, mediaWidgetResourceMeta } from './widget';
+import { DOWNLOAD_META_KEY, MCP_APP_MIME, MEDIA_TOOL_UI_META, MEDIA_WIDGET_URI, mediaWidgetHtml, mediaWidgetResourceMeta } from './widget';
 import { TOOL_OUTPUT } from './output';
 import { SERVER_INSTRUCTIONS, TOOL_DESCRIPTION, TOOL_INPUT, TOOL_TITLE } from './schemas';
 
@@ -87,6 +87,38 @@ const TOOL_DEFS = TOOLS.map((tool) => ({
   }
 }));
 
+/**
+ * ChatGPT tags every tool call with `openai/*` request metadata (Apps SDK: openai/locale, openai/userAgent, ...). It is a
+ * hint, so it is used only to show the model LESS, never to grant anything: a client that omits it gets today's result.
+ */
+export function isChatGptCall(meta: unknown): boolean {
+  return typeof meta === 'object' && meta !== null && Object.keys(meta).some((k) => k.startsWith('openai/'));
+}
+
+type ToolResult = { content: { type: 'text'; text: string }[]; structuredContent?: Record<string, unknown>; _meta?: Record<string, unknown>; isError?: boolean };
+
+/**
+ * In ChatGPT the get_media card fetches the file, so the download capability goes only to the card (result `_meta`,
+ * which ChatGPT hands to the component and hides from the model). The model keeps the file metadata and the URL but
+ * not the bearer, so it cannot pass the capability on to another tool or plugin.
+ */
+export function cardOnlyCapability(r: ToolResult): ToolResult {
+  const sc = r.structuredContent;
+  const d = sc?.download as Record<string, unknown> | undefined;
+  if (r.isError || !sc || !d || typeof d.authorization !== 'string') return r;
+  const { authorization, ...rest } = d;
+  const download = {
+    ...rest,
+    note: 'In this chat only the Postun card holds the download capability and fetches the file for the user (Attach to chat / Download). Do not try to download the URL yourself or with another tool.'
+  };
+  const structuredContent = { ...sc, download };
+  return {
+    content: [{ type: 'text', text: JSON.stringify(structuredContent) }],
+    structuredContent,
+    _meta: { [DOWNLOAD_META_KEY]: { url: d.url, authorization, expiresAt: d.expiresAt } }
+  };
+}
+
 /** Origin of this MCP server: the only place the card may send a capability to. */
 function serverOrigin(env: Env): string | null {
   try {
@@ -122,7 +154,10 @@ export function createMcpServer(env: Env, props: GrantProps): McpServer {
   const server = new McpServer(SERVER_INFO, { instructions: SERVER_INSTRUCTIONS });
   const call = toolCaller(env, props);
   for (const { tool, config } of TOOL_DEFS) {
-    server.registerTool(tool, config, (args: unknown) => call(tool, (args ?? {}) as Record<string, unknown>));
+    server.registerTool(tool, config, async (args: unknown, ctx?: { mcpReq?: { _meta?: unknown } }) => {
+      const r = (await call(tool, (args ?? {}) as Record<string, unknown>)) as ToolResult;
+      return tool === 'get_media' && isChatGptCall(ctx?.mcpReq?._meta) ? cardOnlyCapability(r) : r;
+    });
   }
   const origin = serverOrigin(env);
   // Without a valid resource URL the card has no origin to pin and is not offered (fail closed; tools still work).

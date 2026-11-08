@@ -85,7 +85,7 @@ export const TOOL_OUTPUT = {
     media,
     download: z.looseObject({
       url: z.string().describe('HTTPS download link'),
-      authorization: z.string().describe('Value for the Authorization header of the download request'),
+      authorization: z.string().optional().describe('Value for the Authorization header of the download request. Absent in clients that show the Postun card (ChatGPT): there only the card receives it.'),
       expiresAt: isoDateTime,
       supportsRange: z.boolean(),
       note: z.string()
