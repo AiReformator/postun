@@ -12,7 +12,9 @@
  * Telegram data and is written with textContent only.
  */
 
-export const MEDIA_WIDGET_URI = 'ui://postun/media-card-v2.html';
+export const MEDIA_WIDGET_URI = 'ui://postun/media-card-v3.html';
+/** Result _meta key that carries the download capability for the card (widget-only in ChatGPT). */
+export const DOWNLOAD_META_KEY = 'postun/download';
 export const MCP_APP_MIME = 'text/html;profile=mcp-app';
 
 /** Types ChatGPT accepts as an attachment the model can read (images and PDF). Anything else is offered as a download. */
@@ -122,13 +124,16 @@ function script(origin: string): string {
 const ORIGIN = ${JSON.stringify(origin)};
 const ATTACHABLE = ${JSON.stringify(ATTACHABLE_MIME)};
 const ALL = ${JSON.stringify(STRINGS)};
+const META_KEY = ${JSON.stringify(DOWNLOAD_META_KEY)};
 const oa = () => window.openai;
 const lang = String((oa() && oa().locale) || navigator.language || 'en').slice(0, 2).toLowerCase();
 const T = ALL[lang] || ALL.en;
 const $ = (id) => document.getElementById(id);
 let data = null;
+let meta = null;
 let blob = null;
 let busy = false;
+let sent = false;
 
 function fmtSize(n) {
   if (typeof n !== 'number' || !isFinite(n) || n < 0) return '';
@@ -141,6 +146,11 @@ function status(text, isError) {
   const el = $('status');
   el.textContent = text || '';
   el.className = isError ? 'status err' : 'status';
+  reportSize();
+}
+function diag(text) {
+  $('diag').textContent = text || '';
+  reportSize();
 }
 function fileName() {
   const m = data && data.media;
@@ -152,9 +162,13 @@ function mime() {
   const m = data && data.media;
   return m && typeof m.mimeType === 'string' ? m.mimeType.toLowerCase() : 'application/octet-stream';
 }
-/** The download target must be this server's own /files endpoint; anything else is refused. */
+/**
+ * The capability comes from the widget-only result _meta (ChatGPT: hidden from the model) or, for other hosts, from the
+ * result itself. The target must be this server's own /files endpoint; anything else is refused.
+ */
 function download() {
-  const d = data && data.download;
+  const fromMeta = meta && typeof meta === 'object' ? meta[META_KEY] : null;
+  const d = fromMeta && typeof fromMeta === 'object' ? fromMeta : data && data.download;
   if (!d || typeof d.url !== 'string' || typeof d.authorization !== 'string') return null;
   let u;
   try { u = new URL(d.url); } catch { return null; }
@@ -164,7 +178,7 @@ function download() {
 }
 function setBusy(b) {
   busy = b;
-  $('attach').disabled = b || $('attach').dataset.off === '1';
+  $('attach').disabled = b || sent;
   $('dl').disabled = b;
 }
 
@@ -193,33 +207,118 @@ async function fetchBlob() {
   return blob;
 }
 
+async function toBase64(b) {
+  const bytes = new Uint8Array(await b.arrayBuffer());
+  let s = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+
 function fail(e) {
   const k = e && e.message;
   status(k === 'expired' ? T.expired : k === 'busy' ? T.busy : T.failed, true);
 }
 
-async function onAttach() {
-  if (busy) return;
+// ---------------------------------------------------------------- MCP Apps bridge
+// JSON-RPC 2.0 over postMessage with the parent window. The host waits for ui/initialize from the card and drops it on
+// a timeout otherwise, so the handshake always runs, also when ChatGPT's window.openai compatibility object is present.
+const embedded = window.parent && window.parent !== window;
+const INIT_ID = 1;
+let nextId = 2;
+let initialized = false;
+let hostCaps = null;
+const pending = new Map();
+function post(msg) {
+  if (embedded) window.parent.postMessage(msg, '*');
+}
+function request(method, params) {
+  if (!embedded || !initialized) return Promise.reject(new Error('no-bridge'));
+  const id = nextId++;
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => { pending.delete(id); reject(new Error('timeout')); }, 30000);
+    pending.set(id, { resolve, reject, timer });
+    post({ jsonrpc: '2.0', id, method, params });
+  });
+}
+let lastSize = '';
+function reportSize() {
+  const el = document.documentElement;
+  const height = Math.ceil(el.scrollHeight || 0);
+  const width = Math.ceil(el.scrollWidth || 0);
+  const key = width + 'x' + height;
+  if (key === lastSize) return;
+  lastSize = key;
   const api = oa();
-  if (!api || typeof api.uploadFile !== 'function') { status(T.noUpload, true); return; }
+  if (api && typeof api.notifyIntrinsicHeight === 'function') { try { api.notifyIntrinsicHeight(height); } catch { /* optional */ } }
+  if (initialized) post({ jsonrpc: '2.0', method: 'ui/notifications/size-changed', params: { width, height } });
+}
+/** Which content block types the host says it accepts for a method ('message' or 'updateModelContext'). */
+function accepts(cap, kind) {
+  const c = hostCaps && hostCaps[cap];
+  return !!(c && typeof c === 'object' && c[kind]);
+}
+function capsSummary() {
+  if (!hostCaps) return 'host caps: none';
+  const list = (cap) => { const c = hostCaps[cap]; return c && typeof c === 'object' ? Object.keys(c).join('+') || 'yes' : '-'; };
+  return 'message[' + list('message') + '] context[' + list('updateModelContext') + ']';
+}
+
+// ---------------------------------------------------------------- attach
+/**
+ * Hands the file to the model, in order of preference:
+ *  1. ui/message with the file as an image/resource block: a user message that carries the file itself;
+ *  2. ui/update-model-context with the block, then a short ui/message (or ChatGPT follow-up) to start the turn;
+ *  3. ChatGPT's uploadFile + setWidgetState imageIds (legacy; observed not to reach the model).
+ * Each step is used only when the host advertises it (or, for 1, when it advertises nothing), and a JSON-RPC error
+ * falls through to the next. The status line says which way was used, so a check can tell them apart.
+ */
+async function onAttach() {
+  if (busy || sent) return;
   setBusy(true);
   try {
     const b = await fetchBlob();
     status(T.uploading);
     const name = fileName();
-    const up = await api.uploadFile(new File([b], name, { type: mime() }));
-    const fileId = up && (up.fileId || up.id);
-    if (!fileId) throw new Error('failed');
-    if (typeof api.setWidgetState === 'function') {
-      api.setWidgetState({
-        modelContent: 'The user attached the Telegram file "' + name + '" (' + mime() + ') to the chat.',
-        privateContent: { attached: true },
-        imageIds: [fileId]
-      });
+    const mt = mime();
+    const text = T.followUp.split('{name}').join(name);
+    const kind = mt.indexOf('image/') === 0 ? 'image' : 'resource';
+    const b64 = await toBase64(b);
+    const block = kind === 'image'
+      ? { type: 'image', data: b64, mimeType: mt }
+      : { type: 'resource', resource: { uri: 'postun:file/' + encodeURIComponent(name), mimeType: mt, blob: b64 } };
+    const api = oa();
+    let way = '';
+    if (initialized && (hostCaps === null || accepts('message', kind))) {
+      try {
+        await request('ui/message', { role: 'user', content: [{ type: 'text', text }, block] });
+        way = 'ui/message';
+      } catch { /* fall through */ }
     }
-    $('attach').dataset.off = '1';
+    if (!way && initialized && accepts('updateModelContext', kind)) {
+      try {
+        await request('ui/update-model-context', { content: [block, { type: 'text', text: 'Telegram file "' + name + '" (' + mt + ') attached by the user via Postun.' }] });
+        if (accepts('message', 'text')) await request('ui/message', { role: 'user', content: [{ type: 'text', text }] });
+        else if (api && typeof api.sendFollowUpMessage === 'function') await api.sendFollowUpMessage({ prompt: text });
+        way = 'ui/update-model-context';
+      } catch { /* fall through */ }
+    }
+    if (!way && api && typeof api.uploadFile === 'function') {
+      const up = await api.uploadFile(new File([b], name, { type: mt }));
+      const fileId = up && (up.fileId || up.id);
+      if (!fileId) throw new Error('failed');
+      if (typeof api.setWidgetState === 'function') {
+        api.setWidgetState({ modelContent: 'The user attached the Telegram file "' + name + '" (' + mt + ').', privateContent: { attached: true }, imageIds: [fileId] });
+      }
+      if (typeof api.sendFollowUpMessage === 'function') await api.sendFollowUpMessage({ prompt: text });
+      way = 'uploadFile';
+    }
+    if (!way) { status(T.noUpload, true); diag(capsSummary()); return; }
+    sent = true;
+    if (api && typeof api.setWidgetState === 'function' && way !== 'uploadFile') {
+      try { api.setWidgetState({ privateContent: { attached: true } }); } catch { /* optional */ }
+    }
     status(T.attached);
-    if (typeof api.sendFollowUpMessage === 'function') await api.sendFollowUpMessage({ prompt: T.followUp.split('{name}').join(name) });
+    diag(way + ' · ' + capsSummary());
   } catch (e) {
     fail(e);
   } finally {
@@ -249,9 +348,10 @@ async function onDownload() {
   }
 }
 
-function render(sc) {
+function render(sc, m) {
   if (!sc || typeof sc !== 'object' || !sc.media) return;
   data = sc;
+  if (m && typeof m === 'object') meta = m;
   $('row').hidden = false;
   $('name').textContent = fileName();
   $('meta').textContent = [mime(), fmtSize(sc.media.size)].filter(Boolean).join(' · ');
@@ -259,51 +359,38 @@ function render(sc) {
   $('dl').textContent = T.download;
   const attachable = ATTACHABLE.indexOf(mime()) !== -1;
   const st = oa() && oa().widgetState;
-  const already = !!(st && st.privateContent && st.privateContent.attached);
+  if (st && st.privateContent && st.privateContent.attached) sent = true;
   $('attach').hidden = !attachable;
-  $('attach').dataset.off = already ? '1' : '0';
   setBusy(false);
   if (!download()) status(T.failed, true);
-  else if (already) status(T.attached);
+  else if (sent) status(T.attached);
   else if (!attachable) status(T.notAttachable);
   reportSize();
-}
-
-// MCP Apps bridge (ChatGPT and other hosts): JSON-RPC 2.0 over postMessage with the parent window. The host waits for
-// ui/initialize from the card and drops it on a timeout otherwise, so the handshake always runs, also when ChatGPT's
-// window.openai compatibility object is present.
-const embedded = window.parent && window.parent !== window;
-const INIT_ID = 1;
-let initialized = false;
-function post(msg) {
-  if (embedded) window.parent.postMessage(msg, '*');
-}
-let lastSize = '';
-function reportSize() {
-  if (!initialized) return;
-  const el = document.documentElement;
-  const width = Math.ceil(el.scrollWidth || 0);
-  const height = Math.ceil(el.scrollHeight || 0);
-  const key = width + 'x' + height;
-  if (key === lastSize) return;
-  lastSize = key;
-  post({ jsonrpc: '2.0', method: 'ui/notifications/size-changed', params: { width, height } });
 }
 
 window.addEventListener('message', (ev) => {
   if (!embedded || ev.source !== window.parent) return;
   const m = ev.data;
   if (!m || m.jsonrpc !== '2.0') return;
-  if (m.id === INIT_ID && !m.method) {
+  if (!m.method && m.id === INIT_ID) {
     if (m.result && !initialized) {
       initialized = true;
+      hostCaps = m.result.hostCapabilities && typeof m.result.hostCapabilities === 'object' ? m.result.hostCapabilities : null;
       post({ jsonrpc: '2.0', method: 'ui/notifications/initialized' });
+      lastSize = '';
       reportSize();
     }
     return;
   }
+  if (!m.method && pending.has(m.id)) {
+    const p = pending.get(m.id);
+    pending.delete(m.id);
+    clearTimeout(p.timer);
+    if (m.error) p.reject(new Error('rpc')); else p.resolve(m.result);
+    return;
+  }
   if (m.method === 'ui/notifications/tool-result' && m.params) {
-    render(m.params.structuredContent);
+    render(m.params.structuredContent, m.params._meta);
     return;
   }
   // Any request from the host (ping, teardown, ...) gets an empty result so the host never waits on the card.
@@ -313,7 +400,7 @@ window.addEventListener('message', (ev) => {
 // ChatGPT compatibility: window.openai carries the tool result and announces late values with openai:set_globals.
 function fromOpenAi() {
   const api = oa();
-  if (api && api.toolOutput) render(api.toolOutput);
+  if (api && api.toolOutput) render(api.toolOutput, api.toolResponseMetadata);
 }
 window.addEventListener('openai:set_globals', fromOpenAi, { passive: true });
 
@@ -321,7 +408,7 @@ $('attach').addEventListener('click', onAttach);
 $('dl').addEventListener('click', onDownload);
 $('label').textContent = T.file;
 fromOpenAi();
-post({ jsonrpc: '2.0', id: INIT_ID, method: 'ui/initialize', params: { appInfo: { name: 'postun-media-card', version: '1.1.0' }, appCapabilities: {}, protocolVersion: '2026-01-26' } });
+post({ jsonrpc: '2.0', id: INIT_ID, method: 'ui/initialize', params: { appInfo: { name: 'postun-media-card', version: '1.2.0' }, appCapabilities: {}, protocolVersion: '2026-01-26' } });
 if (typeof ResizeObserver === 'function') new ResizeObserver(reportSize).observe(document.documentElement);
 `;
 }
@@ -341,6 +428,8 @@ button.primary{background:var(--btn);border-color:var(--btn);color:var(--btnfg)}
 button:disabled{opacity:.55;cursor:default}
 .status{font-size:13px;color:var(--muted);min-height:1em}
 .status.err{color:var(--err)}
+.diag{font-size:11px;color:var(--muted);opacity:.7;min-height:0}
+html,body{height:auto}
 `;
 
 function escapeScript(s: string): string {
@@ -358,7 +447,7 @@ export function mediaWidgetHtml(origin: string): string {
       `<style>${STYLE}</style></head><body>` +
       `<div class="card" id="card"><div class="label" id="label"></div><div class="name" id="name"></div><div class="meta" id="meta"></div>` +
       `<div class="row" id="row" hidden><button class="primary" id="attach" type="button"></button><button id="dl" type="button"></button></div>` +
-      `<div class="status" id="status" role="status" aria-live="polite"></div></div>` +
+      `<div class="status" id="status" role="status" aria-live="polite"></div><div class="diag" id="diag"></div></div>` +
       `<script type="module">${escapeScript(script(origin))}</script></body></html>`;
     htmlCache.set(origin, html);
   }

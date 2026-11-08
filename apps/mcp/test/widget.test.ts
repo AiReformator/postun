@@ -87,3 +87,39 @@ describe('download endpoint CORS (for the card in a sandboxed iframe)', () => {
     expect(res.headers.get('allow')).toBe('GET');
   });
 });
+
+describe('get_media in ChatGPT: the download capability goes only to the card', () => {
+  type CallResult = { result: { content: { text: string }[]; structuredContent: { download: Record<string, unknown> }; _meta?: Record<string, { url: string; authorization: string }> } };
+  const call = async (token: string, accountId: string, meta?: Record<string, unknown>) => {
+    const res = await mcpRequest(token, {
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/call',
+      params: { name: 'get_media', arguments: { account_id: accountId, peer: PEER, message_id: BIG_OK }, ...(meta ? { _meta: meta } : {}) }
+    });
+    return ((await res.json()) as CallResult).result;
+  };
+
+  it('a call tagged with openai/* metadata keeps the bearer out of everything the model sees', async () => {
+    const w = await setupWorld();
+    const r = await call(w.token, w.accountIds[0]!, { 'openai/userAgent': 'synthetic', 'openai/locale': 'ru-RU' });
+    expect(r.structuredContent.download.authorization).toBeUndefined();
+    expect(r.structuredContent.download.url).toMatch(/^https:\/\/mcp\.test\/files\//);
+    expect(r.content[0]!.text).not.toMatch(/Bearer/);
+    const forCard = r._meta?.['postun/download'];
+    expect(forCard?.authorization).toMatch(/^Bearer /);
+    expect(forCard?.url).toBe(r.structuredContent.download.url);
+    // The capability in _meta still works for the card.
+    const intentId = new URL(forCard!.url).pathname.split('/').pop()!;
+    const res = await fetchFile(intentId, forCard!.authorization.replace('Bearer ', ''), 'bytes=0-3');
+    expect(res.status).toBe(206);
+    expect((await res.arrayBuffer()).byteLength).toBe(4);
+  });
+
+  it('other clients (no openai/* metadata) still get the capability in the result', async () => {
+    const w = await setupWorld();
+    const r = await call(w.token, w.accountIds[0]!);
+    expect(r.structuredContent.download.authorization).toMatch(/^Bearer /);
+    expect(r._meta?.['postun/download']).toBeUndefined();
+  });
+});
