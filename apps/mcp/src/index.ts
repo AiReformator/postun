@@ -35,8 +35,46 @@ function resourceServer(cfg: Config): OAuthResourceServer<Env, GrantProps> {
   return s;
 }
 
+/**
+ * CORS for the download endpoint, so the get_media card (widget.ts), which runs in the AI client's sandboxed iframe
+ * on another origin, can read the file. Any origin is allowed because the endpoint is authorised only by the bearer
+ * capability in the Authorization header: no cookies or ambient credentials exist (credentials are never allowed),
+ * so a page without the capability gets nothing, and a holder of the capability could fetch it from anywhere anyway.
+ */
+const FILE_CORS: Readonly<Record<string, string>> = {
+  'access-control-allow-origin': '*',
+  'access-control-expose-headers': 'content-length, content-range, content-type, content-disposition, accept-ranges, retry-after'
+};
+
+function withFileCors(res: Response): Response {
+  const r = new Response(res.body, res);
+  for (const [k, v] of Object.entries(FILE_CORS)) r.headers.set(k, v);
+  return r;
+}
+
+/** Preflight for GET with Authorization and Range. Answers before any key or Durable Object is touched. */
+function filePreflight(): Response {
+  return withSecurityHeaders(
+    new Response(null, {
+      status: 204,
+      headers: {
+        ...FILE_CORS,
+        'access-control-allow-methods': 'GET',
+        'access-control-allow-headers': 'authorization, range',
+        'access-control-max-age': '600',
+        'cache-control': 'no-store'
+      }
+    })
+  );
+}
+
 /** GET /files/:intentId with `Authorization: Bearer <principalId>.<secret>.<mac>`; never a query-string token. */
 async function handleFile(request: Request, env: Env, intentId: string): Promise<Response> {
+  if (request.method === 'OPTIONS') return filePreflight();
+  return withFileCors(await handleFileGet(request, env, intentId));
+}
+
+async function handleFileGet(request: Request, env: Env, intentId: string): Promise<Response> {
   if (request.method !== 'GET') return errorResponse('INVALID_INPUT', { allow: 'GET' });
   const m = FILE_CAP_RE.exec(request.headers.get('authorization') ?? '');
   if (!m) return errorResponse('UNAUTHENTICATED', { 'www-authenticate': 'Bearer' });

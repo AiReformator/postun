@@ -1,7 +1,9 @@
 import { fromJsonSchema, McpServer, type JsonSchemaType, type jsonSchemaValidator } from '@modelcontextprotocol/server';
 import { TOOLS, TOOL_SCOPE, mcpCallPoint, writeMetric, type GrantProps, type ToolName } from '@postun/contracts';
+import { loadConfig } from './config';
 import type { Env } from './env';
 import { toolErrorResult } from './pause';
+import { MCP_APP_MIME, MEDIA_TOOL_UI_META, MEDIA_WIDGET_URI, mediaWidgetHtml, mediaWidgetResourceMeta } from './widget';
 import { TOOL_OUTPUT } from './output';
 import { SERVER_INSTRUCTIONS, TOOL_DESCRIPTION, TOOL_INPUT, TOOL_TITLE } from './schemas';
 
@@ -80,9 +82,19 @@ const TOOL_DEFS = TOOLS.map((tool) => ({
     inputSchema: fromJsonSchema(TOOL_INPUT[tool]['~standard'].jsonSchema.input({ target: 'draft-2020-12' }) as JsonSchemaType, passThrough),
     outputSchema: fromJsonSchema(TOOL_OUTPUT[tool]['~standard'].jsonSchema.output({ target: 'draft-2020-12' }) as JsonSchemaType, passThrough),
     annotations: ANNOTATIONS,
-    _meta: { securitySchemes: [{ type: 'oauth2', scopes: [TOOL_SCOPE[tool]] }] }
+    // get_media also names the card that renders its result in MCP Apps / ChatGPT (widget.ts).
+    _meta: { securitySchemes: [{ type: 'oauth2', scopes: [TOOL_SCOPE[tool]] }], ...(tool === 'get_media' ? MEDIA_TOOL_UI_META : {}) }
   }
 }));
+
+/** Origin of this MCP server: the only place the card may send a capability to. */
+function serverOrigin(env: Env): string | null {
+  try {
+    return new URL(loadConfig(env).resource).origin;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * What clients show for the server itself (MCP Implementation: title, description, website, icons). A client that
@@ -111,6 +123,17 @@ export function createMcpServer(env: Env, props: GrantProps): McpServer {
   const call = toolCaller(env, props);
   for (const { tool, config } of TOOL_DEFS) {
     server.registerTool(tool, config, (args: unknown) => call(tool, (args ?? {}) as Record<string, unknown>));
+  }
+  const origin = serverOrigin(env);
+  // Without a valid resource URL the card has no origin to pin and is not offered (fail closed; tools still work).
+  if (origin) {
+    const meta = mediaWidgetResourceMeta(origin);
+    server.registerResource(
+      'postun-media-card',
+      MEDIA_WIDGET_URI,
+      { title: 'Postun file card', description: 'Attach or download one Telegram file', mimeType: MCP_APP_MIME, _meta: meta },
+      (uri: URL) => ({ contents: [{ uri: uri.href, mimeType: MCP_APP_MIME, text: mediaWidgetHtml(origin), _meta: meta }] })
+    );
   }
   return server;
 }

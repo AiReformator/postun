@@ -23,6 +23,13 @@ export default tseslint.config(
     rules: { 'no-console': 'off' }
   },
   {
+    // Node tests of the get_media card's browser code (apps/mcp/src/widget.ts) in a node:vm sandbox.
+    files: ['apps/mcp/test-node/**/*.mjs'],
+    languageOptions: {
+      globals: { console: 'readonly', URL: 'readonly', Blob: 'readonly', File: 'readonly', Response: 'readonly', setTimeout: 'readonly' }
+    }
+  },
+  {
     files: ['apps/web/src/**/*.mjs', 'apps/web/public/**/*.js'],
     languageOptions: {
       globals: {
