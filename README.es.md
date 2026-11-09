@@ -117,8 +117,8 @@ El estado procede de [apps/web/status.json](apps/web/status.json) (actualizado e
 | Claude Code: MCP HTTP remoto | Aún no verificado |
 | Búsqueda de mensajes | Aún no verificado |
 | Canales públicos | Aún no verificado |
-| Descarga de archivos | Aún no verificado |
-| Archivo como adjunto para la IA | Aún no verificado |
+| Descarga de archivos | Verificado |
+| Archivo como adjunto para la IA | Verificado en ChatGPT para imágenes (PDF aún no) |
 
 «Aún no verificado» significa que el código existe pero no ha pasado una prueba de aceptación en producción. No confíes todavía en esas funciones.
 

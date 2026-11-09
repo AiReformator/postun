@@ -116,8 +116,8 @@ Status comes from [apps/web/status.json](apps/web/status.json) (updated 2026-11-
 | Claude Code: remote HTTP MCP | Verified |
 | Message search | Verified |
 | Public channels | Verified |
-| File download | Not verified yet |
-| File as an attachment for the AI | Not verified yet |
+| File download | Verified |
+| File as an attachment for the AI | Verified in ChatGPT for images (PDF not yet) |
 
 "Not verified yet" means the code exists but has not passed an acceptance run on production. Do not rely on those features yet.
 
