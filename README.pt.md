@@ -118,8 +118,8 @@ O status vem de [apps/web/status.json](apps/web/status.json) (atualizado em 2026
 | Claude Code: MCP HTTP remoto | Ainda não verificado |
 | Busca de mensagens | Ainda não verificado |
 | Canais públicos | Ainda não verificado |
-| Download de arquivos | Ainda não verificado |
-| Arquivo como anexo para a IA | Ainda não verificado |
+| Download de arquivos | Verificado |
+| Arquivo como anexo para a IA | Verificado no ChatGPT para imagens (PDF ainda não) |
 
 «Ainda não verificado» significa que o código existe, mas não passou por um teste de aceitação em produção. Não confie ainda nessas funções.
 

@@ -116,8 +116,8 @@ Der Status stammt aus [apps/web/status.json](apps/web/status.json) (Stand 2026-1
 | Claude Code: Remote-HTTP-MCP | Noch nicht verifiziert |
 | Nachrichtensuche | Noch nicht verifiziert |
 | Öffentliche Kanäle | Noch nicht verifiziert |
-| Datei-Download | Noch nicht verifiziert |
-| Datei als Anhang für die KI | Noch nicht verifiziert |
+| Datei-Download | Verifiziert |
+| Datei als Anhang für die KI | In ChatGPT für Bilder verifiziert (PDF noch nicht) |
 
 „Noch nicht verifiziert“ heißt: Der Code existiert, hat aber keinen Abnahmelauf in Produktion durchlaufen. Verlasse dich noch nicht auf diese Funktionen.
 
