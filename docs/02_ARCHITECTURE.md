@@ -12,7 +12,7 @@
 | Admin Worker postun-admin | admin.postun.org | Серверный OIDC-вход администраторов, административный UI/API |
 | D1 postun-control | Приватный binding | Пользователи, владельцы аккаунтов, права, entitlement |
 | D1 postun-admin-meta | Отдельная БД | Только псевдонимные административные проекции и admin sessions |
-| KV OAUTH_KV | Только auth | Поддерживаемое хранилище Workers OAuth Provider |
+| KV OAUTH_KV | Только auth | Поддерживаемое хранилище Workers OAuth Provider; плюс короткая отметка завершённого согласия без идентификаторов ([03](03_SECURITY_PRIVACY.md)) |
 | SQLite Durable Objects | Только mcp | Зашифрованные сессии, актуальные ограничения, атомарные счётчики |
 | Analytics Engine postun_metrics | auth и mcp, только запись | Агрегированные служебные метрики без идентификаторов ([03](03_SECURITY_PRIVACY.md), «Служебные метрики») |
 | OIDC-провайдер администраторов | Точный issuer задаёт оператор (ADMIN_OIDC_ISSUER) | Идентификация и роли администраторов; без Telegram-сессий |
@@ -65,6 +65,7 @@ tests/
 | linked_account | Control D1 | unique telegram_id_hmac; owner_id обязателен |
 | grant_reference | Control D1 / DO | scopes и account allowlist; deny/version проверяется перед Telegram |
 | oauth token/code/client | OAuth KV | Только формат и lifecycle поддерживаемой библиотеки |
+| consent_done | OAuth KV | `postun-consent-done:<SHA-256 handle>`, значение `1`, TTL 600 с; только для объяснения повторного «Разрешить» |
 | session_envelope | Principal DO | Отдельный ciphertext на аккаунт; версия ключа и AAD |
 | usage_period | Principal DO | Атомарный счётчик; D1-проекция не решает доступ |
 | entitlement | Control D1 + DO policy | beta_free сейчас; смена тарифа не меняет сессию |

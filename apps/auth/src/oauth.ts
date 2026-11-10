@@ -1,6 +1,6 @@
 import { AuthorizationError, CimdFetchError, OAuthAuthorizationServer } from '@cloudflare/workers-oauth-provider';
 import type { AuthRequest, OAuthHelpers } from '@cloudflare/workers-oauth-provider';
-import { GrantPropsSchema, hmac, hmacVerify, fromBase64Url, normalizeScopes, PostunError, SCOPES, toBase64Url, UuidSchema, withSecurityHeaders } from '@postun/contracts';
+import { GrantPropsSchema, hmac, hmacVerify, fromBase64Url, normalizeScopes, oauthStepPoint, PostunError, SCOPES, sha256, toBase64Url, utf8, UuidSchema, withSecurityHeaders, writeMetric } from '@postun/contracts';
 import type { Scope } from '@postun/contracts';
 import { activeGrantIdsForClient, createGrant, ownedActiveAccounts, revokeGrant } from './grants';
 import type { Config, Env } from './env';
@@ -30,12 +30,54 @@ export function oauthServer(cfg: Config): OAuthAuthorizationServer<Env> {
   });
 }
 
-function formActionFor(redirectUri: string): string[] {
+/**
+ * form-action sources for the consent page. Browsers check form-action on every redirect that follows the form POST,
+ * not only on the first one. Some clients hand the code through a relay that redirects again to another origin: Google
+ * Gemini's oauth-redirect.googleusercontent.com does. Allowing only the redirect URI origin made the browser silently
+ * cancel that second hop after Allow, so the client never received the code. Any https destination is therefore
+ * allowed; a non-https redirect URI (loopback http or a custom scheme) is added explicitly. The page itself runs no
+ * script (default-src 'none'), escapes all dynamic text and carries a CSRF token, so this does not open a way to post
+ * the form elsewhere.
+ */
+export function formActionFor(redirectUri: string): string[] {
   try {
     const u = new URL(redirectUri);
-    return [u.protocol === 'http:' || u.protocol === 'https:' ? u.origin : u.protocol];
+    if (u.protocol === 'https:') return ['https:'];
+    return ['https:', u.protocol === 'http:' ? u.origin : u.protocol];
   } catch {
     return [];
+  }
+}
+
+const COMPLETED_TTL_SECONDS = 600;
+
+/** KV key marking a consent handle that was approved, so a second submit explains instead of failing. */
+async function completedKey(handle: string): Promise<string> {
+  return `postun-consent-done:${toBase64Url(await sha256(utf8(handle)))}`;
+}
+
+async function markCompleted(env: Env, handle: string): Promise<void> {
+  try {
+    await env.OAUTH_KV.put(await completedKey(handle), '1', { expirationTtl: COMPLETED_TTL_SECONDS });
+  } catch {
+    // best effort: without the marker a repeat submit shows the generic stale page
+  }
+}
+
+async function unmarkCompleted(env: Env, handle: string): Promise<void> {
+  try {
+    await env.OAUTH_KV.delete(await completedKey(handle));
+  } catch {
+    // best effort: the mark expires on its own
+  }
+}
+
+async function wasCompleted(env: Env, handle: string): Promise<boolean> {
+  if (handle.length === 0) return false;
+  try {
+    return (await env.OAUTH_KV.get(await completedKey(handle))) !== null;
+  } catch {
+    return false;
   }
 }
 
@@ -117,6 +159,7 @@ async function showConsent(env: Env, cfg: Config, oauth: OAuthHelpers, req: Requ
   headers.set('content-type', 'text/html; charset=utf-8');
   headers.set('cache-control', 'no-store');
   headers.set('content-security-policy', csp(formActionFor(details.redirectUri)));
+  writeMetric(env.METRICS, oauthStepPoint('consent_shown'));
   return withSecurityHeaders(new Response(body, { status: 200, headers }));
 }
 
@@ -133,15 +176,20 @@ async function decide(env: Env, cfg: Config, oauth: OAuthHelpers, req: Request, 
   try {
     if (form.get('decision') !== 'approve') {
       const denied = await oauth.denyConsent(req, handle);
+      writeMetric(env.METRICS, oauthStepPoint('consent_denied'));
       return withSecurityHeaders(new Response(null, { status: 302, headers: denied.headers }));
     }
     const accountIds = [...new Set(form.getAll('account').map(String))];
     const scopes: Scope[] = normalizeScopes(form.getAll('scope').map(String));
     if (accountIds.length === 0 || accountIds.length > MAX_ACCOUNTS || !accountIds.every((a) => UuidSchema.safeParse(a).success) || scopes.length === 0) {
+      writeMetric(env.METRICS, oauthStepPoint('consent_rejected', 'pick_required'));
       return localError(locale, t(locale, 'oauth.pickRequired'));
     }
     const accounts = await ownedActiveAccounts(env, session.principalId, accountIds);
-    if (accounts.length !== accountIds.length) return localError(locale, t(locale, 'oauth.accountUnavailable'));
+    if (accounts.length !== accountIds.length) {
+      writeMetric(env.METRICS, oauthStepPoint('consent_rejected', 'account_unavailable'));
+      return localError(locale, t(locale, 'oauth.accountUnavailable'));
+    }
     const offeredField = String(form.get('offered') ?? '');
     let sigOk = false;
     try {
@@ -150,35 +198,68 @@ async function decide(env: Env, cfg: Config, oauth: OAuthHelpers, req: Request, 
       sigOk = false;
     }
     const offered = offeredField.split(' ');
-    if (!sigOk || !scopes.every((s) => offered.includes(s))) return localError(locale, t(locale, 'oauth.scopesNotRequested'));
+    if (!sigOk || !scopes.every((s) => offered.includes(s))) {
+      writeMetric(env.METRICS, oauthStepPoint('consent_rejected', 'scopes_not_requested'));
+      return localError(locale, t(locale, 'oauth.scopesNotRequested'));
+    }
 
     const approved = await oauth.approveConsent(req, handle, { scope: scopes });
-
-    const info = await oauth.lookupClient(approved.request.clientId);
-    const clientName = info?.clientName ?? approved.request.clientId;
-    // A reconnect of the same client replaces its earlier grant: deny first, then revoke (AU-04 order).
-    for (const old of await activeGrantIdsForClient(env, session.principalId, approved.request.clientId)) {
-      await revokeGrant(env, oauth, session.principalId, old);
-    }
-    const props = await createGrant(env, session.principalId, { id: approved.request.clientId, name: clientName }, accounts, scopes);
-    const granted: string[] = offered.includes('offline_access') ? [...scopes, 'offline_access'] : [...scopes];
+    // The handle is spent from here on. Mark it at once, so a second click that arrives while this request is still
+    // creating the grant explains instead of failing; the mark is withdrawn below if the approval does not complete.
+    await markCompleted(env, handle);
     try {
-      const { redirectTo } = await oauth.completeAuthorization({
-        request: approved.request,
-        userId: session.principalId,
-        metadata: { grantId: props.grantId },
-        scope: granted,
-        props: GrantPropsSchema.parse(props),
-        revokeExistingGrants: false
-      });
-      approved.headers.set('Location', redirectTo);
-      return withSecurityHeaders(new Response(null, { status: 302, headers: approved.headers }));
+      return await finishApproval(env, oauth, session.principalId, approved, accounts, scopes, offered);
     } catch (err) {
-      await revokeGrant(env, oauth, session.principalId, props.grantId).catch(() => undefined);
+      await unmarkCompleted(env, handle);
       throw err;
     }
   } catch (err) {
-    if (err instanceof AuthorizationError || err instanceof CimdFetchError) return localError(locale, t(locale, 'oauth.stale'));
+    if (err instanceof AuthorizationError || err instanceof CimdFetchError) {
+      // A second Allow on a page that was already approved (back button, double click) is not an error for the user:
+      // the client already has its code. Say so instead of asking to start over, which would only replace the grant.
+      if (form.get('decision') === 'approve' && (await wasCompleted(env, handle))) {
+        writeMetric(env.METRICS, oauthStepPoint('consent_repeat'));
+        return html(page(locale, t(locale, 'oauth.title'), `<p>${t(locale, 'oauth.repeat')}</p>`), 200);
+      }
+      writeMetric(env.METRICS, oauthStepPoint('consent_stale'));
+      return localError(locale, t(locale, 'oauth.stale'));
+    }
+    throw err;
+  }
+}
+
+/** Creates the grant and the authorization code for an approved consent; any failure leaves no grant behind. */
+async function finishApproval(
+  env: Env,
+  oauth: OAuthHelpers,
+  principalId: string,
+  approved: { request: AuthRequest; headers: Headers },
+  accounts: Awaited<ReturnType<typeof ownedActiveAccounts>>,
+  scopes: Scope[],
+  offered: string[]
+): Promise<Response> {
+  const info = await oauth.lookupClient(approved.request.clientId);
+  const clientName = info?.clientName ?? approved.request.clientId;
+  // A reconnect of the same client replaces its earlier grant: deny first, then revoke (AU-04 order).
+  for (const old of await activeGrantIdsForClient(env, principalId, approved.request.clientId)) {
+    await revokeGrant(env, oauth, principalId, old);
+  }
+  const props = await createGrant(env, principalId, { id: approved.request.clientId, name: clientName }, accounts, scopes);
+  const granted: string[] = offered.includes('offline_access') ? [...scopes, 'offline_access'] : [...scopes];
+  try {
+    const { redirectTo } = await oauth.completeAuthorization({
+      request: approved.request,
+      userId: principalId,
+      metadata: { grantId: props.grantId },
+      scope: granted,
+      props: GrantPropsSchema.parse(props),
+      revokeExistingGrants: false
+    });
+    approved.headers.set('Location', redirectTo);
+    writeMetric(env.METRICS, oauthStepPoint('consent_approved'));
+    return withSecurityHeaders(new Response(null, { status: 302, headers: approved.headers }));
+  } catch (err) {
+    await revokeGrant(env, oauth, principalId, props.grantId).catch(() => undefined);
     throw err;
   }
 }
