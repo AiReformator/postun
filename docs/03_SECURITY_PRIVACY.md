@@ -53,7 +53,7 @@ Workers Logs, traces, Tail и внешняя телеметрия с польз�
 
 **Служебные метрики (Workers Analytics Engine, binding `METRICS`, датасет `postun_metrics`).** Только агрегаты для
 оператора сервиса: посещаемость, нагрузка, лимиты. Схема — `packages/contracts/src/metrics.ts` (версия `v1`), ровно
-два вида точек:
+три вида точек:
 
 - `mcp_call` (postun-mcp, одна точка на вызов `tools/call`): имя инструмента, код результата (`ok` или стабильный код
   ошибки из `ERROR_CODES`, например `QUOTA_EXCEEDED`), длительность в мс и два флага 0/1 — «первый учтённый вызов
@@ -62,9 +62,18 @@ Workers Logs, traces, Tail и внешняя телеметрия с польз�
 - `control_snapshot` (postun-auth, раз в час по cron): числа пользователей по статусам, регистраций за 24 часа,
   Telegram-аккаунтов (активных и ожидающих), пользователей с активным аккаунтом, активных OAuth-грантов, различных
   ИИ-клиентов среди них, грантов за 24 часа и живых веб-сессий.
+- `oauth_step` (postun-auth, одна точка на шаг подключения ИИ-клиента): шаг из закрытого списка `OAUTH_STEPS` —
+  регистрация клиента (`register`), показ страницы согласия, разрешение, отказ, отклонённая форма
+  (`consent_rejected`), повторное «Разрешить» на уже разрешённой странице (`consent_repeat`), устаревшая страница
+  (`consent_stale`), обмен кода, обновление токена и прочие запросы к token endpoint (`token_other`) — и результат из
+  закрытого списка `OAUTH_OUTCOMES` (`ok`, код ошибки OAuth вроде `invalid_grant`, причина отказа формы) или
+  `http_<статус>`; любое другое значение записывается как `other`. Показывает, на каком шаге обрывается подключение,
+  без сведений о том, кто подключается и какой клиент. Колонки blob общие с `mcp_call`, поэтому запросы фильтруют по
+  `index1`. Точки не аутентифицированы: регистрацию и token endpoint может вызвать кто угодно.
 
 В метрики никогда не попадают principal/grant/account/client ID, Telegram ID, аргументы инструментов, тексты,
-файлы, IP и User-Agent; тесты `apps/*/test/metrics.test.ts` это проверяют. Запись best effort: сбой датасета не
+файлы, IP и User-Agent; тесты `apps/*/test/metrics.test.ts`, `packages/contracts/test/metrics.test.ts` и
+`apps/auth/test/oauth.test.ts` это проверяют. Запись best effort: сбой датасета не
 влияет на ответ пользователю и не останавливает cron. Хранение — по правилам Analytics Engine (3 месяца). Чтение —
 SQL API Analytics Engine токеном оператора с одним правом Account Analytics Read. Часовой снимок читает каждую таблицу
 Control D1 один раз (строк за час примерно столько, сколько строк в `principals`, `linked_accounts`,
@@ -76,7 +85,7 @@ Control D1 один раз (строк за час примерно стольк
 
 Сайтовые сессии и MCP grants не дают административных прав. Сессия OIDC-провайдера администраторов не является Telegram-сессией. В серверных методах не принимать principal из браузера как доверенное поле. D1 SQL параметризован; разрешены только заранее описанные DTO и колонки.
 
-OIDC/OAuth: exact issuer/audience/redirect; PKCE S256, state, nonce, anti-replay, проверка подписей и срока. Cookie: __Host- prefix, Secure, HttpOnly, Path=/, без Domain; SameSite определяется проверенным redirect-flow. Токены не хранятся в localStorage. CORS — точные origins, credentialed wildcard запрещён. Browser POST защищён CSRF. [S01–S04, S11]
+OIDC/OAuth: exact issuer/audience/redirect; PKCE S256, state, nonce, anti-replay, проверка подписей и срока. Cookie: __Host- prefix, Secure, HttpOnly, Path=/, без Domain; SameSite определяется проверенным redirect-flow. Токены не хранятся в localStorage. CORS — точные origins, credentialed wildcard запрещён. Browser POST защищён CSRF. Страница согласия OAuth не исполняет скрипты (`default-src 'none'`), экранирует весь динамический текст и запрещает встраивание (`frame-ancestors 'none'`); её `form-action` — `'self' https:` (плюс origin loopback- или схема custom-scheme redirect URI). Браузер проверяет `form-action` на каждом redirect после отправки формы, а релей Google Gemini (`oauth-redirect.googleusercontent.com`) перенаправляет дальше на другой origin Google, поэтому ограничение одним origin redirect URI обрывало подключение. Сам redirect URI по-прежнему точно сверяется библиотекой. После «Разрешить» в OAUTH_KV на 600 с пишется отметка `postun-consent-done:<SHA-256 handle>` со значением `1` (без principal, client и account ID): повторное «Разрешить» на той же странице показывает «уже разрешено» вместо ошибки; при сбое одобрения отметка удаляется. [S01–S04, S11]
 
 Исходящие назначения ограничены Telegram, выбранным IdP и подтверждёнными MCP client metadata/JWKS. Запрет произвольного fetch URL, private/loopback/link-local/metadata адресов и небезопасных redirects. Для CIMD использовать актуальные SSRF-защиты OAuth SDK, а не свой парсер.
 

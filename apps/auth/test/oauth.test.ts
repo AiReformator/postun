@@ -2,7 +2,7 @@ import { toBase64Url, randomToken, sha256, utf8 } from '@postun/contracts';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { loadConfig } from '../src/env';
 import type { Env } from '../src/env';
-import { oauthServer } from '../src/oauth';
+import { formActionFor, oauthServer } from '../src/oauth';
 import { APP, ISSUER, MCP, FakeVault, acceptTerms, call, cookiesFrom, count, db, get, installFetchMock, linkAccount, login, makeEnv, newTelegram, post, resetDb } from './helpers';
 import type { LoggedIn, Telegram } from './helpers';
 
@@ -91,8 +91,11 @@ async function connectClient(e: Env, who: LoggedIn, accounts: string[], scopes =
 
 const validate = (e: Env, token: string): ReturnType<ReturnType<typeof oauthServer>['validateToken']> => oauthServer(loadConfig(e)).validateToken(MCP, token, e);
 
-async function setup(vault = new FakeVault()): Promise<{ e: Env; vault: FakeVault; who: LoggedIn; accA: string }> {
-  const e = makeEnv({}, vault);
+type Point = { indexes?: string[]; blobs?: (string | null)[]; doubles?: number[] };
+const stepsOf = (points: Point[]): string[] => points.filter((p) => p.indexes?.[0] === 'oauth_step').map((p) => `${p.blobs?.[1]}:${p.blobs?.[2]}`);
+
+async function setup(vault = new FakeVault(), points?: Point[]): Promise<{ e: Env; vault: FakeVault; who: LoggedIn; accA: string }> {
+  const e = makeEnv(points ? { METRICS: { writeDataPoint: (p) => void points.push(p) } } : {}, vault);
   const who = await login(e, tg);
   await acceptTerms(e, who);
   const accA = await linkAccount(e, vault, who, '1001', 'A');
@@ -230,7 +233,8 @@ describe('MCP OAuth', () => {
   });
 
   it('rejects an authorization POST without CSRF or with a foreign Origin, and a handle is single use', async () => {
-    const { e, who, accA } = await setup();
+    const points: Point[] = [];
+    const { e, who, accA } = await setup(new FakeVault(), points);
     const clientId = await register(e);
     const { challenge } = await pkce();
     const consent = await openConsent(e, who, authorizePath(clientId, challenge));
@@ -240,7 +244,87 @@ describe('MCP OAuth', () => {
     expect(foreign.status).toBe(403);
     expect(await count('grant_reference')).toBe(0);
     expect((await submit(e, consent, [accA], ['accounts:read'])).status).toBe(302);
-    expect((await submit(e, consent, [accA], ['accounts:read'])).status).toBe(400); // replay of the consent handle
+    // A replay of the consent handle never issues a second code; after an approval it explains instead of failing.
+    const again = await submit(e, consent, [accA], ['accounts:read']);
+    expect(again.status).toBe(200);
+    expect(again.headers.get('location')).toBeNull();
+    expect(await again.text()).toContain('already allowed this connection');
+    expect(await count('grant_reference')).toBe(1);
+    expect(stepsOf(points)).toEqual(['register:ok', 'consent_shown:ok', 'consent_approved:ok', 'consent_repeat:ok']);
+    // Deny after Allow does not pretend the deny worked: it gets the generic page, not the repeat page.
+    const deny = await submit(e, consent, [accA], ['accounts:read'], 'deny');
+    expect(deny.status).toBe(400);
+    expect(await deny.text()).not.toContain('already allowed this connection');
+  });
+
+  it('records each connection step as an anonymous oauth_step metric', async () => {
+    const points: Point[] = [];
+    const vault = new FakeVault();
+    const e = makeEnv({ METRICS: { writeDataPoint: (p) => void points.push(p) } }, vault);
+    const who = await login(e, tg);
+    await acceptTerms(e, who);
+    const accA = await linkAccount(e, vault, who, '1001', 'A');
+    const { clientId, tokens } = await connectClient(e, who, [accA]);
+    const bad = await call(e, '/oauth/token', {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: 'nope', client_id: clientId })
+    });
+    expect(bad.status).toBe(400);
+    expect(stepsOf(points)).toEqual(['register:ok', 'consent_shown:ok', 'consent_approved:ok', 'token_code:ok', 'token_refresh:invalid_grant']);
+    const serialized = JSON.stringify(points);
+    for (const secret of [clientId, tokens.access_token, accA, 'client.example', 'Test Client']) expect(serialized).not.toContain(secret);
+  });
+
+  it('a consent handle that was never approved shows the stale page, not the repeat page', async () => {
+    const points: Point[] = [];
+    const { e, who, accA } = await setup(new FakeVault(), points);
+    const clientId = await register(e);
+    const { challenge } = await pkce();
+    const consent = await openConsent(e, who, authorizePath(clientId, challenge));
+    expect((await submit(e, consent, [accA], ['accounts:read'], 'deny')).status).toBe(302); // consumes the handle
+    const r = await submit(e, consent, [accA], ['accounts:read']);
+    expect(r.status).toBe(400);
+    const text = await r.text();
+    expect(text).toContain('expired or was already used');
+    expect(text).not.toContain('already allowed this connection');
+    expect(await count('grant_reference')).toBe(0);
+    expect(stepsOf(points)).toEqual(['register:ok', 'consent_shown:ok', 'consent_denied:ok', 'consent_stale:ok']);
+  });
+
+  it('an approval that fails after the handle is spent withdraws the repeat mark and leaves no grant', async () => {
+    const vault = new FakeVault();
+    const points: Point[] = [];
+    const { e, who, accA } = await setup(vault, points);
+    const clientId = await register(e);
+    const { challenge } = await pkce();
+    const consent = await openConsent(e, who, authorizePath(clientId, challenge));
+    vault.failOn.add('putGrant');
+    const first = await submit(e, consent, [accA], ['accounts:read']);
+    expect(first.status).toBeGreaterThanOrEqual(500);
+    const again = await submit(e, consent, [accA], ['accounts:read']);
+    expect(again.status).toBe(400);
+    expect(await again.text()).not.toContain('already allowed this connection');
+    expect(await count("grant_reference WHERE status = 'active'")).toBe(0);
+    expect(stepsOf(points)).not.toContain('consent_approved:ok');
+  });
+
+  it('a refused form is counted as consent_rejected with a fixed reason', async () => {
+    const points: Point[] = [];
+    const { e, who } = await setup(new FakeVault(), points);
+    const clientId = await register(e);
+    const { challenge } = await pkce();
+    const consent = await openConsent(e, who, authorizePath(clientId, challenge));
+    expect((await submit(e, consent, [], ['accounts:read'])).status).toBe(400);
+    expect(stepsOf(points)).toContain('consent_rejected:pick_required');
+  });
+
+  it('form-action lets the redirect after Allow pass through a client relay (Gemini) and keeps loopback and custom schemes', () => {
+    expect(formActionFor('https://oauth-redirect.googleusercontent.com/r/x')).toEqual(['https:']);
+    expect(formActionFor('HTTPS://client.example:8443/cb')).toEqual(['https:']);
+    expect(formActionFor('http://127.0.0.1:7777/cb')).toEqual(['https:', 'http://127.0.0.1:7777']);
+    expect(formActionFor('cursor://anysphere/cb')).toEqual(['https:', 'cursor:']);
+    expect(formActionFor('not a url')).toEqual([]);
   });
 
   it('rejects accounts that are not the principal\'s active accounts, and scopes the client did not request', async () => {
@@ -272,7 +356,7 @@ describe('MCP OAuth', () => {
     const csp = c.res.headers.get('content-security-policy') ?? '';
     expect(csp).toContain("default-src 'none'");
     expect(csp).toContain("frame-ancestors 'none'");
-    expect(csp).toContain('form-action \'self\' https://client.example');
+    expect(csp).toContain("form-action 'self' https:;");
     expect(csp).not.toContain('script-src');
     expect(c.text).toContain('Beta');
     expect(c.text.toLowerCase()).not.toContain('<script');

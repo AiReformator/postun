@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CONTROL_SNAPSHOT_FIELDS, controlSnapshotPoint, mcpCallPoint, writeMetric, type ControlSnapshot } from '../src/metrics';
+import { CONTROL_SNAPSHOT_FIELDS, controlSnapshotPoint, mcpCallPoint, oauthStepPoint, writeMetric, type ControlSnapshot, type OauthStep } from '../src/metrics';
 
 describe('service metric points', () => {
   it('mcp_call has a fixed shape', () => {
@@ -39,5 +39,15 @@ describe('service metric points', () => {
         p
       )
     ).not.toThrow();
+  });
+
+  it('oauth_step keeps only known steps and outcomes, never free text', () => {
+    expect(oauthStepPoint('token_code', 'invalid_grant')).toEqual({ indexes: ['oauth_step'], blobs: ['v1', 'token_code', 'invalid_grant'], doubles: [1] });
+    expect(oauthStepPoint('consent_shown').blobs).toEqual(['v1', 'consent_shown', 'ok']);
+    expect(oauthStepPoint('register', 'http_429').blobs?.[2]).toBe('http_429');
+    for (const bad of ['someone_at_example_com', 'Invalid_Grant', 'invalid grant', 'http_999x', 'a'.repeat(41), 'user@example.com', 'client_12345']) {
+      expect(oauthStepPoint('token_code', bad).blobs?.[2]).toBe('other');
+    }
+    expect(oauthStepPoint('evil' as OauthStep).blobs?.[1]).toBe('other');
   });
 });

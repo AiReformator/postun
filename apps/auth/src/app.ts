@@ -1,4 +1,5 @@
-import { jsonResponse, withSecurityHeaders } from '@postun/contracts';
+import { jsonResponse, oauthStepPoint, withSecurityHeaders, writeMetric } from '@postun/contracts';
+import type { OauthStep } from '@postun/contracts';
 import { handleApi, handleLogout } from './api';
 import { loadConfig } from './env';
 import type { Config, Env } from './env';
@@ -37,6 +38,34 @@ function preflight(cfg: Config, req: Request): Response {
 
 const HTML_PATHS = new Set(['/login', '/callback', '/terms', '/authorize']);
 
+/** Which oauth_step a POST to the library's endpoints is. Reads only grant_type from a clone; nothing is kept. */
+async function oauthEndpointStep(path: string, req: Request): Promise<OauthStep | null> {
+  if (path === '/oauth/register') return 'register';
+  if (path !== '/oauth/token') return null;
+  // Only small form bodies are looked at; anything else is counted as token_other without reading it.
+  const type = (req.headers.get('content-type') ?? '').toLowerCase();
+  const length = Number(req.headers.get('content-length') ?? '0');
+  if (!type.startsWith('application/x-www-form-urlencoded') || !(length <= 8192)) return 'token_other';
+  try {
+    const grantType = new URLSearchParams(await req.clone().text()).get('grant_type');
+    return grantType === 'authorization_code' ? 'token_code' : grantType === 'refresh_token' ? 'token_refresh' : 'token_other';
+  } catch {
+    return 'token_other';
+  }
+}
+
+/** 'ok' for a 2xx, otherwise the RFC 6749 error code of the JSON body (oauthStepPoint drops anything unexpected). */
+async function oauthOutcome(res: Response): Promise<string> {
+  if (res.ok) return 'ok';
+  if (!(res.headers.get('content-type') ?? '').toLowerCase().includes('json')) return `http_${res.status}`;
+  try {
+    const body = (await res.clone().json()) as { error?: unknown };
+    return typeof body.error === 'string' ? body.error : `http_${res.status}`;
+  } catch {
+    return `http_${res.status}`;
+  }
+}
+
 export async function handleRequest(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
   const url = new URL(req.url);
   const path = url.pathname;
@@ -70,7 +99,10 @@ export async function handleRequest(req: Request, env: Env, ctx: ExecutionContex
       return tagged(html(page(locale, t(locale, 'login.title'), `<p>${t(locale, 'root.text', { url: c.appOrigin })}</p>`)));
     }
     // Everything else (metadata, /oauth/register, /oauth/token) belongs to the OAuth library.
-    return await oauthServer(c).fetch(req, env, ctx);
+    const step = req.method === 'POST' ? await oauthEndpointStep(path, req) : null;
+    const res = await oauthServer(c).fetch(req, env, ctx);
+    if (step) writeMetric(env.METRICS, oauthStepPoint(step, await oauthOutcome(res)));
+    return res;
   } catch (err) {
     const res = errorToResponse(err, wantsHtml, locale);
     if (wantsHtml) tagged(res);
