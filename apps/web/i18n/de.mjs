@@ -1,4 +1,6 @@
 // German (Sie form) translation of ru.mjs; keys must match the Russian source exactly.
+import useCases from './use-cases/de.mjs';
+
 export default {
   meta: {
     description: 'Postun Beta – ein experimenteller, quelloffener MCP-Connector für Ihr eigenes Telegram-Konto. Wir suchen Beta-Tester.',
@@ -357,5 +359,6 @@ export default {
     confirmRevoke: 'Zugriff des Clients „{client}“ widerrufen? Der Client muss sich neu verbinden.',
     deletePrompt: 'Das Löschen Ihres Profils trennt alle Konten und Clients. Gelöschte Daten können nicht wiederhergestellt werden. Geben Sie ein: DELETE PROFILE',
     deleteMismatch: 'Der Wortlaut stimmt nicht überein – das Profil wurde nicht gelöscht.'
-  }
+  },
+  useCases
 };

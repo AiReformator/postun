@@ -1,4 +1,6 @@
 // Brazilian Portuguese (pt-BR) translation of ru.mjs. Keys must match the Russian source exactly.
+import useCases from './use-cases/pt.mjs';
+
 export default {
   meta: {
     description: 'Postun Beta — conector MCP aberto e experimental para a sua própria conta do Telegram. Estamos convidando beta testers.',
@@ -357,5 +359,6 @@ export default {
     confirmRevoke: 'Revogar o acesso do cliente “{client}”? O cliente precisará se conectar novamente.',
     deletePrompt: 'A exclusão do perfil desconecta todas as contas e clientes. Os dados excluídos não podem ser recuperados. Digite: DELETE PROFILE',
     deleteMismatch: 'A frase não confere — o perfil não foi excluído.'
-  }
+  },
+  useCases
 };

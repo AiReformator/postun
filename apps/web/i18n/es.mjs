@@ -1,4 +1,6 @@
 // Spanish (neutral) translation of ru.mjs; keys must match the Russian source exactly.
+import useCases from './use-cases/es.mjs';
+
 export default {
   meta: {
     description: 'Postun Beta: conector MCP abierto y experimental para tu propia cuenta de Telegram. Buscamos beta testers.',
@@ -357,5 +359,6 @@ export default {
     confirmRevoke: '¿Revocar el acceso del cliente «{client}»? El cliente tendrá que conectarse de nuevo.',
     deletePrompt: 'Al eliminar el perfil se desconectarán todas las cuentas y los clientes. Los datos eliminados no se pueden recuperar. Escribe: DELETE PROFILE',
     deleteMismatch: 'La frase no coincide: el perfil no se ha eliminado.'
-  }
+  },
+  useCases
 };

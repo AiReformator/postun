@@ -2,7 +2,7 @@
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { landing, statusPage, privacy, terms, cabinet } from './src/pages.mjs';
+import { landing, useCasesPage, statusPage, privacy, terms, cabinet } from './src/pages.mjs';
 import { robotsTxt, sitemapXml, llmsTxt } from './src/seo.mjs';
 import { validateStatus } from './src/render.mjs';
 import { LOCALES, checkLocales } from './i18n/index.mjs';
@@ -24,6 +24,7 @@ const pages = {};
 for (const l of LOCALES) {
   const dir = l.prefix ? `${l.prefix.slice(1)}/` : '';
   pages[`${dir}index.html`] = landing(status, l.code);
+  pages[`${dir}use-cases/index.html`] = useCasesPage(status, l.code);
   pages[`${dir}status/index.html`] = statusPage(l.code);
   pages[`${dir}privacy/index.html`] = privacy(l.code);
   pages[`${dir}terms/index.html`] = terms(l.code);
