@@ -1,5 +1,7 @@
 // Russian is the source language. Every key here must exist in every other locale (enforced by tests and build).
 // Values are trusted, hand-written strings; {placeholders} are filled with escaped values by t().
+import useCases from './use-cases/ru.mjs';
+
 export default {
   meta: {
     description: 'Postun Beta — экспериментальный открытый MCP-коннектор для собственного Telegram-аккаунта. Приглашаем бета-тестеров.',
@@ -358,5 +360,6 @@ export default {
     confirmRevoke: 'Отозвать доступ клиента «{client}»? Клиенту придётся подключиться заново.',
     deletePrompt: 'Удаление профиля отключит все аккаунты и клиенты. Удалённые данные не восстанавливаются. Введите: УДАЛИТЬ ПРОФИЛЬ',
     deleteMismatch: 'Фраза не совпала — профиль не удалён.'
-  }
+  },
+  useCases
 };

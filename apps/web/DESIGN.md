@@ -51,20 +51,20 @@ colours (the QR code keeps a white plate so it always scans).
 
 | Component | Class | Where |
 |---|---|---|
-| Header, brand mark, nav, language menu (`<details>`, no JS needed) | `.site-header`, `.brand`, `.site-nav`, `.lang` | all pages |
+| Header, brand mark, nav, language menu (`<details>`, no JS needed) | `.site-header`, `.brand`, `.site-nav`, `.lang` | all pages; the nav shows from 1024 px, and its GitHub link (`.nav-repo`, also in the footer) is hidden at 1024–1199 px so the eight items fit |
 | Footer with product / open source / legal columns | `.site-footer`, `.foot-grid`, `.foot-col` | all pages |
 | Button: primary, secondary, ghost, danger, small | `.btn`, `.btn.secondary`, `.btn-ghost`, `.btn-danger`, `.btn-sm` | |
 | Badge (Beta) | `.badge` | header, page titles |
 | Status (bracketed mono, `[ verified ]`) | `.pill` + `.pill-ok` / `.pill-warn` / `.pill-bad`; status table keeps `.st-*` | hero, status table, connect, dashboard |
-| Corner ticks | `.ticked` (uses `::before`; not for elements whose `::before` is taken) | USP cards, flow, security items, final CTA |
+| Corner ticks | `.ticked` (uses `::before`; not for elements whose `::before` is taken) | USP cards, flow, security items, final CTA, use-case cards |
 | MCP address with copy button (button hidden until `host.js` confirms the Clipboard API; on failure the address is selected) | `.endpoint`, `.endpoint-field`, `.endpoint-copy` | hero |
 | Check chips | `.chips` | hero |
 | Eyebrow | `.eyebrow` | hero |
 | Card | `.card`, `.card-head`, `.card-title` | dashboard |
-| Section heading | `.section`, `.section-head` | landing |
+| Section heading | `.section`, `.section-head` | landing, use cases |
 | Flow diagram (Telegram → Postun → AI clients) | `.flow`, `.flow-node`, `.flow-core`, `.flow-link`, `.flow-clients` | hero |
 | USP grid | `.usp-grid`, `.usp`, `.usp-lead`, `.usp-figure` | landing |
-| Numbered steps | `.steps` | landing |
+| Numbered steps | `.steps`; `.steps-3` for three steps (3 columns from 1024 px, the last step spans both columns at 600–1023 px) | landing, use cases |
 | Status page (banner, component rows, 90-day strip, incidents, legend; filled by `assets/status.js` from `src/status-data.mjs`) | `.status-banner`, `.status-comp`, `.status-strip`, `.status-day`, `.status-incident`, `.status-legend`, `.pill-unknown` | `/status/` |
 | Table | `.table-wrap` + `table.status` | status, data handling |
 | FAQ accordion | `.faq details` | landing (FAQ, Connect) |
@@ -74,6 +74,7 @@ colours (the QR code keeps a white plate so it always scans).
 | Document | `.doc`, `.doc ul.terms`, `.translation` | privacy, terms |
 | Notice, meter, rows, tags, copy field, QR, form field | `.notice`, `progress.meter`, `.rows`, `.tags`, `.copy-field`, `.qr`, `.field` | dashboard |
 | Icon (24 px, 1.75 stroke) | `icon(name)` in `src/icons.mjs` | everywhere |
+| Use cases page: heading block, breadcrumb (`<ol>`, `/` drawn by CSS), section links, scenario cards with example prompts (`<blockquote>`), limit line and the real MCP tool names, the "does not do" and "good to know" boxes; landing teaser linking to each group | `.uc-head`, `.crumbs`, `.uc-toc`, `.uc-grid`, `.uc-card`, `.uc-prompts`, `.uc-label`, `.uc-prompt`, `.uc-limit`, `.uc-tools`, `.uc-not`, `.uc-notes`, `.uc-teaser` | `/use-cases/`, landing `#use` |
 
 ## Content rules
 
@@ -82,6 +83,9 @@ colours (the QR code keeps a white plate so it always scans).
   documentation, linked from the item (`CLIENTS` in `src/pages.mjs`).
 - **Trademarks.** Client names are plain text. Only the Telegram logo is used (official asset, unmodified, informational use);
   the footer carries the trademark/independence note on every page.
+- **Use cases** (`i18n/use-cases/*.mjs`) must stay within what the tools return (`apps/mcp/src/schemas.ts`, the message
+  fields in `apps/mcp/src/telegram/`): read-only, the owner's own chats and public channels, word search without a date filter,
+  no views, reactions, schedules, alerts or export files. Each card lists the real tool names (`USE_CASE_GROUPS`).
 - **Security claims** in `#security` must match the code; re-check `apps/auth`, `apps/mcp`, `packages/contracts` and
   `docs/03_SECURITY_PRIVACY.md` when any of them changes.
 

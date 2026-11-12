@@ -7,7 +7,7 @@ const REPO = 'https://github.com/AiReformator/postun';
 const SUPPORT = 'https://t.me/postun_org';
 
 /** Page ids and their path below a locale prefix. */
-export const PAGES = { home: '/', status: '/status/', privacy: '/privacy/', terms: '/terms/', cabinet: '/app/' };
+export const PAGES = { home: '/', useCases: '/use-cases/', status: '/status/', privacy: '/privacy/', terms: '/terms/', cabinet: '/app/' };
 
 const DASHBOARD = (L) => `https://app.postun.org${L.prefix}/app/`;
 
@@ -20,6 +20,9 @@ export const WEB_ANALYTICS_TOKEN = SITE === 'https://postun.org' ? '82c68c9072b7
 export const BEACON_SRC = 'https://static.cloudflareinsights.com/beacon.min.js';
 const beacon = () =>
   WEB_ANALYTICS_TOKEN ? `<script type="module" src="${BEACON_SRC}" data-cf-beacon='${JSON.stringify({ token: WEB_ANALYTICS_TOKEN, spa: false })}'></script>\n` : '';
+
+/** Open Graph locale codes (language_TERRITORY). */
+const OG_LOCALE = { en: 'en_US', ru: 'ru_RU', es: 'es_ES', pt: 'pt_BR', de: 'de_DE' };
 
 function layout(L, page, { title, body, script, description, head = '', headerCta = '', analytics = true }) {
   const t = translator(L.dict);
@@ -42,6 +45,15 @@ function layout(L, page, { title, body, script, description, head = '', headerCt
 <title>${esc(title)}</title>
 <meta name="description" content="${esc(description ?? t('meta.description'))}">
 <link rel="canonical" href="${SITE}${href(L)}">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Postun">
+<meta property="og:title" content="${esc(title)}">
+<meta property="og:description" content="${esc(description ?? t('meta.description'))}">
+<meta property="og:url" content="${SITE}${href(L)}">
+<meta property="og:image" content="${SITE}/assets/postun-icon-256.png">
+<meta property="og:locale" content="${OG_LOCALE[L.code]}">
+${LOCALES.filter((l) => l.code !== L.code).map((l) => `<meta property="og:locale:alternate" content="${OG_LOCALE[l.code]}">`).join('\n')}
+<meta name="twitter:card" content="summary">
 ${alternates}
 <link rel="alternate" hreflang="x-default" href="${SITE}${PAGES[page]}">
 <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
@@ -52,14 +64,14 @@ ${head}</head>
 <a class="skip-link" href="#main">${t('nav.skip')}</a>
 <header class="site-header"><div class="wrap">
 <a class="brand" href="${home}">${BRAND_MARK}Postun <span class="badge">Beta</span></a>
-<nav class="site-nav"><a href="${home}#how">${t('nav.how')}</a><a href="${home}#connect">${t('nav.connect')}</a><a href="${home}#security">${t('nav.security')}</a><a href="${home}#features">${t('nav.features')}</a><a href="${L.prefix}/status/"${page === 'status' ? ' aria-current="page"' : ''}>${t('nav.status')}</a><a href="${home}#faq">${t('nav.faq')}</a><a href="${REPO}">GitHub</a></nav>
+<nav class="site-nav"><a href="${home}#how">${t('nav.how')}</a><a href="${L.prefix}/use-cases/"${page === 'useCases' ? ' aria-current="page"' : ''}>${t('useCases.navLabel')}</a><a href="${home}#connect">${t('nav.connect')}</a><a href="${home}#security">${t('nav.security')}</a><a href="${home}#features">${t('nav.features')}</a><a href="${L.prefix}/status/"${page === 'status' ? ' aria-current="page"' : ''}>${t('nav.status')}</a><a href="${home}#faq">${t('nav.faq')}</a><a class="nav-repo" href="${REPO}">GitHub</a></nav>
 <details class="lang"><summary aria-label="${esc(t('nav.language'))}: ${esc(L.dict.meta.languageName)}">${icon('globe')}${L.short}${icon('chevron')}</summary>
 <nav class="langs" aria-label="${esc(t('nav.language'))}">${switcher}</nav></details>
 ${headerCta}</div></header>
 <main id="main" class="wrap">${body}</main>
 <footer class="site-footer"><div class="wrap foot-grid">
 <div class="foot-brand"><a class="brand" href="${home}">${BRAND_MARK}Postun</a><p>${t('footer.about')}</p></div>
-<div class="foot-col"><h2>${t('footer.product')}</h2><ul><li><a href="${home}#how">${t('nav.how')}</a></li><li><a href="${home}#features">${t('nav.features')}</a></li><li><a href="${home}#faq">${t('nav.faq')}</a></li><li><a href="${L.prefix}/status/">${t('footer.statusPage')}</a></li><li><a href="${DASHBOARD(L)}">${t('nav.app')}</a></li></ul></div>
+<div class="foot-col"><h2>${t('footer.product')}</h2><ul><li><a href="${home}#how">${t('nav.how')}</a></li><li><a href="${L.prefix}/use-cases/">${t('useCases.navLabel')}</a></li><li><a href="${home}#features">${t('nav.features')}</a></li><li><a href="${home}#faq">${t('nav.faq')}</a></li><li><a href="${L.prefix}/status/">${t('footer.statusPage')}</a></li><li><a href="${DASHBOARD(L)}">${t('nav.app')}</a></li></ul></div>
 <div class="foot-col"><h2>${t('footer.project')}</h2><ul><li><a href="${REPO}">${t('footer.source')}</a></li><li><a href="${REPO}/blob/main/SECURITY.md">${t('footer.vuln')}</a></li><li><a href="${REPO}/issues">${t('footer.issues')}</a></li><li><a href="${SUPPORT}">${t('footer.support')}</a></li></ul></div>
 <div class="foot-col"><h2>${t('footer.legal')}</h2><ul><li><a href="${L.prefix}/terms/">${t('footer.terms')}</a></li><li><a href="${L.prefix}/privacy/">${t('footer.privacy')}</a></li></ul></div>
 <p class="foot-note">${t('footer.issuesNote', { repo: REPO })}</p>
@@ -297,6 +309,14 @@ ${[1, 2, 3, 4].map(step).join('\n')}
 </ol>
 </section>
 
+<section id="use" class="section">
+<div class="section-head"><h2>${t('useCases.teaserTitle')}</h2><p>${t('useCases.teaserText')}</p></div>
+<ul class="uc-teaser">
+${USE_CASE_GROUPS.map((g) => `<li><a href="${L.prefix}/use-cases/#${g.id}">${icon(g.icon)}<span>${t(`useCases.${g.key}Title`)}</span></a></li>`).join('\n')}
+</ul>
+<p><a class="btn secondary" href="${L.prefix}/use-cases/">${t('useCases.teaserLink')}${icon('arrow')}</a></p>
+</section>
+
 ${connectSection(status, t)}
 
 ${securitySection(t)}
@@ -332,6 +352,178 @@ ${faqItems(status, code).map((f) => `<details><summary>${f.q}</summary><p>${f.ht
 <h2>${t('landing.finalTitle')}</h2>
 <p>${t('landing.finalText')}</p>
 ${open ? ctaLink() : ''}
+</div>
+</section>`
+  });
+}
+
+/**
+ * Use cases (/use-cases/): groups of scenarios, each with the Postun tools it relies on. Tool names are the real MCP tool
+ * names (apps/mcp/src/schemas.ts); the texts live in i18n/use-cases/<locale>.mjs. USE_CASE_COUNT is part of the titles.
+ */
+export const USE_CASE_GROUPS = [
+  { id: 'analytics', key: 'g1', icon: 'eye', items: [
+    { n: 1, tools: ['search_channels', 'get_channel_posts'] },
+    { n: 2, tools: ['search_channels', 'get_channel_posts'] },
+    { n: 3, tools: ['search_messages', 'get_channel_posts'] }
+  ] },
+  { id: 'digests', key: 'g2', icon: 'spark', items: [
+    { n: 4, tools: ['list_dialogs', 'get_channel_posts'] },
+    { n: 5, tools: ['list_dialogs', 'get_history'] },
+    { n: 6, tools: ['get_history'] }
+  ] },
+  { id: 'work', key: 'g3', icon: 'check', items: [
+    { n: 7, tools: ['get_history'] },
+    { n: 8, tools: ['list_dialogs', 'get_history'] },
+    { n: 9, tools: ['search_messages', 'get_history'] },
+    { n: 10, tools: ['get_history', 'search_messages'] }
+  ] },
+  { id: 'communities', key: 'g4', icon: 'globe', items: [
+    { n: 11, tools: ['get_history', 'search_messages'] },
+    { n: 12, tools: ['get_history', 'search_messages'] },
+    { n: 13, tools: ['search_channels', 'get_channel_posts'] }
+  ] },
+  { id: 'search', key: 'g5', icon: 'link', items: [
+    { n: 14, tools: ['search_messages', 'get_media_info', 'get_media'] },
+    { n: 15, tools: ['search_messages', 'get_channel_posts'] }
+  ] },
+  { id: 'developers', key: 'g6', icon: 'code', items: [{ n: 16, tools: ['get_history', 'search_messages', 'get_media'] }] }
+];
+export const USE_CASE_COUNT = USE_CASE_GROUPS.reduce((n, g) => n + g.items.length, 0);
+export const USE_CASE_NOTS = 6;
+export const USE_CASE_NOTES = 7;
+export const USE_CASE_FAQ = 4;
+
+/** FAQ of the use-cases page: HTML for the page, plain text for JSON-LD. */
+export function useCaseFaq(code = 'en') {
+  const L = locale(code);
+  const t = translator(L.dict);
+  return Array.from({ length: USE_CASE_FAQ }, (_, i) => {
+    const html = t(`useCases.fa${i + 1}`, { home: `${L.prefix}/` });
+    return { q: t(`useCases.fq${i + 1}`), html, text: plainText(html) };
+  });
+}
+
+/** JSON-LD for the use-cases page: breadcrumbs, the page with its list of use cases, and the FAQ shown on it. */
+export function useCasesJsonLd(code = 'en') {
+  const L = locale(code);
+  const t = translator(L.dict);
+  const url = `${SITE}${L.prefix}${PAGES.useCases}`;
+  const items = USE_CASE_GROUPS.flatMap((g) => g.items).map((it, i) => ({
+    '@type': 'ListItem',
+    position: i + 1,
+    url: `${url}#use-case-${it.n}`,
+    name: plainText(t(`useCases.u${it.n}.title`)),
+    description: plainText(t(`useCases.u${it.n}.text`))
+  }));
+  const data = [
+    {
+      '@context': 'https://schema.org',
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: plainText(t('useCases.breadcrumbHome')), item: `${SITE}${L.prefix}/` },
+        { '@type': 'ListItem', position: 2, name: plainText(t('useCases.eyebrow')), item: url }
+      ]
+    },
+    {
+      '@context': 'https://schema.org',
+      '@type': 'CollectionPage',
+      name: plainText(t('useCases.h1')),
+      description: plainText(t('useCases.metaDescription')),
+      url,
+      inLanguage: L.htmlLang,
+      isPartOf: { '@type': 'WebSite', name: 'Postun', url: `${SITE}/` },
+      about: { '@type': 'SoftwareApplication', name: 'Postun', url: `${SITE}${L.prefix}/`, applicationCategory: 'DeveloperApplication', operatingSystem: 'Web' },
+      mainEntity: { '@type': 'ItemList', numberOfItems: items.length, itemListElement: items }
+    },
+    {
+      '@context': 'https://schema.org',
+      '@type': 'FAQPage',
+      inLanguage: L.htmlLang,
+      mainEntity: useCaseFaq(code).map((f) => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.text } }))
+    }
+  ];
+  return data.map((d) => `<script type="application/ld+json">${JSON.stringify(d).replace(/<\//g, '<\\/')}</script>\n`).join('');
+}
+
+export function useCasesPage(status, code = 'en') {
+  const L = locale(code);
+  const t = translator(L.dict);
+  const home = `${L.prefix}/`;
+  const quota = Number(status.quota_daily_success ?? 10000).toLocaleString(L.htmlLang);
+  const open = connectAvailable(status);
+  const toc = USE_CASE_GROUPS.map((g) => `<li><a href="#${g.id}">${t(`useCases.${g.key}Title`)}</a></li>`).join('');
+  const card = (it) => `<li class="uc-card ticked" id="use-case-${it.n}">
+<h3>${t(`useCases.u${it.n}.title`)}</h3>
+<p>${t(`useCases.u${it.n}.text`)}</p>
+<div class="uc-prompts"><p class="uc-label">${t('useCases.promptLabel')}</p>
+<blockquote class="uc-prompt"><p>${t(`useCases.u${it.n}.p1`)}</p></blockquote>
+<blockquote class="uc-prompt"><p>${t(`useCases.u${it.n}.p2`)}</p></blockquote></div>
+<p class="uc-limit"><strong>${t('useCases.limitLabel')}:</strong> ${t(`useCases.u${it.n}.limit`)}</p>
+<p class="uc-tools"><span class="visually-hidden">${t('useCases.toolsLabel')}: </span>${it.tools.map((x) => `<code>${x}</code>`).join(' ')}</p>
+</li>`;
+  const groups = USE_CASE_GROUPS.map(
+    (g) => `<section id="${g.id}" class="section uc-group">
+<div class="section-head"><h2>${t(`useCases.${g.key}Title`)}</h2><p>${t(`useCases.${g.key}Intro`)}</p></div>
+<ul class="uc-grid">
+${g.items.map(card).join('\n')}
+</ul>
+</section>`
+  ).join('\n\n');
+  const list = (prefix, n, vars = {}) => Array.from({ length: n }, (_, i) => `<li>${t(`useCases.${prefix}${i + 1}`, vars)}</li>`).join('\n');
+  const cta = open
+    ? `<a class="btn" href="${DASHBOARD(L)}">${t('landing.cta')}${icon('arrow')}</a>`
+    : `<a class="btn" href="${home}#connect">${t('useCases.finalHome')}${icon('arrow')}</a>`;
+  return layout(L, 'useCases', {
+    title: t('useCases.title'),
+    description: t('useCases.metaDescription'),
+    head: useCasesJsonLd(code),
+    headerCta: open ? `<a class="btn header-cta" href="${DASHBOARD(L)}">${t('nav.app')}</a>` : '',
+    body: `
+<header class="uc-head">
+<nav class="crumbs" aria-label="${esc(plainText(t('useCases.breadcrumbLabel')))}"><ol><li><a href="${home}">${t('useCases.breadcrumbHome')}</a></li><li><span aria-current="page">${t('useCases.eyebrow')}</span></li></ol></nav>
+<p class="eyebrow">${t('useCases.eyebrow')}</p>
+<h1>${t('useCases.h1')}</h1>
+<p class="lead">${t('useCases.lead')}</p>
+<nav class="uc-toc" aria-label="${esc(plainText(t('useCases.tocLabel')))}"><ul>${toc}</ul></nav>
+</header>
+
+<section id="start" class="section">
+<div class="section-head"><h2>${t('useCases.howTitle')}</h2></div>
+<ol class="steps steps-3">
+${[1, 2, 3].map((i) => `<li><p>${t(`useCases.how${i}`, { home })}</p></li>`).join('\n')}
+</ol>
+</section>
+
+${groups}
+
+<section id="limits" class="section">
+<div class="uc-not">
+<h2>${t('useCases.notTitle')}</h2>
+<ul>
+${list('not', USE_CASE_NOTS)}
+</ul>
+</div>
+<div class="uc-notes">
+<h2>${t('useCases.notesTitle')}</h2>
+<ul>
+${list('note', USE_CASE_NOTES, { quota, privacy: `${L.prefix}/privacy/` })}
+</ul>
+</div>
+</section>
+
+<section id="faq" class="section faq">
+<div class="section-head"><h2>${t('useCases.faqTitle')}</h2></div>
+<div class="faq-list">
+${useCaseFaq(code).map((f) => `<details><summary>${f.q}</summary><p>${f.html}</p></details>`).join('\n')}
+</div>
+</section>
+
+<section class="section">
+<div class="final ticked">
+<h2>${t('useCases.finalTitle')}</h2>
+<p>${t('useCases.finalText')}</p>
+${cta}
 </div>
 </section>`
   });

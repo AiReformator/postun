@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync, existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { landing, statusPage, cabinet, privacy, terms, faqItems, WEB_ANALYTICS_TOKEN, BEACON_SRC, CLIENTS } from '../src/pages.mjs';
+import { landing, statusPage, cabinet, privacy, terms, faqItems, useCasesPage, useCaseFaq, USE_CASE_GROUPS, USE_CASE_COUNT, WEB_ANALYTICS_TOKEN, BEACON_SRC, CLIENTS } from '../src/pages.mjs';
 import { robotsTxt, sitemapXml, llmsTxt } from '../src/seo.mjs';
 import { connectAvailable, validateStatus } from '../src/render.mjs';
 import { LOCALES, checkLocales, translator } from '../i18n/index.mjs';
@@ -138,13 +138,13 @@ describe('SEO: semantic core', () => {
   });
   it('sitemap lists every locale page with hreflang alternates and x-default, but not the cabinet', () => {
     const xml = sitemapXml('2026-11-05');
-    for (const l of LOCALES) for (const p of ['/', '/status/', '/privacy/', '/terms/']) {
+    for (const l of LOCALES) for (const p of ['/', '/use-cases/', '/status/', '/privacy/', '/terms/']) {
       expect(xml).toContain(`<loc>https://postun.org${l.prefix}${p}</loc>`);
       expect(xml).toContain(`hreflang="${l.htmlLang}" href="https://postun.org${l.prefix}${p}"`);
     }
     expect(xml).toContain('hreflang="x-default" href="https://postun.org/"');
     expect(xml).not.toContain('/app/');
-    expect((xml.match(/<url>/g) ?? []).length).toBe(LOCALES.length * 4);
+    expect((xml.match(/<url>/g) ?? []).length).toBe(LOCALES.length * 5);
   });
   it('robots.txt allows all and points to the sitemap; llms.txt follows llmstxt.org and links everything', () => {
     expect(robotsTxt()).toBe('User-agent: *\nAllow: /\n\nSitemap: https://postun.org/sitemap.xml\n');
@@ -152,7 +152,9 @@ describe('SEO: semantic core', () => {
     expect(llms.startsWith('# Postun\n\n> ')).toBe(true);
     for (const l of LOCALES) expect(llms).toContain(`(https://postun.org${l.prefix}/)`);
     for (const u of ['https://mcp.postun.org/mcp', 'https://github.com/AiReformator/postun', '/blob/main/SECURITY.md', 'Kerckhoffs']) expect(llms).toContain(u);
-    expect(llms).toContain('not yet verified');
+    expect(llms).toContain('https://postun.org/use-cases/');
+    expect(llms).toContain('verified too');
+    expect(llmsTxt(withAll(status, 'NOT_RUN'))).toContain('Search, public channels, file downloads are not yet verified.');
   });
   it('the build writes robots.txt, sitemap.xml and llms.txt into dist', () => {
     execFileSync(process.execPath, ['build.mjs'], { cwd: fileURLToPath(new URL('..', import.meta.url)), stdio: 'pipe' });
@@ -173,7 +175,7 @@ describe('plainText', () => {
 });
 
 describe('design system', () => {
-  const pages = (s) => LOCALES.flatMap((l) => [landing(s, l.code), statusPage(l.code), privacy(l.code), terms(l.code), cabinet(s, l.code)]);
+  const pages = (s) => LOCALES.flatMap((l) => [landing(s, l.code), useCasesPage(s, l.code), statusPage(l.code), privacy(l.code), terms(l.code), cabinet(s, l.code)]);
   it('hero claims AI-client compatibility only from status.json', () => {
     const hero = (s) => landing(s).match(/<ul class="flow-clients">([\s\S]*?)<\/ul>/)[1];
     const notRun = hero(withAll(status, 'NOT_RUN'));
@@ -220,7 +222,7 @@ describe('design system', () => {
   });
   it('footer carries the trademark note and the Telegram support link on every page', () => {
     for (const l of LOCALES) {
-      for (const html of [landing(status, l.code), privacy(l.code), terms(l.code), cabinet(status, l.code)]) {
+      for (const html of [landing(status, l.code), useCasesPage(status, l.code), privacy(l.code), terms(l.code), cabinet(status, l.code)]) {
         const footer = html.match(/<footer[\s\S]*<\/footer>/)[0];
         expect(footer).toContain('href="https://t.me/postun_org"');
         expect(footer).toContain('class="foot-note foot-tm"');
@@ -294,4 +296,110 @@ describe('web analytics', () => {
       expect(policies[0]).toContain('connect-src https://auth.postun.org;');
     }
   });
+});
+
+describe('use cases page', () => {
+  const ld = (html) => [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map((m) => JSON.parse(m[1].replace(/<\\\//g, '</')));
+  const scopes = readFileSync(new URL('../../../packages/contracts/src/scopes.ts', import.meta.url), 'utf8');
+  const toolNames = [...scopes.match(/export const TOOLS = \[([\s\S]*?)\]/)[1].matchAll(/'([a-z_]+)'/g)].map((m) => m[1]);
+
+  it('has 16 use cases in six groups, each with real Postun tools', () => {
+    expect(USE_CASE_COUNT).toBe(16);
+    expect(USE_CASE_GROUPS).toHaveLength(6);
+    expect(toolNames.length).toBeGreaterThanOrEqual(8);
+    for (const g of USE_CASE_GROUPS) for (const it of g.items) for (const tool of it.tools) expect(toolNames, tool).toContain(tool);
+    expect(USE_CASE_GROUPS.flatMap((g) => g.items.map((i) => i.n))).toEqual(Array.from({ length: 16 }, (_, i) => i + 1));
+  });
+
+  it('renders every locale with its own title, description, canonical and hreflang alternates', () => {
+    const titles = new Set();
+    for (const l of LOCALES) {
+      const html = useCasesPage(status, l.code);
+      expect(html).toContain(`<html lang="${l.htmlLang}"`);
+      const title = html.match(/<title>(.*)<\/title>/)[1];
+      expect([...title].length, l.code).toBeLessThanOrEqual(62);
+      expect(title, l.code).toContain('Telegram');
+      expect(title, l.code).toContain('ChatGPT');
+      expect(title, l.code).toContain('16');
+      titles.add(title);
+      const desc = html.match(/<meta name="description" content="([^"]*)"/)[1];
+      expect([...desc].length, l.code).toBeGreaterThan(100);
+      expect([...desc].length, l.code).toBeLessThanOrEqual(160);
+      expect(html).toContain(`<link rel="canonical" href="https://postun.org${l.prefix}/use-cases/">`);
+      for (const o of LOCALES) expect(html).toContain(`<link rel="alternate" hreflang="${o.htmlLang}" href="https://postun.org${o.prefix}/use-cases/">`);
+      expect(html).toContain('<link rel="alternate" hreflang="x-default" href="https://postun.org/use-cases/">');
+      expect(html.match(/<h1>/g)).toHaveLength(1);
+      expect(html.match(/class="uc-card ticked"/g)).toHaveLength(16);
+      for (let n = 1; n <= 16; n++) expect(html).toContain(`id="use-case-${n}"`);
+      expect(html).toContain(`<a href="${l.prefix}/use-cases/" aria-current="page">`);
+    }
+    expect(titles.size).toBe(LOCALES.length);
+  });
+
+  it('JSON-LD: breadcrumbs, the list of use cases and the FAQ that is visible on the page', () => {
+    for (const l of LOCALES) {
+      const html = useCasesPage(status, l.code);
+      const [crumbs, page, faq] = ld(html);
+      expect(crumbs['@type']).toBe('BreadcrumbList');
+      expect(crumbs.itemListElement[1].item).toBe(`https://postun.org${l.prefix}/use-cases/`);
+      expect(page['@type']).toBe('CollectionPage');
+      expect(page.inLanguage).toBe(l.htmlLang);
+      expect(page.mainEntity.numberOfItems).toBe(16);
+      expect(page.mainEntity.itemListElement[0].url).toBe(`https://postun.org${l.prefix}/use-cases/#use-case-1`);
+      for (const it of page.mainEntity.itemListElement) expect(it.name + it.description).not.toMatch(/[<>{}]/);
+      expect(faq['@type']).toBe('FAQPage');
+      const visible = [...html.matchAll(/<details><summary>([\s\S]*?)<\/summary>/g)].map((m) => m[1]);
+      expect(faq.mainEntity.map((q) => q.name)).toEqual(visible);
+      expect(useCaseFaq(l.code)).toHaveLength(4);
+      for (const m of html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)) expect(m[1]).not.toContain('</');
+    }
+  });
+
+  it('fills placeholders, links the connect guide and the quota, and never leaves {braces}', () => {
+    for (const l of LOCALES) {
+      const html = useCasesPage(status, l.code);
+      expect(html, l.code).not.toMatch(/\{(home|quota|privacy)\}/);
+      expect(html).toContain(`href="${l.prefix}/#connect"`);
+      expect(html).toContain(`href="${l.prefix}/privacy/"`);
+      expect(html).toContain(Number(10000).toLocaleString(l.htmlLang));
+    }
+  });
+
+  it('offers the dashboard only when connecting is open, otherwise the connect guide', () => {
+    expect(useCasesPage(withAll(status, 'PASS'))).toContain('href="https://app.postun.org/app/"');
+    const closed = useCasesPage(withAll(status, 'NOT_RUN'));
+    expect(closed).not.toContain('header-cta');
+    expect(closed.match(/<div class="final ticked">[\s\S]*?<\/div>/)[0]).toContain('href="/#connect"');
+  });
+
+  it('every page links to the use cases from the header and footer; the landing has a teaser to each group', () => {
+    for (const l of LOCALES) {
+      for (const html of [landing(status, l.code), statusPage(l.code), privacy(l.code), terms(l.code)]) {
+        const header = html.match(/<header class="site-header">[\s\S]*?<\/header>/)[0];
+        expect(header).toContain(`href="${l.prefix}/use-cases/"`);
+        expect(html.match(/<footer[\s\S]*<\/footer>/)[0]).toContain(`href="${l.prefix}/use-cases/"`);
+      }
+      const teaser = landing(status, l.code).match(/<section id="use" class="section">([\s\S]*?)<\/section>/)[1];
+      for (const g of USE_CASE_GROUPS) expect(teaser).toContain(`href="${l.prefix}/use-cases/#${g.id}"`);
+    }
+  });
+
+  it('every page carries Open Graph tags that match its canonical URL and locale', () => {
+    const og = { en: 'en_US', ru: 'ru_RU', es: 'es_ES', pt: 'pt_BR', de: 'de_DE' };
+    for (const l of LOCALES) {
+      for (const html of [landing(status, l.code), useCasesPage(status, l.code), statusPage(l.code)]) {
+        const canonical = html.match(/<link rel="canonical" href="([^"]*)">/)[1];
+        expect(html).toContain(`<meta property="og:url" content="${canonical}">`);
+        expect(html).toContain(`<meta property="og:locale" content="${og[l.code]}">`);
+        expect(html.match(/og:locale:alternate/g)).toHaveLength(LOCALES.length - 1);
+        expect(html).toContain('<meta property="og:image" content="https://postun.org/assets/postun-icon-256.png">');
+        expect(html.match(/<meta property="og:title" content="([^"]*)">/)[1]).toBe(html.match(/<title>(.*)<\/title>/)[1]);
+      }
+    }
+  });
+
+  it('the build writes the page for every locale', () => {
+    execFileSync(process.execPath, ['build.mjs'], { cwd: fileURLToPath(new URL('..', import.meta.url)), stdio: 'pipe' });
+    for (const l of LOCALES) expect(existsSync(new URL(`../dist${l.prefix}/use-cases/index.html`, import.meta.url)), l.code).toBe(true);
+  }, 60000);
 });
