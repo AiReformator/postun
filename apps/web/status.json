@@ -1,6 +1,6 @@
 {
   "$comment": "Single source of truth for feature status shown on the site. Only values backed by a recorded acceptance run may be PASS. Allowed: PASS, FAIL, NOT_RUN, UNSUPPORTED, BLOCKED.",
-  "updated": "2026-11-08",
+  "updated": "2026-11-13",
   "registration_open": true,
   "quota_daily_success": 10000,
   "features": [
@@ -35,10 +35,22 @@
       "evidence": "2026-11-05: OAuth (регистрация клиента, PKCE, согласие) и вызовы инструментов из ChatGPT"
     },
     {
+      "id": "mcp_claude",
+      "title": "Claude (сайт и приложение): пользовательский коннектор",
+      "status": "PASS",
+      "evidence": "2026-11-06: Claude (claude.ai) подключён как пользовательский коннектор через OAuth с Client ID Metadata Document (https://claude.ai/oauth/mcp-oauth-client-metadata), грант активен; 2026-11-13 мейнтейнер подтвердил, что инструменты отвечают из Claude"
+    },
+    {
       "id": "mcp_claude_code",
       "title": "Claude Code: remote HTTP MCP",
       "status": "PASS",
       "evidence": "2026-11-06: Claude Code подключён к https://mcp.postun.org/mcp (remote HTTP, OAuth); мейнтейнер проверил, list_accounts и другие инструменты отвечают из Claude Code"
+    },
+    {
+      "id": "mcp_gemini",
+      "title": "Gemini (веб): подключение MCP",
+      "status": "PASS",
+      "evidence": "2026-11-11: после исправления form-action на странице согласия (PR #25) Gemini на gemini.google.com прошёл OAuth (динамическая регистрация клиента); 2026-11-13 мейнтейнер подтвердил вызовы инструментов из Gemini в браузере"
     },
     {
       "id": "read_tools",

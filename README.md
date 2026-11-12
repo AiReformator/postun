@@ -4,7 +4,7 @@
 
 *The English README is canonical; translations follow it and may lag behind.*
 
-**Postun Beta** is an open-source [MCP](https://modelcontextprotocol.io) (Model Context Protocol) server for Telegram. It links your own Telegram account to ChatGPT, Claude, Claude Code and other MCP clients and works as a transit: when your AI assistant asks, Postun passes it your chats, message search results or public channel posts, and keeps nothing itself. Messages exist only in memory while they are handed over; they are not stored, logged or viewed by Postun, and only read scopes exist, so nothing can be sent, edited or deleted. You decide which accounts and which scopes each AI client gets, and you can revoke access at any time. Files are implemented but not yet verified on production (see [Beta status](#beta-status)).
+**Postun Beta** is an open-source [MCP](https://modelcontextprotocol.io) (Model Context Protocol) server for Telegram. It links your own Telegram account to ChatGPT, Claude, Claude Code and other MCP clients and works as a transit: when your AI assistant asks, Postun passes it your chats, message search results or public channel posts, and keeps nothing itself. Messages exist only in memory while they are handed over; they are not stored, logged or viewed by Postun, and only read scopes exist, so nothing can be sent, edited or deleted. You decide which accounts and which scopes each AI client gets, and you can revoke access at any time. ChatGPT, Claude, Claude Code and Gemini (web) are verified on production; other MCP clients (Cursor, Gemini CLI, Codex, VS Code, Zed, Qwen Code) support the protocol but are not tested by the project (see [Beta status](#beta-status)).
 
 - Site: https://postun.org (English, Русский, Español, Português, Deutsch)
 - Cabinet: https://app.postun.org
@@ -63,9 +63,11 @@ https://mcp.postun.org/mcp
 claude mcp add --scope user --transport http postun https://mcp.postun.org/mcp
 ```
 
-Then run `/mcp` inside Claude Code and authenticate `postun`. Note: the Claude Code flow has **not yet been verified** on production (see the [status table](#beta-status)).
+Then run `/mcp` inside Claude Code and authenticate `postun`. Note: the Claude Code flow is verified on production (see the [status table](#beta-status)).
 
-**Other MCP clients** that support remote HTTP MCP servers with OAuth can use the same URL.
+**Gemini** (web): in Gemini, open Settings → Connected Apps and add a custom app with the address `https://mcp.postun.org/mcp`, then approve the sign-in in the browser. Custom apps are not yet available to every account and work only on the web. See the [Gemini help](https://support.google.com/gemini/answer/13695044).
+
+**Other MCP clients** that support remote HTTP MCP servers with OAuth can use the same URL. Cursor, Gemini CLI, Codex, VS Code, Zed and Qwen Code support the protocol but are not tested by the project.
 
 Tip for the beta: try it first with a test account or non-sensitive chats.
 
@@ -103,7 +105,7 @@ The code is fully open so that anyone can check how encryption, access checks an
 
 ## Beta status
 
-Status comes from [apps/web/status.json](apps/web/status.json) (updated 2026-11-05). Only features with a recorded acceptance run on production are marked verified. The same table is on the site at https://postun.org/#features; service uptime is at https://postun.org/status/.
+Status comes from [apps/web/status.json](apps/web/status.json) (updated 2026-11-13). Only features with a recorded acceptance run on production are marked verified. The same table is on the site at https://postun.org/#features; service uptime is at https://postun.org/status/.
 
 | Feature | Status |
 |---|---|
@@ -112,8 +114,10 @@ Status comes from [apps/web/status.json](apps/web/status.json) (updated 2026-11-
 | Linking an account by QR | Verified |
 | Linking an account with a cloud password (2FA) | Verified |
 | ChatGPT: MCP connection (OAuth) | Verified |
-| Reading dialogs and message history (via ChatGPT) | Verified |
+| Claude (web and app): custom connector | Verified |
 | Claude Code: remote HTTP MCP | Verified |
+| Gemini (web): MCP connection | Verified |
+| Reading dialogs and message history (via ChatGPT) | Verified |
 | Message search | Verified |
 | Public channels | Verified |
 | File download | Verified |
