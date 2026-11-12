@@ -22,7 +22,10 @@ export function sitemapXml(lastmod) {
 
 export function llmsTxt(status) {
   const quota = Number(status.quota_daily_success ?? 10000).toLocaleString('en');
-  const claude = status.features.find((f) => f.id === 'mcp_claude_code')?.status === 'PASS' ? 'verified' : 'in testing, not yet verified';
+  const ok = (id) => status.features.find((f) => f.id === id)?.status === 'PASS';
+  const state = (pass) => (pass ? 'verified' : 'in testing, not yet verified');
+  const claude = state(ok('mcp_claude') && ok('mcp_claude_code'));
+  const gemini = state(ok('mcp_gemini'));
   const names = { en: 'English (default)', ru: 'Russian', es: 'Spanish', pt: 'Portuguese (Brazil)', de: 'German' };
   const st = Object.fromEntries(status.features.map((f) => [f.id, f.status]));
   const extra = [['search', 'search'], ['channels', 'public channels'], ['file_download', 'file downloads']];
@@ -38,7 +41,7 @@ export function llmsTxt(status) {
 
 - Status: free open beta, experimental, no SLA. Limit: ${quota} successful operations per UTC day per owner.
 - Connection: QR login to Telegram over MTProto (a cloud password / two-step verification is supported); AI clients connect through OAuth.
-- Verified on production: Telegram sign-in, QR linking, two-step verification, ChatGPT (OAuth, reading dialogs, history, groups). Claude Code: ${claude}. ${verifiedExtra} The live status table is on the home page.
+- Verified on production: Telegram sign-in, QR linking, two-step verification, ChatGPT (OAuth, reading dialogs, history, groups). Claude (custom connector) and Claude Code: ${claude}. Gemini (web app, custom app): ${gemini}. ${verifiedExtra} The live status table is on the home page.
 - Security: runs on Cloudflare Workers and Durable Objects; Telegram sessions are encrypted with AES-256-GCM using a per-account key wrapped by a master key kept in Cloudflare secrets.
 - Privacy: no logs of conversations or requests (Cloudflare logs disabled, enforced in CI; code may only log constant strings). Message content exists only in memory while it is delivered to your AI client. Not zero-knowledge: the operator and infrastructure are part of the trust model, and your AI provider keeps data under its own rules.
 - Open by design: the code is fully open (Kerckhoffs's principle) so anyone can verify how encryption, access checks and the no-logs rule work; security relies only on secret keys, which are never in the repository.

@@ -180,15 +180,16 @@ describe('design system', () => {
     const hero = (s) => landing(s).match(/<ul class="flow-clients">([\s\S]*?)<\/ul>/)[1];
     const notRun = hero(withAll(status, 'NOT_RUN'));
     expect(notRun).not.toContain('pill-ok');
-    expect(notRun.match(/pill-warn/g)).toHaveLength(2);
+    expect(notRun.match(/pill-warn/g)).toHaveLength(3);
     const pass = hero(withAll(status, 'PASS'));
-    expect(pass.match(/pill-ok/g)).toHaveLength(2);
-    // Claude (claude.ai) has no status entry of its own, so the hero never shows it as verified.
-    expect(pass).not.toMatch(/<li>Claude <span/);
+    expect(pass.match(/pill-ok/g)).toHaveLength(3);
+    // Claude and Claude Code share one line; it is verified only when both features passed.
+    expect(pass).toContain('<li>Claude · Claude Code <span class="pill pill-ok">');
     const live = hero(status);
     const st = Object.fromEntries(status.features.map((f) => [f.id, f.status]));
     expect(live).toMatch(new RegExp(`ChatGPT <span class="pill ${st.mcp_chatgpt === 'PASS' ? 'pill-ok' : 'pill-warn'}"`));
-    expect(live).toMatch(new RegExp(`Claude Code <span class="pill ${st.mcp_claude_code === 'PASS' ? 'pill-ok' : 'pill-warn'}"`));
+    expect(live).toMatch(new RegExp(`Claude · Claude Code <span class="pill ${st.mcp_claude === 'PASS' && st.mcp_claude_code === 'PASS' ? 'pill-ok' : 'pill-warn'}"`));
+    expect(live).toMatch(new RegExp(`Gemini <span class="pill ${st.mcp_gemini === 'PASS' ? 'pill-ok' : 'pill-warn'}"`));
   });
   it('hero shows the MCP address before the call to action, in every locale and registration state', () => {
     for (const s of [withAll(status, 'PASS'), { ...status, registration_open: false }]) {
@@ -207,12 +208,15 @@ describe('design system', () => {
     const groups = (st) => section(st).split('<div class="connect-group">').slice(1);
     const names = (g) => [...g.matchAll(/<span class="client-name">([^<]+)<\/span>/g)].map((m) => m[1]);
     const [okAll, restAll] = groups(withAll(status, 'PASS'));
-    expect(names(okAll)).toEqual(['ChatGPT', 'Claude Code']);
-    expect(names(restAll)).toContain('Claude');
+    expect(names(okAll)).toEqual(['ChatGPT', 'Claude · Claude Code', 'Gemini']);
+    expect(names(restAll)).toContain('Gemini CLI');
+    // Claude counts as verified only when both the connector and Claude Code passed.
+    const half = { ...withAll(status, 'PASS'), features: withAll(status, 'PASS').features.map((f) => (f.id === 'mcp_claude' ? { ...f, status: 'NOT_RUN' } : f)) };
+    expect(names(groups(half)[0])).toEqual(['ChatGPT', 'Gemini']);
     const [okNone, restNone] = groups(withAll(status, 'NOT_RUN'));
     expect(names(okNone)).toEqual([]);
     expect(names(restNone)).toEqual(CLIENTS.map((c) => c.name));
-    for (const c of CLIENTS) expect(c.docs).toMatch(/^https:\/\//);
+    for (const c of CLIENTS) for (const d of c.parts ? c.parts.map((x) => x.docs) : [c.docs]) expect(d, c.id).toMatch(/^https:\/\//);
     for (const l of LOCALES) {
       const html = landing(status, l.code);
       expect(html).toContain('id="connect"');

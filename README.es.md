@@ -4,7 +4,7 @@
 
 *El README en inglés ([README.md](README.md)) es la versión canónica; las traducciones lo siguen y pueden ir con retraso.*
 
-**Postun Beta** es un servidor [MCP](https://modelcontextprotocol.io) (Model Context Protocol) de código abierto para Telegram, de solo lectura. Conecta tu propia cuenta de Telegram con ChatGPT, Claude, Claude Code y otros clientes MCP, para que un asistente de IA pueda leer tus chats, buscar mensajes y consultar canales públicos. Tú decides qué cuentas y qué permisos de lectura recibe cada cliente de IA, y puedes revocar el acceso en cualquier momento. La búsqueda de mensajes, los canales públicos y los archivos están implementados, pero aún no verificados en producción (ver [estado de la beta](#estado-de-la-beta)).
+**Postun Beta** es un servidor [MCP](https://modelcontextprotocol.io) (Model Context Protocol) de código abierto para Telegram, de solo lectura. Conecta tu propia cuenta de Telegram con ChatGPT, Claude, Claude Code y otros clientes MCP, para que un asistente de IA pueda leer tus chats, buscar mensajes y consultar canales públicos. Tú decides qué cuentas y qué permisos de lectura recibe cada cliente de IA, y puedes revocar el acceso en cualquier momento. ChatGPT, Claude, Claude Code y Gemini (web) están verificados en producción; otros clientes MCP (Cursor, Gemini CLI, Codex, VS Code, Zed, Qwen Code) admiten el protocolo, pero el proyecto no los ha probado (ver [estado de la beta](#estado-de-la-beta)).
 
 - Sitio: https://postun.org (English, Русский, Español, Português, Deutsch)
 - Panel: https://app.postun.org
@@ -64,9 +64,11 @@ https://mcp.postun.org/mcp
 claude mcp add --scope user --transport http postun https://mcp.postun.org/mcp
 ```
 
-Después ejecuta `/mcp` dentro de Claude Code y autentica `postun`. Nota: el flujo con Claude Code **aún no se ha verificado** en producción (consulta la [tabla de estado](#estado-de-la-beta)).
+Después ejecuta `/mcp` dentro de Claude Code y autentica `postun`. Nota: el flujo con Claude Code está verificado en producción (consulta la [tabla de estado](#estado-de-la-beta)).
 
-**Otros clientes MCP** que admitan servidores MCP HTTP remotos con OAuth pueden usar la misma URL.
+**Gemini** (web): en Gemini abre Configuración → Apps conectadas y añade una app personalizada con la dirección `https://mcp.postun.org/mcp`; después confirma el inicio de sesión en el navegador. Las apps personalizadas aún no están disponibles para todas las cuentas y solo funcionan en la web. Consulta la [ayuda de Gemini](https://support.google.com/gemini/answer/13695044).
+
+**Otros clientes MCP** que admitan servidores MCP HTTP remotos con OAuth pueden usar la misma URL. Cursor, Gemini CLI, Codex, VS Code, Zed y Qwen Code admiten el protocolo, pero el proyecto no los ha probado.
 
 Consejo para la beta: pruébalo primero con una cuenta de prueba o chats no sensibles.
 
@@ -104,7 +106,7 @@ El código es totalmente abierto para que cualquiera pueda comprobar cómo funci
 
 ## Estado de la beta
 
-El estado procede de [apps/web/status.json](apps/web/status.json) (actualizado el 2026-11-05). Solo se marcan como verificadas las funciones con una prueba de aceptación registrada en producción. La misma tabla está en https://postun.org/#features; la disponibilidad del servicio, en https://postun.org/es/status/.
+El estado procede de [apps/web/status.json](apps/web/status.json) (actualizado el 2026-11-13). Solo se marcan como verificadas las funciones con una prueba de aceptación registrada en producción. La misma tabla está en https://postun.org/#features; la disponibilidad del servicio, en https://postun.org/es/status/.
 
 | Función | Estado |
 |---|---|
@@ -113,10 +115,12 @@ El estado procede de [apps/web/status.json](apps/web/status.json) (actualizado e
 | Vincular una cuenta por QR | Verificado |
 | Vincular una cuenta con contraseña en la nube (2FA) | Verificado |
 | ChatGPT: conexión MCP (OAuth) | Verificado |
+| Claude (web y app): conector personalizado | Verificado |
+| Claude Code: MCP HTTP remoto | Verificado |
+| Gemini (web): conexión MCP | Verificado |
 | Lectura de diálogos e historial de mensajes (vía ChatGPT) | Verificado |
-| Claude Code: MCP HTTP remoto | Aún no verificado |
-| Búsqueda de mensajes | Aún no verificado |
-| Canales públicos | Aún no verificado |
+| Búsqueda de mensajes | Verificado |
+| Canales públicos | Verificado |
 | Descarga de archivos | Verificado |
 | Archivo como adjunto para la IA | Verificado en ChatGPT para imágenes (PDF aún no) |
 

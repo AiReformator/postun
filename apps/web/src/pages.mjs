@@ -102,7 +102,8 @@ export const FAQ_COUNT = 8;
 export function faqItems(status, code = 'en') {
   const L = locale(code);
   const t = translator(L.dict);
-  const claude = status.features.find((f) => f.id === 'mcp_claude_code')?.status === 'PASS' ? 'faq.claudeVerified' : 'faq.claudeTesting';
+  const pass = (id) => status.features.find((f) => f.id === id)?.status === 'PASS';
+  const claude = pass('mcp_claude') && pass('mcp_claude_code') ? 'faq.claudeVerified' : 'faq.claudeTesting';
   const vars = { claudeState: t(claude), quota: Number(status.quota_daily_success ?? 10000).toLocaleString(L.htmlLang) };
   return Array.from({ length: FAQ_COUNT }, (_, i) => {
     const q = t(`faq.q${i + 1}`);
@@ -143,11 +144,12 @@ export function jsonLd(status, code = 'en') {
 /** AI clients in the hero diagram: only clients with their own status.json entry (PASS → verified, else in testing). Others link to #connect. */
 function clientList(status, t) {
   const st = Object.fromEntries(status.features.map((f) => [f.id, f.status]));
-  const pill = (id) =>
-    st[id] === 'PASS' ? `<span class="pill pill-ok">${t('landing.clientVerified')}</span>` : `<span class="pill pill-warn">${t('landing.clientTesting')}</span>`;
+  const pill = (ids) =>
+    [ids].flat().every((id) => st[id] === 'PASS') ? `<span class="pill pill-ok">${t('landing.clientVerified')}</span>` : `<span class="pill pill-warn">${t('landing.clientTesting')}</span>`;
   return `<ul class="flow-clients">
 <li>ChatGPT ${pill('mcp_chatgpt')}</li>
-<li>Claude Code ${pill('mcp_claude_code')}</li>
+<li>Claude · Claude Code ${pill(['mcp_claude', 'mcp_claude_code'])}</li>
+<li>Gemini ${pill('mcp_gemini')}</li>
 <li class="more"><a href="#connect">${t('landing.clientOther')}</a></li>
 </ul>`;
 }
@@ -177,8 +179,16 @@ const MCP_JSON = (key, extra = {}) => {
  */
 export const CLIENTS = [
   { id: 'chatgpt', name: 'ChatGPT', status: 'mcp_chatgpt', code: MCP_URL, docs: 'https://developers.openai.com/plugins/deploy/connect-chatgpt' },
-  { id: 'claudeCode', name: 'Claude Code', status: 'mcp_claude_code', code: `claude mcp add --transport http postun ${MCP_URL}`, docs: 'https://code.claude.com/docs/en/mcp' },
-  { id: 'claudeAi', name: 'Claude', code: MCP_URL, docs: 'https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp' },
+  {
+    id: 'claude',
+    name: 'Claude · Claude Code',
+    status: ['mcp_claude', 'mcp_claude_code'],
+    parts: [
+      { key: 'claudeAi', code: MCP_URL, docs: 'https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp' },
+      { key: 'claudeCode', code: `claude mcp add --transport http postun ${MCP_URL}`, docs: 'https://code.claude.com/docs/en/mcp' }
+    ]
+  },
+  { id: 'geminiApp', name: 'Gemini', status: 'mcp_gemini', code: MCP_URL, docs: 'https://support.google.com/gemini/answer/13695044' },
   { id: 'cursor', name: 'Cursor', code: MCP_JSON('mcpServers'), docs: 'https://cursor.com/docs/context/mcp' },
   { id: 'vscode', name: 'VS Code · GitHub Copilot', code: MCP_JSON('servers', { type: 'http' }), docs: 'https://code.visualstudio.com/docs/agents/reference/mcp-configuration' },
   { id: 'gemini', name: 'Gemini CLI', code: `gemini mcp add --transport http postun ${MCP_URL}`, docs: 'https://geminicli.com/docs/tools/mcp-server/' },
@@ -211,9 +221,13 @@ ${list('chatgptForm', CHATGPT_FORM_FIELDS)}
 
 function connectSection(status, t) {
   const st = Object.fromEntries(status.features.map((f) => [f.id, f.status]));
-  const verified = (c) => Boolean(c.status) && st[c.status] === 'PASS';
+  // A client is verified only when every status.json feature it lists is PASS (Claude: the connector and Claude Code).
+  const verified = (c) => Boolean(c.status) && [c.status].flat().every((id) => st[id] === 'PASS');
+  const part = (p) => `<p>${t(`connect.${p.key}`)}</p>${snippet(p.code, t)}<p class="client-docs"><a href="${p.docs}">${t('connect.docs')}</a></p>`;
+  const body = (c) =>
+    c.parts ? c.parts.map(part).join('') : `<p>${t(`connect.${c.id}`)}</p>${snippet(c.code, t)}${c.id === 'chatgpt' ? chatgptWorkspace(t) : ''}<p class="client-docs"><a href="${c.docs}">${t('connect.docs')}</a></p>`;
   const item = (c, ok) => `<details id="connect-${c.id.toLowerCase()}"><summary><span class="client-name">${esc(c.name)}</span>${ok ? `<span class="pill pill-ok">${t('landing.clientVerified')}</span>` : ''}</summary>
-<div class="client-body"><p>${t(`connect.${c.id}`)}</p>${snippet(c.code, t)}${c.id === 'chatgpt' ? chatgptWorkspace(t) : ''}<p class="client-docs"><a href="${c.docs}">${t('connect.docs')}</a></p></div></details>`;
+<div class="client-body">${body(c)}</div></details>`;
   const ok = CLIENTS.filter(verified);
   const rest = CLIENTS.filter((c) => !verified(c));
   return `<section id="connect" class="section faq connect">
