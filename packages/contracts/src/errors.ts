@@ -37,7 +37,9 @@ export type ErrorReason =
   | 'CURSOR_EXPIRED'
   | 'ACCOUNT_BUSY'
   | 'DAILY_QUOTA'
-  | 'MONTHLY_QUOTA';
+  | 'MONTHLY_QUOTA'
+  /** Telegram itself ended the account's session (terminated in Telegram or expired); the owner must reconnect it. */
+  | 'SESSION_ENDED';
 
 /** Optional extras: all strings are fixed texts chosen by Postun code, never Telegram output. */
 export interface ErrorDetail {

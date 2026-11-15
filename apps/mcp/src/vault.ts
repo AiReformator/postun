@@ -44,4 +44,10 @@ export class VaultControl extends WorkerEntrypoint<Env> implements VaultControlR
   getUsage(principalId: string): Promise<UsageView> {
     return this.stub(principalId).getUsage(principalId);
   }
+  endedAccounts(principalId: string): Promise<string[]> {
+    return this.stub(principalId).endedAccounts(principalId);
+  }
+  startRelink(principalId: string, accountId: string): Promise<LinkState> {
+    return this.stub(principalId).startRelink(principalId, accountId);
+  }
 }

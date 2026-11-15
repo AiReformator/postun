@@ -208,6 +208,57 @@ describe('account linking', () => {
     expect((await post(e, `/api/accounts/${accountId}/password`, { password: '' }, who)).status).toBe(400);
   });
 
+  it('an account whose Telegram session ended is listed as ended; the vault being down falls back to the D1 status', async () => {
+    const vault = new FakeVault();
+    const e = makeEnv({}, vault);
+    const who = await login(e, tg);
+    await acceptTerms(e, who);
+    const acc = await linkAccount(e, vault, who, '111');
+    vault.ended = [acc];
+    const list = (await (await get(e, '/api/accounts', who)).json()) as { accounts: { accountId: string; status: string }[] };
+    expect(list.accounts).toEqual([expect.objectContaining({ accountId: acc, status: 'ended' })]);
+    vault.failOn.add('endedAccounts');
+    const fallback = (await (await get(e, '/api/accounts', who)).json()) as { accounts: { status: string }[] };
+    expect(fallback.accounts[0]?.status).toBe('active');
+  });
+
+  it('reconnect keeps the account id: QR, 2FA and success go through the vault, D1 stays active with the same reservation', async () => {
+    const vault = new FakeVault();
+    const e = makeEnv({}, vault);
+    const who = await login(e, tg);
+    await acceptTerms(e, who);
+    const acc = await linkAccount(e, vault, who, '111');
+    const before = await db().prepare('SELECT status, telegram_id_hmac FROM linked_accounts WHERE account_id = ?1').bind(acc).first();
+    const start = await post(e, `/api/accounts/${acc}/reconnect`, {}, who);
+    expect(await start.json()).toEqual({ state: 'waiting_scan', qrUrl: 'tg://login?token=re', expiresAt: '2030-01-01T00:00:00.000Z' });
+    expect(vault.calls).toContain(`startRelink:${acc}`);
+    vault.link = { state: 'need_password', hint: null };
+    expect(await (await post(e, `/api/accounts/${acc}/reconnect-password`, { password: 'pw' }, who)).json()).toEqual({ state: 'need_password', hint: null });
+    vault.link = { state: 'authorized', telegramId: '111', label: 'A•••' };
+    expect(await (await get(e, `/api/accounts/${acc}/reconnect-status`, who)).json()).toEqual({ state: 'active' });
+    vault.link = { state: 'failed', code: 'NOT_ALLOWED' };
+    expect(await (await get(e, `/api/accounts/${acc}/reconnect-status`, who)).json()).toEqual({ state: 'failed', code: 'NOT_ALLOWED' });
+    const after = await db().prepare('SELECT status, telegram_id_hmac FROM linked_accounts WHERE account_id = ?1').bind(acc).first();
+    expect(after).toEqual(before); // nothing in D1 changes: same account, same Telegram reservation
+    expect(JSON.stringify(await (await get(e, `/api/accounts/${acc}/reconnect-status`, who)).json())).not.toContain('111');
+  });
+
+  it('reconnect needs accepted terms, an active account and the owner', async () => {
+    const vault = new FakeVault();
+    const e = makeEnv({}, vault);
+    const a = await login(e, tg, { claims: { sub: 'a', id: 1 } });
+    await acceptTerms(e, a);
+    const accA = await linkAccount(e, vault, a, '111');
+    const b = await login(e, tg, { claims: { sub: 'b', id: 2 } });
+    await acceptTerms(e, b);
+    expect((await post(e, `/api/accounts/${accA}/reconnect`, {}, b)).status).toBe(404);
+    expect((await get(e, `/api/accounts/${accA}/reconnect-status`, b)).status).toBe(404);
+    expect((await post(e, `/api/accounts/${accA}/reconnect-password`, { password: 'x' }, b)).status).toBe(404);
+    await post(e, `/api/accounts/${accA}/disconnect`, {}, a);
+    expect((await post(e, `/api/accounts/${accA}/reconnect`, {}, a)).status).toBe(409);
+    expect(vault.calls.filter((c) => c.startsWith('startRelink'))).toEqual([]);
+  });
+
   it('usage is forwarded from the vault', async () => {
     const vault = new FakeVault();
     const e = makeEnv({}, vault);

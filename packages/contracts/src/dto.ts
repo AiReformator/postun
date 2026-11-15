@@ -11,7 +11,8 @@ export const GrantPropsSchema = z.object({
 /** Props stored by the OAuth library with each grant: opaque references only, never MTProto sessions. */
 export type GrantProps = z.infer<typeof GrantPropsSchema>;
 
-export const AccountStatusSchema = z.enum(['pending', 'active', 'revocation_pending', 'disconnected']);
+/** 'ended': Telegram ended the session; the account keeps its id and grants and can be reconnected with a new QR login. */
+export const AccountStatusSchema = z.enum(['pending', 'active', 'ended', 'revocation_pending', 'disconnected']);
 export type AccountStatus = z.infer<typeof AccountStatusSchema>;
 
 export interface LinkedAccountView {

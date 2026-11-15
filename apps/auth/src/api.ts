@@ -1,5 +1,5 @@
 import { jsonResponse, PostunError, UuidSchema } from '@postun/contracts';
-import { disconnectAccount, linkStatus, listAccounts, startLink, submitPassword } from './accounts';
+import { disconnectAccount, linkStatus, listAccounts, relinkPassword, relinkStatus, startLink, startRelink, submitPassword } from './accounts';
 import type { Config, Env } from './env';
 import { now } from './env';
 import { apiError, readJson } from './http';
@@ -12,7 +12,7 @@ export const DELETE_PHRASE = 'УДАЛИТЬ ПРОФИЛЬ';
 /** The cabinet is localized; non-Russian locales ask for the English phrase. */
 export const DELETE_PHRASES: readonly string[] = [DELETE_PHRASE, 'DELETE PROFILE'];
 
-const ACCOUNT_ROUTE = /^\/api\/accounts\/([0-9a-fA-F-]{36})\/(link-status|password|disconnect)$/;
+const ACCOUNT_ROUTE = /^\/api\/accounts\/([0-9a-fA-F-]{36})\/(link-status|password|disconnect|reconnect|reconnect-status|reconnect-password)$/;
 const GRANT_ROUTE = /^\/api\/grants\/([0-9a-fA-F-]{36})\/revoke$/;
 
 /** Creating new access (linking, grants) needs an active profile that accepted the current beta terms. */
@@ -75,6 +75,21 @@ export async function handleApi(env: Env, cfg: Config, req: Request, url: URL): 
       if (denied) return denied;
       const body = await readJson(req);
       return jsonResponse(await submitPassword(env, cfg, pid, accountId, body['password'])); // never stored or logged
+    }
+    // Reconnect of an account whose Telegram session ended: same account id, grants keep working.
+    if (action === 'reconnect' && method === 'POST') {
+      const denied = assertMayConnect(session, cfg);
+      return denied ?? jsonResponse(await startRelink(env, pid, accountId));
+    }
+    if (action === 'reconnect-status' && method === 'GET') {
+      const d = assertNotDeleting(session);
+      return d ?? jsonResponse(await relinkStatus(env, pid, accountId));
+    }
+    if (action === 'reconnect-password' && method === 'POST') {
+      const denied = assertMayConnect(session, cfg);
+      if (denied) return denied;
+      const body = await readJson(req);
+      return jsonResponse(await relinkPassword(env, pid, accountId, body['password'])); // never stored or logged
     }
     if (action === 'disconnect' && method === 'POST') {
       const d = assertNotDeleting(session);

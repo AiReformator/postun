@@ -179,6 +179,112 @@ describe('disconnect and revocation', () => {
   });
 });
 
+describe('session ended by Telegram and reconnect', () => {
+  async function relink(principalId: string, accountId: string): Promise<LinkState> {
+    const stub = principalStub(principalId);
+    let st = await stub.startRelink(principalId, accountId);
+    for (let i = 0; i < 100 && st.state !== 'authorized' && st.state !== 'failed'; i++) {
+      await new Promise((r) => setTimeout(r, 10));
+      st = await stub.linkStatus(principalId, accountId);
+    }
+    return st;
+  }
+
+  it('marks the account ended, explains it to the AI, and stops opening the dead session', async () => {
+    const w = await setupWorld();
+    const stub = principalStub(w.principalId);
+    const acc = w.accountIds[0] as string;
+    syntheticControl.sessionsEnded = true;
+    const r = await callTool(w.token, 'list_dialogs', { account_id: acc });
+    expect(errCode(r)).toBe('ACCOUNT_NOT_ACTIVE');
+    const err = r.data.error as { reason?: string; hint?: string };
+    expect(err.reason).toBe('SESSION_ENDED');
+    expect(err.hint).toContain('Reconnect');
+    expect(await stub.endedAccounts(w.principalId)).toEqual([acc]);
+    const list = await callTool(w.token, 'list_accounts', {});
+    expect((list.data.accounts as { status: string }[])[0]?.status).toBe('ended');
+    // Later calls are refused before Telegram is contacted, with the same explanation.
+    const opens = syntheticControl.opens;
+    const again = await callTool(w.token, 'list_dialogs', { account_id: acc });
+    expect((again.data.error as { reason?: string }).reason).toBe('SESSION_ENDED');
+    expect(syntheticControl.opens).toBe(opens);
+  });
+
+  it('a Postun-side refusal (undecryptable envelope) is not mistaken for an ended session', async () => {
+    const w = await setupWorld({ accounts: 2 });
+    const stub = principalStub(w.principalId);
+    const [a1, a2] = w.accountIds as [string, string];
+    await runInDurableObject(stub, (_i, s) => {
+      const e = s.storage.sql.exec('SELECT envelope FROM accounts WHERE account_id = ?', a1).one().envelope as string;
+      s.storage.sql.exec('UPDATE accounts SET envelope = ? WHERE account_id = ?', e, a2);
+    });
+    expect(errCode(await callTool(w.token, 'list_dialogs', { account_id: a2 }))).toBe('ACCOUNT_NOT_ACTIVE');
+    expect(await stub.endedAccounts(w.principalId)).toEqual([]);
+  });
+
+  it('reconnecting with the same Telegram user keeps the account id and the grant', async () => {
+    const w = await setupWorld();
+    const acc = w.accountIds[0] as string;
+    syntheticControl.sessionsEnded = true;
+    await callTool(w.token, 'list_dialogs', { account_id: acc });
+    syntheticControl.sessionsEnded = false;
+    const stub = principalStub(w.principalId);
+    const fails = async (p: Promise<unknown>) => p.then(() => false, () => true);
+    expect(await fails(stub.startLink(w.principalId, acc))).toBe(true); // a first link can never overwrite it
+    const st = await relink(w.principalId, acc);
+    expect(st).toEqual({ state: 'authorized', telegramId: '700000001', label: 'A•••' });
+    expect(await stub.endedAccounts(w.principalId)).toEqual([]);
+    const r = await callTool(w.token, 'list_dialogs', { account_id: acc, limit: 2 });
+    expect(r.isError).toBe(false); // the same token and grant work again
+    const row = await runInDurableObject(stub, (_i, s) => s.storage.sql.exec('SELECT status FROM accounts WHERE account_id = ?', acc).one());
+    expect(row).toEqual({ status: 'active' });
+  });
+
+  it('another Telegram user cannot take over the account: NOT_ALLOWED, the new session is logged out', async () => {
+    const w = await setupWorld();
+    const acc = w.accountIds[0] as string;
+    syntheticControl.sessionsEnded = true;
+    await callTool(w.token, 'list_dialogs', { account_id: acc });
+    syntheticControl.sessionsEnded = false;
+    syntheticControl.nextTelegramId = '700000999';
+    const st = await relink(w.principalId, acc);
+    expect(st).toEqual({ state: 'failed', code: 'NOT_ALLOWED' });
+    expect(syntheticControl.logouts).toBe(1);
+    expect(await principalStub(w.principalId).endedAccounts(w.principalId)).toEqual([acc]);
+    expect(errCode(await callTool(w.token, 'list_dialogs', { account_id: acc }))).toBe('ACCOUNT_NOT_ACTIVE');
+  });
+
+  it('AUTH_KEY_DUPLICATED refuses the call but does not mark the account ended', async () => {
+    const w = await setupWorld();
+    const acc = w.accountIds[0] as string;
+    syntheticControl.throwNext = Object.assign(new Error('x'), { text: 'AUTH_KEY_DUPLICATED', code: 406 });
+    const r = await callTool(w.token, 'list_dialogs', { account_id: acc });
+    expect(errCode(r)).toBe('ACCOUNT_NOT_ACTIVE');
+    expect((r.data.error as { reason?: string }).reason).toBeUndefined();
+    expect(await principalStub(w.principalId).endedAccounts(w.principalId)).toEqual([]);
+    expect((await callTool(w.token, 'list_dialogs', { account_id: acc, limit: 2 })).isError).toBe(false);
+  });
+
+  it('only an ended account can be reconnected', async () => {
+    const w = await setupWorld();
+    const stub = principalStub(w.principalId);
+    const fails = async (p: Promise<unknown>) => p.then(() => false, () => true);
+    expect(await fails(stub.startRelink(w.principalId, w.accountIds[0] as string))).toBe(true);
+    expect(await fails(stub.startRelink(w.principalId, crypto.randomUUID()))).toBe(true);
+  });
+
+  it('an ended account can still be disconnected', async () => {
+    const w = await setupWorld();
+    const acc = w.accountIds[0] as string;
+    syntheticControl.sessionsEnded = true;
+    await callTool(w.token, 'list_dialogs', { account_id: acc });
+    const stub = principalStub(w.principalId);
+    await stub.disconnectAccount(w.principalId, acc);
+    const row = await runInDurableObject(stub, (_i, s) => s.storage.sql.exec('SELECT status, envelope FROM accounts WHERE account_id = ?', acc).one());
+    expect(row).toEqual({ status: 'disconnected', envelope: null });
+  });
+});
+
 describe('admin projection', () => {
   it('sends absolute aggregate values with a growing revision and no content', async () => {
     const w = await setupWorld();

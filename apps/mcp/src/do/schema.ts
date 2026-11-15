@@ -7,7 +7,8 @@ export const SCHEMA: readonly string[] = [
      label TEXT NOT NULL,
      envelope TEXT,
      created_at INTEGER NOT NULL,
-     status_at INTEGER NOT NULL
+     status_at INTEGER NOT NULL,
+     ended_at INTEGER
    )`,
   `CREATE TABLE IF NOT EXISTS grants(
      grant_id TEXT PRIMARY KEY,
