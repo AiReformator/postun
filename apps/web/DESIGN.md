@@ -75,6 +75,7 @@ colours (the QR code keeps a white plate so it always scans).
 | Notice, meter, rows, tags, copy field, QR, form field | `.notice`, `progress.meter`, `.rows`, `.tags`, `.copy-field`, `.qr`, `.field` | dashboard |
 | Icon (24 px, 1.75 stroke) | `icon(name)` in `src/icons.mjs` | everywhere |
 | Use cases page: heading block, breadcrumb (`<ol>`, `/` drawn by CSS), section links, scenario cards with example prompts (`<blockquote>`), limit line and the real MCP tool names, the "does not do" and "good to know" boxes; landing teaser linking to each group | `.uc-head`, `.crumbs`, `.uc-toc`, `.uc-grid`, `.uc-card`, `.uc-prompts`, `.uc-label`, `.uc-prompt`, `.uc-limit`, `.uc-tools`, `.uc-not`, `.uc-notes`, `.uc-teaser` | `/use-cases/`, landing `#use` |
+| 2FA password explainer: four animated stages (password, encrypted channel, SRP proof, discarded) and the safety facts; CSS-only 8 s loop, static under reduced motion | `.pw-info`, `.pw-flow`, `.pw-steps`, `.pw-step`, `.pw-node`, `.pw-chip` (`-proof` / `-gone`), `.pw-facts` (`src/password-flow.mjs`) | dashboard, cloud password step |
 
 ## Content rules
 

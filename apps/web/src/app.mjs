@@ -3,6 +3,7 @@
 import { encodeQR } from 'qr';
 import { ICONS } from './icons.mjs';
 import { createApi } from './api.mjs';
+import { passwordFlow } from './password-flow.mjs';
 import { CONTINUE_TTL_MS, continueFromHash, continueStore, continueUrl } from './continue.mjs';
 import en from '../i18n/en.mjs';
 import ru from '../i18n/ru.mjs';
@@ -390,7 +391,8 @@ function askPassword(accountId, hint, invalidAttempts = 0, mode = LINK) {
         el('p', {}, T('passwordIntro')),
         invalidAttempts ? el('p', { class: 'err', role: 'alert' }, T('passwordWrong', { n: invalidAttempts })) : '',
         hint ? el('p', { class: 'note' }, T('hint', { hint })) : '',
-        form
+        form,
+        passwordFlow({ el, icon, T })
       )
     );
     input.focus();
