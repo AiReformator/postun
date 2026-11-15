@@ -651,17 +651,19 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
       throw new PostunError('ACCOUNT_NOT_ACTIVE');
     }
     await this.rewrapIfStale(accountId, acc.envelope, keys);
+    // The envelope this call uses: a rewrap above may just have replaced the stored one (same session, new KEK).
+    const used = this.account(accountId)?.envelope ?? acc.envelope;
     const adapter = await selectAdapter(this.env);
     let session: TelegramSession;
     try {
       session = await adapter.open(payload.s);
     } catch (e) {
-      throw this.noteEnded(accountId, acc.envelope, mapTelegramError(e));
+      throw this.noteEnded(accountId, used, mapTelegramError(e));
     }
     try {
       return await fn(session);
     } catch (e) {
-      throw this.noteEnded(accountId, acc.envelope, e);
+      throw this.noteEnded(accountId, used, e);
     } finally {
       await this.finishSession(accountId, session, payload.tid, keys);
     }
