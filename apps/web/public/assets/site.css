@@ -648,10 +648,73 @@ progress.meter::-moz-progress-bar { background: var(--c-signal); border-radius: 
 }
 
 /* ───────────── 8. Motion preferences ───────────── */
+/* Cabinet: how the 2FA cloud password is handled (src/password-flow.mjs). An 8 s loop: the masked password travels
+   (steps 1-2), turns into the SRP proof (3) and is crossed out (4). Without motion every stage is shown at once. */
+.pw-info { margin-top: var(--s-6); border: var(--line-dash); background: var(--c-surface); }
+.pw-info[open] { border-style: solid; border-color: var(--c-line-strong); }
+.pw-info > summary { display: flex; align-items: center; gap: var(--s-2); min-height: 44px; padding: var(--s-3) var(--s-4); cursor: pointer; font-weight: var(--weight-semibold); color: var(--c-ink); }
+.pw-info > summary .icon { color: var(--c-signal-text); width: 18px; height: 18px; }
+.pw-flow { margin: 0; padding: 0 var(--s-4); }
+.pw-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+.pw-step { position: relative; display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: var(--s-3); padding-bottom: var(--s-4); }
+.pw-step:not(:last-child)::before { content: ''; position: absolute; left: 19px; top: 40px; bottom: 0; width: 2px; background: var(--c-line); }
+.pw-step:not(:last-child)::after { content: ''; position: absolute; left: 19px; top: 40px; bottom: 0; width: 2px; background: var(--c-signal); transform-origin: top; transform: scaleY(1); }
+.pw-node { width: 40px; height: 40px; display: grid; place-items: center; border: 1px solid var(--c-line-strong); background: var(--c-bg); color: var(--c-ink-2); position: relative; z-index: 1; }
+.pw-node .icon { width: 20px; height: 20px; }
+.pw-text { display: grid; gap: var(--s-1); align-content: start; padding-top: 2px; }
+.pw-text strong { color: var(--c-ink); font-size: var(--text-sm); }
+.pw-text > span { color: var(--c-ink-2); font-size: var(--text-sm); line-height: 1.5; }
+.auth-card .pw-text > span { color: var(--c-ink-2); }
+.pw-chip { justify-self: start; max-width: 100%; display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); margin-top: var(--s-1); padding: 2px var(--s-2); border: 1px solid var(--c-line-strong); background: var(--c-surface-2); font: var(--weight-semibold) var(--text-xs) / 1.6 var(--font-mono); color: var(--c-ink); letter-spacing: 0.04em; }
+.pw-chip-arrow { color: var(--c-signal-text); }
+.pw-chip-to { color: var(--c-ok); }
+.pw-chip-gone { color: var(--c-ink-3); }
+.pw-chip-gone .pw-chip-from { position: relative; }
+.pw-chip-gone .pw-chip-from::after { content: ''; position: absolute; left: -2px; right: -2px; top: 50%; height: 2px; background: var(--c-bad); transform-origin: left; }
+.pw-facts { margin: 0; padding: 0 var(--s-4) 0 calc(var(--s-4) + var(--s-5)); display: grid; gap: var(--s-2); }
+.pw-facts li { color: var(--c-ink-2); font-size: var(--text-sm); line-height: 1.55; }
+.pw-info > .note { padding: var(--s-3) var(--s-4) var(--s-4); margin: 0; }
+
+@keyframes pw-node-1 { 0%, 22% { border-color: var(--c-signal); color: var(--c-signal-text); background: var(--c-signal-soft); } 25%, 100% { border-color: var(--c-line-strong); color: var(--c-ink-2); background: var(--c-bg); } }
+@keyframes pw-chip-1 { 0% { opacity: 0.3; transform: translateY(-4px); } 3%, 22% { opacity: 1; transform: none; } 25%, 100% { opacity: 0.45; transform: none; } }
+@keyframes pw-line-1 { 0%, 16% { transform: scaleY(0); } 22%, 100% { transform: scaleY(1); } }
+@keyframes pw-node-2 { 0%, 24% { border-color: var(--c-line-strong); color: var(--c-ink-2); background: var(--c-bg); } 25%, 47% { border-color: var(--c-signal); color: var(--c-signal-text); background: var(--c-signal-soft); } 50%, 100% { border-color: var(--c-line-strong); color: var(--c-ink-2); background: var(--c-bg); } }
+@keyframes pw-chip-2 { 0%, 24% { opacity: 0.3; } 25% { opacity: 0.3; transform: translateY(-4px); } 28%, 47% { opacity: 1; transform: none; } 50%, 100% { opacity: 0.45; transform: none; } }
+@keyframes pw-line-2 { 0%, 41% { transform: scaleY(0); } 47%, 100% { transform: scaleY(1); } }
+@keyframes pw-node-3 { 0%, 49% { border-color: var(--c-line-strong); color: var(--c-ink-2); background: var(--c-bg); } 50%, 72% { border-color: var(--c-signal); color: var(--c-signal-text); background: var(--c-signal-soft); } 75%, 100% { border-color: var(--c-line-strong); color: var(--c-ink-2); background: var(--c-bg); } }
+@keyframes pw-chip-3 { 0%, 49% { opacity: 0.3; } 50% { opacity: 0.3; transform: translateY(-4px); } 53%, 72% { opacity: 1; transform: none; } 75%, 100% { opacity: 0.45; transform: none; } }
+@keyframes pw-line-3 { 0%, 66% { transform: scaleY(0); } 72%, 100% { transform: scaleY(1); } }
+@keyframes pw-node-4 { 0%, 74% { border-color: var(--c-line-strong); color: var(--c-ink-2); background: var(--c-bg); } 75%, 97% { border-color: var(--c-signal); color: var(--c-signal-text); background: var(--c-signal-soft); } 100%, 100% { border-color: var(--c-line-strong); color: var(--c-ink-2); background: var(--c-bg); } }
+@keyframes pw-chip-4 { 0%, 74% { opacity: 0.3; } 75% { opacity: 0.3; transform: translateY(-4px); } 78%, 97% { opacity: 1; transform: none; } 100%, 100% { opacity: 0.45; transform: none; } }
+@keyframes pw-morph-from { 0%, 55% { opacity: 1; text-decoration: none; } 61%, 100% { opacity: 0.3; text-decoration: line-through; } }
+@keyframes pw-morph-to { 0%, 57% { opacity: 0; } 63%, 100% { opacity: 1; } }
+@keyframes pw-strike { 0%, 79% { transform: scaleX(0); } 85%, 100% { transform: scaleX(1); } }
+
+.pw-step .pw-node, .pw-step .pw-chip, .pw-step:not(:last-child)::after, .pw-chip-proof .pw-chip-from, .pw-chip-proof .pw-chip-to, .pw-chip-gone .pw-chip-from::after {
+  animation-duration: 8s; animation-iteration-count: infinite; animation-timing-function: var(--ease-out); animation-fill-mode: both;
+}
+.pw-step-1 .pw-node { animation-name: pw-node-1; }
+.pw-step-1 .pw-chip { animation-name: pw-chip-1; }
+.pw-step-1::after { animation-name: pw-line-1; }
+.pw-step-2 .pw-node { animation-name: pw-node-2; }
+.pw-step-2 .pw-chip { animation-name: pw-chip-2; }
+.pw-step-2::after { animation-name: pw-line-2; }
+.pw-step-3 .pw-node { animation-name: pw-node-3; }
+.pw-step-3 .pw-chip { animation-name: pw-chip-3; }
+.pw-step-3::after { animation-name: pw-line-3; }
+.pw-step-4 .pw-node { animation-name: pw-node-4; }
+.pw-step-4 .pw-chip { animation-name: pw-chip-4; }
+.pw-step-3 .pw-chip-proof .pw-chip-from { animation-name: pw-morph-from; }
+.pw-step-3 .pw-chip-proof .pw-chip-to { animation-name: pw-morph-to; }
+.pw-step-4 .pw-chip-gone .pw-chip-from::after { animation-name: pw-strike; }
+
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
   .flow-link::after { display: none; }
+  /* Password explainer: every stage visible at once, the proof shown and the password crossed out. */
+  .pw-step .pw-node, .pw-step .pw-chip, .pw-step::after, .pw-chip-from, .pw-chip-to, .pw-chip-gone, .pw-chip-from::after { animation: none !important; opacity: 1; transform: none; }
+  .pw-step-3 .pw-chip-from { opacity: 0.4; text-decoration: line-through; }
 }
 
 /* Cabinet panels: vertical rhythm for single-task states */
