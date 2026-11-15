@@ -17,7 +17,7 @@ export type LinkState =
   | { state: 'waiting_scan'; qrUrl: string; expiresAt: string }
   | { state: 'need_password'; hint: string | null; invalidAttempts?: number }
   | { state: 'authorized'; telegramId: string; label: string } // pending: not usable by MCP until activate()
-  | { state: 'failed'; code: 'EXPIRED' | 'PASSWORD_INVALID' | 'RATE_LIMITED' | 'UPSTREAM' | 'CANCELLED' }
+  | { state: 'failed'; code: 'EXPIRED' | 'PASSWORD_INVALID' | 'RATE_LIMITED' | 'UPSTREAM' | 'CANCELLED' | 'NOT_ALLOWED' }
   | { state: 'unknown' };
 
 export interface GrantRecord {
@@ -46,6 +46,14 @@ export interface VaultControlRpc {
   /** Profile deletion: deny everything, log out every session, wipe DO storage. */
   deletePrincipal(principalId: string): Promise<{ ok: true }>;
   getUsage(principalId: string): Promise<UsageView>;
+  /** Accounts whose Telegram session ended (status 'ended' in the vault); the dashboard offers to reconnect them. */
+  endedAccounts(principalId: string): Promise<string[]>;
+  /**
+   * Starts a new QR login for an account whose session ended. It keeps the account id and every grant: on success the
+   * new session replaces the old one only if it belongs to the same Telegram user, otherwise it fails with NOT_ALLOWED.
+   * Status is read with linkStatus, the 2FA password goes through submitPassword.
+   */
+  startRelink(principalId: string, accountId: string): Promise<LinkState>;
 }
 
 // ---------- postun-auth: default entrypoint used by postun-mcp ----------

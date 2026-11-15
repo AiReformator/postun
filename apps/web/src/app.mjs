@@ -232,14 +232,27 @@ async function renderDashboard() {
 
   // Accounts
   const statusPill = (st) =>
-    st === 'active' ? el('span', { class: 'pill pill-ok' }, T('accActive')) : st === 'pending' ? el('span', { class: 'pill pill-warn' }, T('accPending')) : el('span', { class: 'pill' }, String(st));
+    st === 'active'
+      ? el('span', { class: 'pill pill-ok' }, T('accActive'))
+      : st === 'pending'
+        ? el('span', { class: 'pill pill-warn' }, T('accPending'))
+        : st === 'ended'
+          ? el('span', { class: 'pill pill-bad' }, T('accEnded'))
+          : el('span', { class: 'pill' }, String(st));
   const accList = el('ul', { class: 'rows' });
   for (const a of acc.accounts || []) {
     const label = String(a.label ?? '');
     accList.append(
       el('li', {},
-        el('div', { class: 'row-main' }, el('div', { class: 'row-title' }, el('span', { class: 'avatar', 'aria-hidden': 'true' }, label.trim().charAt(0) || '·'), el('span', {}, label), statusPill(a.status))),
-        el('button', { class: 'btn btn-danger btn-sm', type: 'button', onclick: () => disconnect(a) }, T('disconnect'))
+        el('div', { class: 'row-main' },
+          el('div', { class: 'row-title' }, el('span', { class: 'avatar', 'aria-hidden': 'true' }, label.trim().charAt(0) || '·'), el('span', {}, label), statusPill(a.status)),
+          a.status === 'ended' ? el('p', { class: 'note' }, T('accEndedNote')) : ''
+        ),
+        a.status === 'ended'
+          ? el('div', { class: 'btn-row' },
+              el('button', { class: 'btn btn-sm', type: 'button', onclick: () => reconnect(a.accountId) }, icon('qr'), T('reconnect')),
+              el('button', { class: 'btn btn-danger btn-sm', type: 'button', onclick: () => disconnect(a) }, T('disconnect')))
+          : el('button', { class: 'btn btn-danger btn-sm', type: 'button', onclick: () => disconnect(a) }, T('disconnect'))
       )
     );
   }
@@ -291,6 +304,19 @@ async function startLink() {
   }
 }
 
+/** Same QR flow as a first link, against the reconnect endpoints: the account keeps its id and every AI client's access. */
+const LINK = { status: 'link-status', password: 'password', done: 'linked' };
+const RELINK = { status: 'reconnect-status', password: 'reconnect-password', done: 'reconnected' };
+
+async function reconnect(accountId) {
+  try {
+    const st = await api(`/api/accounts/${accountId}/reconnect`, { method: 'POST', body: {} });
+    await pollLink(accountId, st, RELINK);
+  } catch (e) {
+    show(panel(errorBox(e), el('button', { class: 'btn secondary', type: 'button', onclick: main }, T('back'))));
+  }
+}
+
 async function resumeLink(accountId) {
   try {
     await pollLink(accountId, await pollOnce(accountId));
@@ -299,22 +325,23 @@ async function resumeLink(accountId) {
   }
 }
 
-async function pollLink(accountId, state) {
+async function pollLink(accountId, state, mode = LINK) {
   let lastQr = '';
   for (;;) {
     if (state.state === 'active') {
       const actions = pendingContinue()
         ? el('div', { class: 'btn-row' }, continueButton(), el('button', { class: 'btn secondary', type: 'button', onclick: main }, T('toCabinet')))
         : el('button', { class: 'btn', type: 'button', onclick: main }, T('toCabinet'));
-      show(panel(el('span', { class: 'usp-ico' }, icon('check')), el('h2', { class: 'card-title' }, T('linked')), pendingContinue() ? el('p', {}, T('connectReady')) : '', actions));
+      show(panel(el('span', { class: 'usp-ico' }, icon('check')), el('h2', { class: 'card-title' }, T(mode.done)), pendingContinue() ? el('p', {}, T('connectReady')) : '', actions));
       return;
     }
     if (state.state === 'failed') {
-      show(panel(el('p', { class: 'err', role: 'alert' }, LINK_ERRORS[state.code] || T('linkFailed')), el('button', { class: 'btn', type: 'button', onclick: main }, T('toCabinet'))));
+      const msg = mode === RELINK && state.code === 'NOT_ALLOWED' ? T('reconnectOther') : LINK_ERRORS[state.code] || T('linkFailed');
+      show(panel(el('p', { class: 'err', role: 'alert' }, msg), el('button', { class: 'btn', type: 'button', onclick: main }, T('toCabinet'))));
       return;
     }
     if (state.state === 'need_password') {
-      await askPassword(accountId, state.hint, state.invalidAttempts || 0);
+      await askPassword(accountId, state.hint, state.invalidAttempts || 0, mode);
       return;
     }
     if (state.state === 'waiting_scan' && state.qrUrl !== lastQr) {
@@ -327,17 +354,17 @@ async function pollLink(accountId, state) {
       );
     }
     await new Promise((r) => setTimeout(r, 2000));
-    state = await pollOnce(accountId);
+    state = await pollOnce(accountId, mode);
   }
 }
 
 // A single failed poll (network blip, 5xx, upstream hiccup) must not abort a QR link that is still running
 // server-side; give up only after several consecutive failures or on a definite answer.
 const TRANSIENT = new Set([undefined, 'UPSTREAM_UNAVAILABLE', 'INTERNAL', 'RATE_LIMITED']);
-async function pollOnce(accountId) {
+async function pollOnce(accountId, mode = LINK) {
   for (let attempt = 1; ; attempt++) {
     try {
-      return await api(`/api/accounts/${accountId}/link-status`);
+      return await api(`/api/accounts/${accountId}/${mode.status}`);
     } catch (e) {
       if (!TRANSIENT.has(e.code) || attempt >= 5) return { state: 'failed', code: e.code };
       await new Promise((r) => setTimeout(r, 2000 * attempt));
@@ -345,7 +372,7 @@ async function pollOnce(accountId) {
   }
 }
 
-function askPassword(accountId, hint, invalidAttempts = 0) {
+function askPassword(accountId, hint, invalidAttempts = 0, mode = LINK) {
   return new Promise((resolve) => {
     const input = el('input', { type: 'password', id: 'tg-password', autocomplete: 'off' });
     const form = el('form', {
@@ -353,8 +380,8 @@ function askPassword(accountId, hint, invalidAttempts = 0) {
         ev.preventDefault();
         const password = input.value;
         input.value = '';
-        const st = await api(`/api/accounts/${accountId}/password`, { method: 'POST', body: { password } }).catch((e) => ({ state: 'failed', code: e.code }));
-        resolve(pollLink(accountId, st));
+        const st = await api(`/api/accounts/${accountId}/${mode.password}`, { method: 'POST', body: { password } }).catch((e) => ({ state: 'failed', code: e.code }));
+        resolve(pollLink(accountId, st, mode));
       }
     }, el('div', { class: 'field' }, el('label', { for: 'tg-password' }, T('passwordAria')), input), el('div', { class: 'btn-row' }, el('button', { class: 'btn', type: 'submit' }, T('continue'))));
     show(

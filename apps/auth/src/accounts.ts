@@ -24,13 +24,26 @@ interface AccountRow {
 
 const ROW = 'account_id, status, label, telegram_id_hmac, failure_code, created_at';
 
+/**
+ * Accounts of the principal. An account that is active in Control D1 but whose Telegram session ended (the vault marks it
+ * when Telegram refuses the session) is reported as 'ended', so the dashboard can offer a reconnect. If the vault cannot
+ * be asked, the D1 status is shown as is.
+ */
 export async function listAccounts(env: Env, principalId: string, fallbackLabel = 'Аккаунт Telegram'): Promise<LinkedAccountView[]> {
   const rs = await env.CONTROL_DB.prepare(`SELECT ${ROW} FROM linked_accounts WHERE principal_id = ?1 AND status != 'disconnected' ORDER BY created_at`)
     .bind(principalId)
     .all<AccountRow>();
+  let ended = new Set<string>();
+  if (rs.results.some((r) => r.status === 'active')) {
+    try {
+      ended = new Set(await env.VAULT.endedAccounts(principalId));
+    } catch {
+      console.warn('vault_ended_accounts_failed');
+    }
+  }
   return rs.results.map((r) => ({
     accountId: r.account_id,
-    status: r.status,
+    status: r.status === 'active' && ended.has(r.account_id) ? 'ended' : r.status,
     label: r.label ?? fallbackLabel,
     createdAt: new Date(r.created_at * 1000).toISOString()
   }));
@@ -196,6 +209,61 @@ export async function submitPassword(env: Env, cfg: Config, principalId: string,
   if (row.status !== 'pending') throw new PostunError('CONFLICT');
   try {
     return await settle(env, cfg, principalId, accountId, await env.VAULT.submitPassword(principalId, accountId, password));
+  } catch (err) {
+    if (err instanceof PostunError) throw err;
+    throw upstream();
+  }
+}
+
+/**
+ * Reconnect of an account whose Telegram session ended. Control D1 keeps the account active with the same Telegram id
+ * reservation; the vault runs a new QR login and accepts it only for the same Telegram user, so grants keep working.
+ */
+function relinkPublic(state: LinkState): PublicLinkState {
+  switch (state.state) {
+    case 'waiting_scan':
+      return { state: 'waiting_scan', qrUrl: state.qrUrl, expiresAt: state.expiresAt };
+    case 'need_password':
+      return state.invalidAttempts ? { state: 'need_password', hint: state.hint, invalidAttempts: state.invalidAttempts } : { state: 'need_password', hint: state.hint };
+    case 'authorized':
+      return { state: 'active' };
+    case 'failed':
+      return { state: 'failed', code: state.code };
+    default:
+      throw upstream();
+  }
+}
+
+async function activeRow(env: Env, principalId: string, accountId: string): Promise<void> {
+  const row = await getAccount(env, principalId, accountId);
+  if (row.status !== 'active') throw new PostunError('CONFLICT');
+}
+
+export async function startRelink(env: Env, principalId: string, accountId: string): Promise<PublicLinkState> {
+  await activeRow(env, principalId, accountId);
+  try {
+    return relinkPublic(await env.VAULT.startRelink(principalId, accountId));
+  } catch (err) {
+    if (err instanceof PostunError) throw err;
+    throw upstream();
+  }
+}
+
+export async function relinkStatus(env: Env, principalId: string, accountId: string): Promise<PublicLinkState> {
+  await activeRow(env, principalId, accountId);
+  try {
+    return relinkPublic(await env.VAULT.linkStatus(principalId, accountId));
+  } catch (err) {
+    if (err instanceof PostunError) throw err;
+    throw upstream();
+  }
+}
+
+export async function relinkPassword(env: Env, principalId: string, accountId: string, password: unknown): Promise<PublicLinkState> {
+  if (typeof password !== 'string' || password.length < 1 || password.length > 256) throw new PostunError('INVALID_INPUT');
+  await activeRow(env, principalId, accountId);
+  try {
+    return relinkPublic(await env.VAULT.submitPassword(principalId, accountId, password));
   } catch (err) {
     if (err instanceof PostunError) throw err;
     throw upstream();

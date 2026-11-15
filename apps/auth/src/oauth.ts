@@ -117,7 +117,8 @@ async function showConsent(env: Env, cfg: Config, oauth: OAuthHelpers, req: Requ
   if (blocked) return blocked;
   if (session.termsVersion !== cfg.termsVersion) return redirect(`${cfg.authIssuer}/terms?return=${encodeURIComponent(url.pathname + url.search)}`);
 
-  const accounts = (await listAccounts(env, session.principalId, t(locale, 'account.fallback'))).filter((a) => a.status === 'active');
+  // Ended accounts (Telegram ended the session) stay offered: a grant keeps working once the owner reconnects them.
+  const accounts = (await listAccounts(env, session.principalId, t(locale, 'account.fallback'))).filter((a) => a.status === 'active' || a.status === 'ended');
   if (accounts.length === 0) {
     // No linked Telegram account yet: send the user to the cabinet to link one without leaving the client's sign-in.
     // Only the allow-listed /authorize path+query travels, in the URL fragment (never sent to a server or in Referer);
@@ -138,7 +139,9 @@ async function showConsent(env: Env, cfg: Config, oauth: OAuthHelpers, req: Requ
   const scopeBoxes = offered
     .map((s) => `<label><input type="checkbox" name="scope" value="${esc(s)}"${requested.length > 0 ? ' checked' : ''}> ${esc(scopeLabel(locale, s))}</label>`)
     .join('');
-  const accountBoxes = accounts.map((a) => `<label><input type="checkbox" name="account" value="${esc(a.accountId)}"> ${esc(a.label)}</label>`).join('');
+  const accountBoxes = accounts
+    .map((a) => `<label><input type="checkbox" name="account" value="${esc(a.accountId)}"> ${esc(a.label)}${a.status === 'ended' ? ` <small>${t(locale, 'oauth.accountEnded')}</small>` : ''}</label>`)
+    .join('');
   const who = details.clientDomain
     ? t(locale, 'oauth.publisher', { domain: details.clientDomain })
     : t(locale, 'oauth.selfRegistered');

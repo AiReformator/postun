@@ -18,7 +18,7 @@ import { CAPABILITY_TTL_MS, CHUNK_BYTES, fileHeaders, MAX_TRANSFERS_PER_PRINCIPA
 import { TOOL_INPUT } from '../schemas';
 import type { LinkRun, TelegramAdapter, TelegramSession } from '../telegram/adapter';
 import { selectAdapter } from '../telegram/adapter';
-import { mapTelegramError } from '../telegram/errors';
+import { isSessionEnded, mapTelegramError, sessionEnded } from '../telegram/errors';
 import { assertFeatureEnabled, parseToolArgs, preflightCursor, runTool, type JsonValue } from '../tools';
 import { addMessages, admit, limitsView, messageBudgetWait, parsePacing, type CallKind, type PacingState } from './limiter';
 import { KeyedLocks } from './locks';
@@ -82,7 +82,15 @@ interface AccountRow extends Record<string, SqlStorageValue> {
   envelope: string | null;
   created_at: number;
   status_at: number;
+  /** Not null: Telegram ended this active account's session; reads are refused until the owner reconnects it. */
+  ended_at: number | null;
 }
+
+/** An account whose Telegram session ended: still 'active' in storage (so its id and grants stay), but unusable. */
+function isEnded(acc: AccountRow | null | undefined): boolean {
+  return acc?.status === 'active' && acc.ended_at !== null && acc.ended_at !== undefined;
+}
+
 interface GrantRow extends Record<string, SqlStorageValue> {
   grant_id: string;
   accounts: string;
@@ -151,6 +159,12 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
     } catch {
       // column already present (new schema or already migrated)
     }
+    try {
+      // Set when Telegram ended the session of an otherwise active account (see noteEnded); cleared by a reconnect.
+      this.ctx.storage.sql.exec('ALTER TABLE accounts ADD COLUMN ended_at INTEGER');
+    } catch (e) {
+      if (!/duplicate column/i.test(String(e))) throw e; // only "already present" is expected
+    }
     this.schemaReady = true;
   }
   private ensureSchema(): void {
@@ -176,7 +190,7 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
     this.run('INSERT INTO meta(k, v) VALUES(?, ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v', k, v);
   }
   private account(id: string): AccountRow | null {
-    return this.q<AccountRow>('SELECT account_id, status, label, envelope, created_at, status_at FROM accounts WHERE account_id = ?', id)[0] ?? null;
+    return this.q<AccountRow>('SELECT account_id, status, label, envelope, created_at, status_at, ended_at FROM accounts WHERE account_id = ?', id)[0] ?? null;
   }
   private grant(id: string): GrantRow | null {
     return this.q<GrantRow>('SELECT grant_id, accounts, scopes, version, denied FROM grants WHERE grant_id = ?', id)[0] ?? null;
@@ -229,7 +243,7 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
     try {
       const month = utcMonth();
       const u = this.q<{ success_count: number; out_bytes: number }>('SELECT success_count, out_bytes FROM usage WHERE month = ?', month)[0];
-      const linked = this.q<{ n: number }>("SELECT COUNT(*) AS n FROM accounts WHERE status = 'active'")[0]?.n ?? 0;
+      const linked = this.q<{ n: number }>("SELECT COUNT(*) AS n FROM accounts WHERE status = 'active' AND ended_at IS NULL")[0]?.n ?? 0;
       const status = this.getMeta('deleted') === '1' ? 'deleted' : this.getMeta('suspended') === '1' ? 'suspended' : 'active';
       const p = AdminProjectionSchema.parse({
         principalRef: this.principal,
@@ -309,6 +323,7 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
       const grantAccounts = JSON.parse(g.accounts) as string[];
       if (!a.accounts.includes(a.accountId) || !grantAccounts.includes(a.accountId)) throw new PostunError('ACCOUNT_NOT_IN_GRANT');
       const acc = this.account(a.accountId);
+      if (isEnded(acc)) throw sessionEnded();
       if (!acc || acc.status !== 'active' || !acc.envelope) throw new PostunError('ACCOUNT_NOT_ACTIVE');
     }
     return g;
@@ -615,17 +630,18 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
 
   private listAccounts(g: GrantRow, tokenAccounts: readonly string[]): JsonValue {
     const allowed = new Set((JSON.parse(g.accounts) as string[]).filter((a) => tokenAccounts.includes(a)));
-    const rows = this.q<AccountRow>('SELECT account_id, status, label, envelope, created_at, status_at FROM accounts ORDER BY created_at');
+    const rows = this.q<AccountRow>('SELECT account_id, status, label, envelope, created_at, status_at, ended_at FROM accounts ORDER BY created_at');
     return {
       accounts: rows
         .filter((r) => allowed.has(r.account_id) && r.status !== 'disconnected')
-        .map((r) => ({ accountId: r.account_id, label: r.label, status: r.status, createdAt: new Date(r.created_at).toISOString() }))
+        .map((r) => ({ accountId: r.account_id, label: r.label, status: isEnded(r) ? 'ended' : r.status, createdAt: new Date(r.created_at).toISOString() }))
     };
   }
 
   /** Opens the decrypted session for one operation; re-seals only if the SDK changed it. */
   private async withSession<T>(accountId: string, keys: Keys, fn: (s: TelegramSession) => Promise<T>): Promise<T> {
     const acc = this.account(accountId);
+    if (isEnded(acc)) throw sessionEnded();
     if (!acc?.envelope || acc.status !== 'active') throw new PostunError('ACCOUNT_NOT_ACTIVE');
     let payload: { s: string; tid: string };
     try {
@@ -640,20 +656,39 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
     try {
       session = await adapter.open(payload.s);
     } catch (e) {
-      throw mapTelegramError(e);
+      throw this.noteEnded(accountId, acc.envelope, mapTelegramError(e));
     }
     try {
       return await fn(session);
+    } catch (e) {
+      throw this.noteEnded(accountId, acc.envelope, e);
     } finally {
       await this.finishSession(accountId, session, payload.tid, keys);
     }
+  }
+
+  /**
+   * Telegram said the session is gone (terminated in Telegram, or expired): mark the account ended so every client
+   * and the dashboard see it and the owner can reconnect it. The envelope is kept: it holds the Telegram user id that a
+   * reconnect must match, and the dead session in it can no longer be used by anyone. Returns the error for rethrow.
+   */
+  private noteEnded<E>(accountId: string, envelope: string, err: E): E {
+    if (isSessionEnded(err)) {
+      // Only the session this call used: a call that started before a reconnect must not end the new session.
+      this.run(
+        "UPDATE accounts SET ended_at = ? WHERE account_id = ? AND status = 'active' AND ended_at IS NULL AND envelope = ?",
+        Date.now(), accountId, envelope
+      );
+      this.emitProjection();
+    }
+    return err;
   }
 
   private async finishSession(accountId: string, session: TelegramSession, tid: string, keys: Keys): Promise<void> {
     const updated = await session.close().catch(() => null);
     if (updated !== null) {
       const env = await this.seal(accountId, { s: updated, tid }, keys);
-      this.run("UPDATE accounts SET envelope = ? WHERE account_id = ? AND status = 'active'", env, accountId);
+      this.run("UPDATE accounts SET envelope = ? WHERE account_id = ? AND status = 'active' AND ended_at IS NULL", env, accountId);
     }
   }
 
@@ -684,6 +719,7 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
     if (!(JSON.parse(g.scopes) as string[]).includes(TOOL_SCOPE.get_media)) throw new PostunError('FORBIDDEN');
     if (!(JSON.parse(g.accounts) as string[]).includes(row.account_id)) throw new PostunError('ACCOUNT_NOT_IN_GRANT');
     const acc = this.account(row.account_id);
+    if (isEnded(acc)) throw sessionEnded();
     if (!acc || acc.status !== 'active' || !acc.envelope) throw new PostunError('ACCOUNT_NOT_ACTIVE');
     if (cfg.quota.monthlyByteLimit !== null && this.usageRow(utcMonth()).out_bytes + pendingBytes >= cfg.quota.monthlyByteLimit) throw new PostunError('QUOTA_EXCEEDED');
   }
@@ -765,11 +801,16 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
       const payload = await this.unseal(accountId, acc?.envelope ?? '', keys);
       tid = payload.tid;
       const adapter: TelegramAdapter = await selectAdapter(this.env);
-      session = await adapter.open(payload.s);
+      try {
+        session = await adapter.open(payload.s);
+      } catch (e) {
+        throw this.noteEnded(floodAccount, acc?.envelope ?? '', mapTelegramError(e));
+      }
       let media;
       try {
         media = await session.openMediaStream(row.peer_id, row.message_id, { start: range.start, end: range.end });
       } catch (e) {
+        // Media errors can come from a secondary data centre; only opening the main session decides that it ended.
         const mapped = mapTelegramError(e);
         noteFlood(mapped);
         throw mapped;
@@ -887,7 +928,7 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
     const adapter = await selectAdapter(this.env);
     const now = Date.now();
     this.run(
-      "INSERT INTO accounts(account_id, status, label, envelope, created_at, status_at) VALUES(?, 'pending', '', NULL, ?, ?) ON CONFLICT(account_id) DO UPDATE SET status = 'pending', envelope = NULL, created_at = excluded.created_at, status_at = excluded.status_at",
+      "INSERT INTO accounts(account_id, status, label, envelope, created_at, status_at) VALUES(?, 'pending', '', NULL, ?, ?) ON CONFLICT(account_id) DO UPDATE SET status = 'pending', envelope = NULL, ended_at = NULL, created_at = excluded.created_at, status_at = excluded.status_at",
       accountId, now, now
     );
     this.ensureAlarm();
@@ -952,6 +993,8 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
     if (rec && rec.state.state !== 'authorized') return rec.state;
     const acc = this.account(accountId);
     if (!acc || acc.status === 'disconnected') return rec?.state ?? { state: 'unknown' };
+    // An ended account is not authorized until a reconnect replaced its session (a reconnect no longer running = EXPIRED).
+    if (isEnded(acc)) return { state: 'failed', code: 'EXPIRED' };
     if (acc.envelope && (acc.status === 'pending' || acc.status === 'active')) {
       try {
         const p = await this.unseal(accountId, acc.envelope, await loadKeys(this.env));
@@ -978,6 +1021,106 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
     return st.state === 'authorized' ? this.linkStatus(principalId, accountId) : st;
   }
 
+  /** Accounts whose Telegram session ended; the dashboard shows them and offers a reconnect. */
+  async endedAccounts(principalId: string): Promise<string[]> {
+    this.bind(principalId);
+    return this.q<{ account_id: string }>("SELECT account_id FROM accounts WHERE status = 'active' AND ended_at IS NOT NULL ORDER BY created_at").map((r) => r.account_id);
+  }
+
+  /**
+   * Reconnects an account whose session ended, keeping its id (and so every grant that names it). A new QR login runs
+   * like a first link, but the result replaces the old session only if it is the same Telegram user as before; another
+   * user gets NOT_ALLOWED and the new authorisation is logged out, so a grant can never move to someone else's chats.
+   * Progress is read with linkStatus and the 2FA password goes through submitPassword, as for a first link.
+   */
+  async startRelink(principalId: string, accountId: string): Promise<LinkState> {
+    this.bind(principalId);
+    if (!UUID_RE.test(accountId)) throw new PostunError('INVALID_INPUT');
+    const keys = await loadKeys(this.env);
+    loadConfig(this.env);
+    const acc = this.account(accountId);
+    if (!acc) throw new PostunError('NOT_FOUND');
+    if (!isEnded(acc) || !acc.envelope) throw new PostunError('CONFLICT');
+    const existing = this.links.get(accountId);
+    if (existing && existing.state.state !== 'failed' && existing.state.state !== 'authorized') return existing.state;
+    let previousTid: string;
+    try {
+      previousTid = (await this.unseal(accountId, acc.envelope, keys)).tid;
+    } catch {
+      throw new PostunError('ACCOUNT_NOT_ACTIVE'); // undecryptable: never guess whose account this is
+    }
+
+    const adapter = await selectAdapter(this.env);
+    this.ensureAlarm();
+    const rec: LinkRec = { state: { state: 'unknown' }, run: null, waiter: null, invalid: 0, listeners: new Set(), timer: null };
+    this.links.set(accountId, rec);
+    const fail = (code: Extract<LinkState, { state: 'failed' }>['code']) => {
+      if (rec.state.state === 'authorized' || rec.state.state === 'failed') return;
+      this.setLinkState(rec, { state: 'failed', code }); // the account stays ended with its old envelope
+    };
+    rec.run = adapter.startQrLink({
+      onQr: (url, exp) => this.setLinkState(rec, { state: 'waiting_scan', qrUrl: url, expiresAt: exp.toISOString() }),
+      requestPassword: () =>
+        new Promise<string>((resolve) => {
+          rec.waiter = resolve;
+          this.setLinkState(rec, { state: 'need_password', hint: null, invalidAttempts: rec.invalid });
+        }),
+      onPasswordInvalid: () => {
+        rec.invalid++;
+        if (rec.invalid >= 5) {
+          fail('PASSWORD_INVALID');
+          rec.run?.cancel();
+        }
+      }
+    });
+    rec.timer = setTimeout(() => {
+      fail('EXPIRED');
+      rec.run?.cancel();
+    }, LINK_TTL_MS);
+    const finished = rec.run.done.then(
+      async (r) => {
+        try {
+          if (r.telegramId !== previousTid) {
+            // A different Telegram user scanned the code: refuse, and do not leave that new authorisation behind.
+            await adapter.logOut(r.session).catch(() => undefined);
+            fail('NOT_ALLOWED');
+            return;
+          }
+          const envelope = await this.seal(accountId, { s: r.session, tid: r.telegramId }, keys);
+          const initial = Array.from(r.firstName.trim())[0]?.toUpperCase() ?? 'T';
+          this.run(
+            "UPDATE accounts SET envelope = ?, label = ?, ended_at = NULL, status_at = ? WHERE account_id = ? AND status = 'active' AND ended_at IS NOT NULL",
+            envelope, `${initial}•••`, Date.now(), accountId
+          );
+          const now = this.account(accountId);
+          if (now?.status !== 'active' || now.ended_at !== null) {
+            await adapter.logOut(r.session).catch(() => undefined); // disconnected meanwhile: drop the new session
+            fail('CANCELLED');
+            return;
+          }
+          this.setLinkState(rec, { state: 'authorized', telegramId: r.telegramId, label: `${initial}•••` });
+          this.emitProjection();
+        } catch {
+          fail('UPSTREAM');
+        }
+      },
+      (e: unknown) => {
+        const m = mapTelegramError(e);
+        fail(m.code === 'RATE_LIMITED' ? 'RATE_LIMITED' : rec.state.state === 'failed' ? 'CANCELLED' : 'UPSTREAM');
+      }
+    ).finally(() => {
+      if (rec.timer) clearTimeout(rec.timer);
+      rec.waiter = null;
+    });
+    this.ctx.waitUntil(finished);
+    if (this.stateOf(rec).state === 'unknown') await this.waitChange(rec, 15_000);
+    if (this.stateOf(rec).state === 'unknown') {
+      fail('UPSTREAM');
+      rec.run.cancel();
+    }
+    return rec.state;
+  }
+
   async activateAccount(principalId: string, accountId: string): Promise<{ ok: true }> {
     this.bind(principalId);
     this.ensureAlarm(SWEEP_PERIOD_MS); // periodic KEK rotation sweep
@@ -985,7 +1128,7 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
     if (!acc) throw new PostunError('NOT_FOUND');
     if (acc.status === 'active') return { ok: true };
     if (acc.status !== 'pending' || !acc.envelope) throw new PostunError('ACCOUNT_NOT_ACTIVE');
-    this.run("UPDATE accounts SET status = 'active', status_at = ? WHERE account_id = ?", Date.now(), accountId);
+    this.run("UPDATE accounts SET status = 'active', ended_at = NULL, status_at = ? WHERE account_id = ?", Date.now(), accountId);
     this.links.delete(accountId);
     this.emitProjection();
     return { ok: true };

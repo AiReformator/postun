@@ -63,6 +63,16 @@ export class FakeVault implements VaultControlRpc {
     await this.rec('deletePrincipal');
     return { ok: true };
   }
+  ended: string[] = [];
+  relink: LinkState = { state: 'waiting_scan', qrUrl: 'tg://login?token=re', expiresAt: '2030-01-01T00:00:00.000Z' };
+  async endedAccounts(_p: string): Promise<string[]> {
+    await this.rec('endedAccounts');
+    return this.ended;
+  }
+  async startRelink(_p: string, a: string): Promise<LinkState> {
+    await this.rec('startRelink', a);
+    return this.relink;
+  }
   async getUsage(_p: string): Promise<UsageView> {
     await this.rec('getUsage');
     return this.usage;

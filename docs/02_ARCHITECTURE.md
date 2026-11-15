@@ -67,6 +67,7 @@ tests/
 | oauth token/code/client | OAuth KV | Только формат и lifecycle поддерживаемой библиотеки |
 | consent_done | OAuth KV | `postun-consent-done:<SHA-256 handle>`, значение `1`, TTL 600 с; только для объяснения повторного «Разрешить» |
 | session_envelope | Principal DO | Отдельный ciphertext на аккаунт; версия ключа и AAD |
+| ended_at | Principal DO | Telegram сам завершил сессию аккаунта (AUTH_KEY_UNREGISTERED, SESSION_REVOKED и т. п.): аккаунт остаётся `active` в Control D1 с тем же ID и разрешениями, но чтение отказывает с `ACCOUNT_NOT_ACTIVE` / `SESSION_ENDED`, кабинет и `list_accounts` показывают статус `ended`. «Переподключить» запускает новый QR-вход; новая сессия заменяет старую только для того же Telegram-пользователя (сверка с ID в конверте), иначе `NOT_ALLOWED` и выход из новой сессии |
 | usage_period | Principal DO | Атомарный счётчик; D1-проекция не решает доступ |
 | entitlement | Control D1 + DO policy | beta_free сейчас; смена тарифа не меняет сессию |
 | admin_projection | Admin D1 | Только минимальная статистика; без настоящих Telegram credentials |

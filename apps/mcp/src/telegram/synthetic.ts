@@ -30,6 +30,8 @@ export const syntheticControl = {
   linkDelayMs: 5,
   nextTelegramId: '700000001',
   streamErrorAfterBytes: -1,
+  /** Telegram ended every existing session: opening one fails with AUTH_KEY_UNREGISTERED. */
+  sessionsEnded: false,
   reset(): void {
     this.opens = 0;
     this.ops = 0;
@@ -44,6 +46,7 @@ export const syntheticControl = {
     this.linkDelayMs = 5;
     this.nextTelegramId = '700000001';
     this.streamErrorAfterBytes = -1;
+    this.sessionsEnded = false;
   }
 };
 
@@ -273,6 +276,7 @@ export class SyntheticAdapter implements TelegramAdapter {
 
   async open(session: string): Promise<TelegramSession> {
     const seed = seedOf(session);
+    if (syntheticControl.sessionsEnded) throw Object.assign(new Error('ended'), { text: 'AUTH_KEY_UNREGISTERED', code: 401 });
     syntheticControl.opens++;
     if (syntheticControl.latencyMs > 0) await sleep(0);
     return new SyntheticSession(seed);

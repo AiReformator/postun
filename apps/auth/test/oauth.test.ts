@@ -362,6 +362,17 @@ describe('MCP OAuth', () => {
     expect(c.text.toLowerCase()).not.toContain('<script');
   });
 
+  it('an account whose Telegram session ended is still offered on the consent page, marked as ended', async () => {
+    const { e, vault, who, accA } = await setup();
+    vault.ended = [accA];
+    const clientId = await register(e);
+    const { challenge } = await pkce();
+    const c = await openConsent(e, who, authorizePath(clientId, challenge));
+    expect(c.res.status).toBe(200);
+    expect(c.text).toContain(`value="${accA}"`);
+    expect(c.text).toContain('Telegram session ended');
+  });
+
   it('a forged offered-scopes field is rejected', async () => {
     const { e, who, accA } = await setup();
     const clientId = await register(e);
