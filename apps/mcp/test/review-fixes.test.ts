@@ -225,6 +225,17 @@ describe('finding 6: KEK rotation', () => {
     expect(await kvOf(w, acc)).toBe('test-k1');
   });
 
+  it('a session that ended is marked on the first failing call even when that call rewrapped the envelope', async () => {
+    const w = await setupWorld();
+    const acc = w.accountIds[0] as string;
+    await resealWith(w, acc, await prevKek(), 'test-k0');
+    syntheticControl.sessionsEnded = true;
+    const r = await callTool(w.token, 'list_dialogs', { account_id: acc });
+    expect((r.data.error as { reason?: string }).reason).toBe('SESSION_ENDED');
+    expect(await kvOf(w, acc)).toBe('test-k1');
+    expect(await principalStub(w.principalId).endedAccounts(w.principalId)).toEqual([acc]);
+  });
+
   it('the alarm sweep rewraps idle envelopes', async () => {
     const w = await setupWorld();
     const acc = w.accountIds[0] as string;
