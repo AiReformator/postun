@@ -14,8 +14,8 @@
     "@postun/contracts": "0.1.0",
     "@cloudflare/workers-oauth-provider": "1.2.4",
     "@modelcontextprotocol/server": "2.4.0",
-    "@mtcute/core": "0.32.7",
-    "@mtcute/web": "0.32.7",
+    "@mtcute/core": "0.32.8",
+    "@mtcute/web": "0.32.8",
     "zod": "4.6.7"
   }
 }
