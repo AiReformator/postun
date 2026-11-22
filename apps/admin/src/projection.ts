@@ -1,5 +1,7 @@
 import { WorkerEntrypoint } from 'cloudflare:workers';
-import { AdminProjectionSchema, type AdminProjection, type ProjectionSinkRpc } from '@postun/contracts';
+import {
+  AdminProjectionSchema, ProblemReportSchema, REPORT_BACKLOG_LIMIT, type AdminProjection, type ProblemReport, type ProblemReportReceipt, type ProjectionSinkRpc
+} from '@postun/contracts';
 import type { Env } from './env';
 
 /**
@@ -22,4 +24,38 @@ export class ProjectionSink extends WorkerEntrypoint<Env> implements ProjectionS
       .run();
     return { applied: r.meta.changes > 0 };
   }
+
+  /**
+   * Stores one problem report from report_problem (docs/03 section 4). The payload is re-validated here: this is the
+   * boundary of the admin store, so it does not trust the Worker that sent it. A full backlog is refused rather than
+   * grown without bound.
+   */
+  async submitReport(r: ProblemReport): Promise<ProblemReportReceipt> {
+    const v = ProblemReportSchema.parse(r);
+    const backlog = await this.env.ADMIN_DB.prepare("SELECT COUNT(*) AS n FROM problem_reports WHERE status = 'new'").first<{ n: number }>();
+    if ((backlog?.n ?? 0) >= REPORT_BACKLOG_LIMIT) throw new Error('report backlog is full');
+    const now = Date.now();
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const ticket = newTicket();
+      try {
+        await this.env.ADMIN_DB.prepare(
+          `INSERT INTO problem_reports (id, created_at, principal_ref, category, tool, error_code, error_reason, account_ref, client, summary)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+          .bind(ticket, now, v.principalRef, v.category, v.tool, v.errorCode, v.errorReason, v.accountRef, v.client, v.summary)
+          .run();
+        return { ticket, receivedAt: new Date(now).toISOString() };
+      } catch (e) {
+        if (!/UNIQUE|constraint/i.test(String(e))) throw e; // only a ticket id collision is retried
+      }
+    }
+    throw new Error('could not allocate a ticket id');
+  }
+}
+
+/** "PR-" plus 8 characters without look-alikes (no 0/O, 1/I/L): easy to read out and to quote. */
+const TICKET_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+function newTicket(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(8));
+  return `PR-${Array.from(bytes, (b) => TICKET_ALPHABET[b % TICKET_ALPHABET.length]).join('')}`;
 }

@@ -174,6 +174,7 @@ Hinweise für Mitwirkende: [CONTRIBUTING.md](CONTRIBUTING.md). Verwende in Tests
 | [docs/06_ADMIN_OIDC.md](docs/06_ADMIN_OIDC.md) | Administrator-Anmeldung und Rollenmatrix |
 | [docs/07_SOURCES.md](docs/07_SOURCES.md) | Geprüfte offizielle Quellen |
 | [docs/08_DESIGN_NOTES.md](docs/08_DESIGN_NOTES.md) | Designentscheidungen und aufgelöste Widersprüche |
+| [docs/09_SUPPORT_REPORTS.md](docs/09_SUPPORT_REPORTS.md) | Hilfeseite, get_help und Problemmeldungen: wie sie den Betreiber erreichen |
 | [docs/DEPLOY_RUNBOOK.md](docs/DEPLOY_RUNBOOK.md) | Deployment-Runbook |
 | [docs/PUBLICATION_POLICY.md](docs/PUBLICATION_POLICY.md) | Was wo veröffentlicht wird: Code auf GitHub, Rechtstexte auf der Website, Marketingmaterial nie |
 

@@ -87,7 +87,10 @@ export function assertFeatureEnabled(tool: ToolName, cfg: Config): void {
   if (tool === 'get_media' && cfg.maxFileBytes <= 0) throw new PostunError('FEATURE_DISABLED');
 }
 
-export async function runTool(env: ToolEnv, tool: Exclude<ToolName, 'list_accounts'>, rawArgs: unknown): Promise<JsonValue> {
+/** Tools that never touch Telegram: answered by the Durable Object itself (session-do.ts). */
+export type NonTelegramTool = 'list_accounts' | 'get_help' | 'report_problem';
+
+export async function runTool(env: ToolEnv, tool: Exclude<ToolName, NonTelegramTool>, rawArgs: unknown): Promise<JsonValue> {
   const s = env.session;
   switch (tool) {
     case 'list_dialogs': {

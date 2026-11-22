@@ -5,22 +5,33 @@ import { syntheticControl } from '../src/telegram/synthetic';
 import { callTool, errCode, mcpRequest, principalStub, setupWorld } from './helpers';
 
 describe('tools/list', () => {
-  it('returns exactly the 8 read-only tools', async () => {
+  it('returns the 8 read-only Telegram tools plus the two support tools (get_help, report_problem)', async () => {
     const w = await setupWorld();
     const res = await mcpRequest(w.token, { jsonrpc: '2.0', id: 1, method: 'tools/list' });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { result: { tools: { name: string; description: string; annotations: { readOnlyHint: boolean; destructiveHint: boolean }; inputSchema: { properties: Record<string, unknown> } }[] } };
+    const body = (await res.json()) as { result: { tools: { name: string; description: string; annotations: { readOnlyHint: boolean; destructiveHint: boolean; openWorldHint: boolean }; inputSchema: { properties: Record<string, unknown> } }[] } };
     const tools = body.result.tools;
     expect(tools.map((t) => t.name).sort()).toEqual([...TOOLS].sort());
-    expect(tools).toHaveLength(8);
-    for (const t of tools) {
+    expect(tools).toHaveLength(10);
+    const SUPPORT = ['get_help', 'report_problem'];
+    const telegramTools = tools.filter((t) => !SUPPORT.includes(t.name));
+    expect(telegramTools).toHaveLength(8);
+    for (const t of telegramTools) {
       expect(t.annotations.readOnlyHint).toBe(true);
       expect(t.annotations.destructiveHint).toBe(false);
-      expect(t.description).toContain('Beta');
     }
-    // No tool accepts a principal id, and none can write. Output schemas name message senders (senderId/senderName),
+    for (const t of tools) expect(t.description).toContain('Beta');
+    // The support tools never reach Telegram: get_help is read-only; report_problem stores one report and nothing else.
+    const help = tools.find((t) => t.name === 'get_help')!;
+    expect(help.annotations).toMatchObject({ readOnlyHint: true, destructiveHint: false, openWorldHint: false });
+    const report = tools.find((t) => t.name === 'report_problem')!;
+    expect(report.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: false, openWorldHint: false });
+    expect(report.description).toContain('never anything to Telegram');
+    expect(Object.keys(report.inputSchema.properties).sort()).toEqual(['account_id', 'category', 'client', 'error_code', 'error_reason', 'summary', 'tool', 'user_confirmed']);
+    // No Telegram tool accepts a principal id, and none can write. Output schemas name message senders (senderId/senderName),
     // so "sender" is allowed while "send" is not.
-    expect(JSON.stringify(tools)).not.toMatch(/principal|send(?!er)|delete|write/i);
+    expect(JSON.stringify(telegramTools)).not.toMatch(/principal|send(?!er)|delete|write/i);
+    expect(JSON.stringify(tools)).not.toMatch(/principal/i);
   });
 
   it('tools/list does not consume quota and works without touching Telegram', async () => {

@@ -174,6 +174,7 @@ migrations/admin/    D1 postun-admin-meta (только admin)
 | [docs/06_ADMIN_OIDC.md](docs/06_ADMIN_OIDC.md) | Вход администраторов и матрица ролей |
 | [docs/07_SOURCES.md](docs/07_SOURCES.md) | Проверенные официальные источники |
 | [docs/08_DESIGN_NOTES.md](docs/08_DESIGN_NOTES.md) | Проектные решения и устранённые противоречия |
+| [docs/09_SUPPORT_REPORTS.md](docs/09_SUPPORT_REPORTS.md) | Справка, get_help и обращения о проблемах: как они попадают к оператору |
 | [docs/DEPLOY_RUNBOOK.md](docs/DEPLOY_RUNBOOK.md) | Руководство по развёртыванию |
 | [docs/PUBLICATION_POLICY.md](docs/PUBLICATION_POLICY.md) | Что и где публикуется: код — на GitHub, юридические документы — на сайте, маркетинговые материалы — нигде |
 

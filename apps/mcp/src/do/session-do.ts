@@ -6,9 +6,10 @@
  */
 import { DurableObject } from 'cloudflare:workers';
 import {
-  AdminProjectionSchema, fromBase64Url, fromUtf8, hmac, HTTP_STATUS, isSessionErrorCode, jsonResponse, normalizeScopes, openSession, PostunError, randomToken,
-  retainedDays, retainedMonths, rewrapSession, sealSession, SESSION_EVENT_KINDS, sha256, timingSafeEqual, toBase64Url, toSafeError, TOOL_SCOPE, utcDay, utcMonth, utf8,
-  type AccountEventView, type GrantRecord, type LinkState, type SafeError, type SessionEnvelope, type SessionErrorCode, type SessionEventKind, type ToolName,
+  AdminProjectionSchema, fromBase64Url, fromUtf8, hmac, HTTP_STATUS, isSessionErrorCode, jsonResponse, normalizeScopes, openSession, PostunError, ProblemReportSchema,
+  randomToken, REPORT_RETENTION_DAYS, REPORT_REVIEW_HOURS, REPORT_SUMMARY_MIN, REPORTS_PER_DAY, retainedDays, retainedMonths, rewrapSession, sealSession, scrubReportText,
+  SESSION_EVENT_KINDS, sha256, timingSafeEqual, toBase64Url, toSafeError, TOOL_SCOPE, utcDay, utcMonth, utf8,
+  type AccountEventView, type ErrorCode, type GrantRecord, type LinkState, type SafeError, type SessionEnvelope, type ReportCategory, type SessionErrorCode, type SessionEventKind, type ToolName,
   type UsageView
 } from '@postun/contracts';
 import { signFileCapability } from '../capability';
@@ -19,8 +20,9 @@ import { CAPABILITY_TTL_MS, CHUNK_BYTES, fileHeaders, MAX_TRANSFERS_PER_PRINCIPA
 import { TOOL_INPUT } from '../schemas';
 import type { LinkRun, TelegramAdapter, TelegramSession } from '../telegram/adapter';
 import { selectAdapter } from '../telegram/adapter';
+import { getHelp, HELP_SITE } from '../help';
 import { isSessionEnded, mapTelegramError, sessionEnded } from '../telegram/errors';
-import { assertFeatureEnabled, parseToolArgs, preflightCursor, runTool, type JsonValue } from '../tools';
+import { assertFeatureEnabled, parseToolArgs, preflightCursor, runTool, type JsonValue, type NonTelegramTool } from '../tools';
 import { addMessages, admit, limitsView, messageBudgetWait, parsePacing, type CallKind, type PacingState } from './limiter';
 import { KeyedLocks } from './locks';
 import { SCHEMA } from './schema';
@@ -74,6 +76,17 @@ export interface ToolCallRequest {
   accounts: string[];
   tool: ToolName;
   args: Record<string, unknown>;
+}
+
+/** Parsed arguments of report_problem (schemas.ts); user_confirmed is enforced by the schema (z.literal(true)). */
+interface ReportArgs {
+  category: ReportCategory;
+  summary: string;
+  tool?: ToolName;
+  error_code?: ErrorCode;
+  error_reason?: string;
+  account_id?: string;
+  client?: string;
 }
 
 /** `json` is the serialised result: keeps the RPC type shallow and the payload opaque to the transport. */
@@ -568,13 +581,23 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
     const keys = await loadKeys(this.env);
     if (!(req.tool in TOOL_INPUT)) throw new PostunError('INVALID_INPUT');
     const args = parseToolArgs(req.tool, req.args) as { account_id?: string; operation_id?: string };
-    const accountId = req.tool === 'list_accounts' ? null : (args.account_id ?? null);
+    const noTelegram = req.tool === 'list_accounts' || req.tool === 'get_help' || req.tool === 'report_problem';
+    const accountId = noTelegram ? null : (args.account_id ?? null);
     const auth = { ...req, accountId };
     const op = args.operation_id ?? null;
 
     if (req.tool === 'list_accounts') {
       const g = this.authorize(auth);
       return { data: this.listAccounts(g, req.accounts) };
+    }
+    // Support tools: no Telegram, no pacing, no quota; authorised like list_accounts (accounts:read, live grant).
+    if (req.tool === 'get_help') {
+      this.authorize(auth);
+      return { data: getHelp((args as { topic?: Parameters<typeof getHelp>[0] }).topic) as JsonValue };
+    }
+    if (req.tool === 'report_problem') {
+      const g = this.authorize(auth);
+      return { data: await this.reportProblem(req, g, args as unknown as ReportArgs) };
     }
     assertFeatureEnabled(req.tool, cfg);
 
@@ -618,7 +641,7 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
                   globalSearchAllowed: this.chatAllowlist(grant) === null,
                   issueMedia: (peerId, messageId, size) => this.issueIntent(grant.grant_id, accId, peerId, messageId, size, keys)
                 },
-                req.tool as Exclude<ToolName, 'list_accounts'>,
+                req.tool as Exclude<ToolName, NonTelegramTool>,
                 req.args
               );
             } catch (e) {
@@ -639,6 +662,73 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
     } finally {
       if (!committed) this.release(reservation);
     }
+  }
+
+  /**
+   * report_problem: one short, user-confirmed report to the operator (docs/03 section 4). Only a closed vocabulary plus
+   * the scrubbed summary leaves this object; the admin store is reached through the ADMIN_SINK service binding, so this
+   * Worker never reads reports back. Limited per owner and day; the day's count is metadata, wiped with the profile.
+   */
+  private async reportProblem(req: ToolCallRequest, g: GrantRow, a: ReportArgs): Promise<JsonValue> {
+    const sink = this.env.ADMIN_SINK;
+    if (!sink) throw new PostunError('UPSTREAM_UNAVAILABLE');
+    if (a.account_id !== undefined && !((JSON.parse(g.accounts) as string[]).includes(a.account_id) && req.accounts.includes(a.account_id))) {
+      throw new PostunError('ACCOUNT_NOT_IN_GRANT');
+    }
+    const summary = scrubReportText(a.summary);
+    if (summary.length < REPORT_SUMMARY_MIN) throw new PostunError('INVALID_INPUT');
+    const day = utcDay();
+    const [d, n] = (this.getMeta('reports') ?? '').split(':');
+    const used = d === day ? Number(n) || 0 : 0;
+    if (used >= REPORTS_PER_DAY) {
+      throw new PostunError('QUOTA_EXCEEDED', undefined, {
+        reason: 'DAILY_QUOTA',
+        message: 'Report limit reached for today',
+        hint: `At most ${REPORTS_PER_DAY} problem reports per day. The earlier ones are already queued; ask the user to try again tomorrow, or to write to Telegram @postun_org.`
+      });
+    }
+    // Count first so parallel calls cannot slip past the limit; give the slot back if the store refuses.
+    this.setMeta('reports', `${day}:${used + 1}`);
+    let receipt;
+    try {
+      receipt = await sink.submitReport(
+        ProblemReportSchema.parse({
+          principalRef: req.principalId,
+          category: a.category,
+          tool: a.tool ?? null,
+          errorCode: a.error_code ?? null,
+          errorReason: a.error_reason ?? null,
+          accountRef: a.account_id ?? null,
+          client: a.client ?? null,
+          summary
+        })
+      );
+    } catch {
+      this.setMeta('reports', `${day}:${used}`);
+      throw new PostunError('UPSTREAM_UNAVAILABLE', undefined, {
+        hint: 'The report could not be stored right now. Ask the user to try again later, or to write to Telegram @postun_org.'
+      });
+    }
+    return {
+      status: 'received',
+      ticket: receipt.ticket,
+      receivedAt: receipt.receivedAt,
+      review: `New reports are read at least once a day; Postun aims to answer or publish guidance within ${REPORT_REVIEW_HOURS} hours (beta, no guarantee). Postun cannot contact the user directly.`,
+      stored: {
+        category: a.category,
+        summary,
+        ...(a.tool ? { tool: a.tool } : {}),
+        ...(a.error_code ? { error_code: a.error_code } : {}),
+        ...(a.error_reason ? { error_reason: a.error_reason } : {}),
+        ...(a.account_id ? { account_id: a.account_id } : {}),
+        ...(a.client ? { client: a.client } : {}),
+        kept_days: REPORT_RETENTION_DAYS
+      },
+      next: [
+        `Tell the user the ticket id (${receipt.ticket}) and that it was sent.`,
+        `Tell the user to check ${HELP_SITE} in a day or two: fixes and new guidance are published there.`
+      ]
+    };
   }
 
   /** Grants carry no per-chat allowlist in the beta; when one exists, global search must be refused. */

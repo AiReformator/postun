@@ -1,4 +1,5 @@
 import type { ErrorCode, ErrorReason } from '@postun/contracts';
+import { helpTopicFor } from './help';
 
 /**
  * How a refused tool call is shown to the AI client.
@@ -85,15 +86,36 @@ export function pauseText(f: ToolFailure): string {
   return `${head} ${next} Calls for one account run one at a time, so make them one after another rather than in parallel.`;
 }
 
+/**
+ * Fixed advice for errors that carry no hint of their own, so every refusal tells the AI what the user can do next.
+ * Texts are written by Postun; none comes from Telegram.
+ */
+const DEFAULT_HINTS: Partial<Record<ErrorCode, string>> = {
+  ACCOUNT_NOT_ACTIVE: 'This Telegram account cannot be read right now. Call get_help with topic "no-reconnect-button" and relay its steps to the user.',
+  QUOTA_EXCEEDED: 'The free beta quota is used up. Call get_help with topic "quota" and tell the user when it resets.',
+  NOT_FOUND: 'Nothing was found for these ids. They may belong to another account or be out of date: call get_help with topic "missing-dialogs".',
+  UPSTREAM_UNAVAILABLE: 'Telegram or Postun is temporarily unavailable. Wait a minute and repeat once; if it keeps failing call get_help with topic "still-stuck".',
+  INTERNAL: 'Unexpected error. Repeat once; if it keeps failing call get_help with topic "still-stuck" and, only if the user agrees, report_problem.',
+  GRANT_REVOKED: 'The user revoked this connection in the Postun dashboard. Ask them to connect Postun again in their AI client.'
+};
+
+/** Where the guide covers an error: always the same pointer, so a client can call get_help without parsing prose. */
+function helpPointer(f: Pick<ToolFailure, 'code' | 'reason'>): { help?: { tool: 'get_help'; topic: string } } {
+  const topic = helpTopicFor(f.code, f.reason);
+  return topic ? { help: { tool: 'get_help', topic } } : {};
+}
+
 /** MCP tools/call result for a failed call. */
 export function toolErrorResult(f: ToolFailure): { isError: true; content: { type: 'text'; text: string }[] } {
   if (!isPause(f)) {
+    const hint = f.hint ?? DEFAULT_HINTS[f.code];
     const error = {
       code: f.code,
       message: f.message,
       ...(f.retryAfterSeconds === undefined ? {} : { retryAfterSeconds: f.retryAfterSeconds }),
       ...(f.reason === undefined ? {} : { reason: f.reason }),
-      ...(f.hint === undefined ? {} : { hint: f.hint })
+      ...(hint === undefined ? {} : { hint }),
+      ...helpPointer(f)
     };
     return { isError: true, content: [{ type: 'text', text: JSON.stringify({ error }) }] };
   }
@@ -107,7 +129,8 @@ export function toolErrorResult(f: ToolFailure): { isError: true; content: { typ
     retryAfterSeconds,
     action: retryAfterSeconds <= REPEAT_NOW_SECONDS ? 'repeat the same call with the same arguments now' : 'wait retryAfterSeconds, then repeat the same call with the same arguments',
     ...(f.reason === undefined ? {} : { reason: f.reason }),
-    ...(f.hint === undefined ? {} : { hint: f.hint })
+    ...(f.hint === undefined ? {} : { hint: f.hint }),
+    ...helpPointer(f)
   };
   return { isError: true, content: [{ type: 'text', text: JSON.stringify({ error }) }] };
 }

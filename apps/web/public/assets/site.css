@@ -782,6 +782,15 @@ progress.meter::-moz-progress-bar { background: var(--c-signal); border-radius: 
 .uc-head { padding-block: var(--s-12) 0; max-width: 860px; }
 .uc-head h1 { font-size: clamp(2rem, 1.4rem + 3vw, 3.25rem); font-weight: var(--weight-black); letter-spacing: var(--tracking-display); line-height: 1.02; margin-bottom: var(--s-5); }
 .uc-head .lead { max-width: 60ch; }
+/* Help page (/help/): one section per topic, anchors shared with the MCP tool get_help. */
+.help-topic { max-width: 860px; scroll-margin-top: var(--s-16); }
+.help-topic h2 { font-size: var(--text-xl); line-height: var(--leading-snug); margin-bottom: var(--s-4); }
+.help-topic h3 { font: var(--weight-bold) var(--text-xs) / 1.4 var(--font-mono); letter-spacing: var(--tracking-caps); text-transform: uppercase; color: var(--c-ink-3); margin: var(--s-5) 0 var(--s-2); }
+.help-facts { display: grid; gap: var(--s-1); margin: 0; }
+.help-facts dt { font: var(--weight-bold) var(--text-xs) / 1.4 var(--font-mono); letter-spacing: var(--tracking-caps); text-transform: uppercase; color: var(--c-ink-3); margin-top: var(--s-3); }
+.help-facts dd { margin: 0; color: var(--c-ink-2); max-width: var(--measure); }
+.help-steps { margin: 0; padding-left: var(--s-6); display: grid; gap: var(--s-2); max-width: var(--measure); }
+.help-steps li::marker { color: var(--c-ink-3); font-weight: var(--weight-bold); }
 .crumbs { font: var(--weight-medium) var(--text-xs) / 1.4 var(--font-mono); color: var(--c-ink-3); margin-bottom: var(--s-6); }
 .crumbs ol { display: flex; flex-wrap: wrap; gap: var(--s-2); list-style: none; padding: 0; margin: 0; }
 .crumbs li + li::before { content: '/'; margin-right: var(--s-2); color: var(--c-ink-3); }

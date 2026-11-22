@@ -19,9 +19,17 @@ export default class AuthStub extends WorkerEntrypoint {
 const SINK_STUB = `
 import { WorkerEntrypoint } from 'cloudflare:workers';
 const seen = [];
+const reports = [];
 export class ProjectionSink extends WorkerEntrypoint {
   async upsert(p) { seen.push(p); return { applied: true }; }
   async all() { return seen; }
+  async submitReport(r) {
+    if (globalThis.__sinkFails) throw new Error('admin store down');
+    reports.push(r);
+    return { ticket: 'PR-TEST' + String(reports.length).padStart(4, '0'), receivedAt: new Date().toISOString() };
+  }
+  async allReports() { return reports; }
+  async failReports(on) { globalThis.__sinkFails = on; }
 }
 export default { fetch() { return new Response('sink'); } };`;
 

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync, existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { landing, statusPage, cabinet, privacy, terms, faqItems, useCasesPage, useCaseFaq, USE_CASE_GROUPS, USE_CASE_COUNT, WEB_ANALYTICS_TOKEN, BEACON_SRC, CLIENTS } from '../src/pages.mjs';
+import { landing, statusPage, cabinet, privacy, terms, faqItems, useCasesPage, useCaseFaq, USE_CASE_GROUPS, USE_CASE_COUNT, WEB_ANALYTICS_TOKEN, BEACON_SRC, CLIENTS, helpPage, HELP_TOPICS } from '../src/pages.mjs';
 import { robotsTxt, sitemapXml, llmsTxt } from '../src/seo.mjs';
 import { connectAvailable, validateStatus } from '../src/render.mjs';
 import { LOCALES, checkLocales, translator } from '../i18n/index.mjs';
@@ -138,13 +138,13 @@ describe('SEO: semantic core', () => {
   });
   it('sitemap lists every locale page with hreflang alternates and x-default, but not the cabinet', () => {
     const xml = sitemapXml('2026-11-05');
-    for (const l of LOCALES) for (const p of ['/', '/use-cases/', '/status/', '/privacy/', '/terms/']) {
+    for (const l of LOCALES) for (const p of ['/', '/use-cases/', '/help/', '/status/', '/privacy/', '/terms/']) {
       expect(xml).toContain(`<loc>https://postun.org${l.prefix}${p}</loc>`);
       expect(xml).toContain(`hreflang="${l.htmlLang}" href="https://postun.org${l.prefix}${p}"`);
     }
     expect(xml).toContain('hreflang="x-default" href="https://postun.org/"');
     expect(xml).not.toContain('/app/');
-    expect((xml.match(/<url>/g) ?? []).length).toBe(LOCALES.length * 5);
+    expect((xml.match(/<url>/g) ?? []).length).toBe(LOCALES.length * 6);
   });
   it('robots.txt allows all and points to the sitemap; llms.txt follows llmstxt.org and links everything', () => {
     expect(robotsTxt()).toBe('User-agent: *\nAllow: /\n\nSitemap: https://postun.org/sitemap.xml\n');
@@ -407,3 +407,65 @@ describe('use cases page', () => {
     for (const l of LOCALES) expect(existsSync(new URL(`../dist${l.prefix}/use-cases/index.html`, import.meta.url)), l.code).toBe(true);
   }, 60000);
 });
+
+describe('help page', () => {
+  const contracts = readFileSync(new URL('../../../packages/contracts/src/help.ts', import.meta.url), 'utf8');
+  const contractIds = [...contracts.match(/export const HELP_TOPIC_IDS = \[([\s\S]*?)\] as const/)[1].matchAll(/'([a-z-]+)'/g)].map((m) => m[1]);
+
+  it('has exactly the topics of the MCP tool get_help, in the same order (the ids are the page anchors)', () => {
+    expect(contractIds.length).toBeGreaterThanOrEqual(10);
+    expect(HELP_TOPICS.map((h) => h.id)).toEqual(contractIds);
+  });
+
+  it('renders every locale: own title, description, canonical, hreflang alternates and one section per topic', () => {
+    const titles = new Set();
+    for (const l of LOCALES) {
+      const html = helpPage(status, l.code);
+      expect(html).toContain(`<html lang="${l.htmlLang}"`);
+      const title = html.match(/<title>(.*)<\/title>/)[1];
+      expect([...title].length, l.code).toBeLessThanOrEqual(62);
+      expect(title, l.code).toContain('Postun');
+      titles.add(title);
+      expect([...html.match(/<meta name="description" content="([^"]*)"/)[1]].length, l.code).toBeGreaterThan(100);
+      expect(html).toContain(`<link rel="canonical" href="https://postun.org${l.prefix}/help/">`);
+      for (const x of LOCALES) expect(html).toContain(`hreflang="${x.htmlLang}" href="https://postun.org${x.prefix}/help/"`);
+      for (const h of HELP_TOPICS) {
+        expect(html, `${l.code}:${h.id}`).toContain(`<section id="${h.id}" class="section help-topic">`);
+        expect(html).toContain(`<a href="#${h.id}">`);
+        const section = html.split(`<section id="${h.id}"`)[1].split('</section>')[0];
+        expect((section.match(/<li>/g) ?? []).length, `${l.code}:${h.id} steps`).toBe(h.steps);
+      }
+    }
+    expect(titles.size).toBe(LOCALES.length);
+  });
+
+  it('leaves no unresolved {placeholder} and links to the dashboard, the issue tracker, support and the privacy page', () => {
+    for (const l of LOCALES) {
+      const html = helpPage(status, l.code);
+      expect(html.match(/\{[a-z]+\}/g), l.code).toBeNull();
+      for (const href of ['https://app.postun.org', 'https://github.com/AiReformator/postun/issues', 'https://t.me/postun_org', `${l.prefix}/privacy/`]) expect(html, `${l.code} ${href}`).toContain(`href="${href}`);
+    }
+  });
+
+  it('answers the situations met in practice and tells how to report a problem', () => {
+    const ru = helpPage(status, 'ru');
+    for (const s of ['ACCOUNT_NOT_ACTIVE', 'SESSION_ENDED', '«Переподключить»', 'Подключить устройство', 'nextCursor', 'get_help', '48 часов', '5 обращений']) expect(ru, s).toContain(s);
+    const en = helpPage(status, 'en');
+    for (const s of ['Reconnect', 'Link Desktop Device', 'nextCursor', 'get_help', '48 hours', 'At most 5 reports']) expect(en, s).toContain(s);
+  });
+
+  it('is in the navigation and the footer of every page, and marks itself as the current page', () => {
+    for (const l of LOCALES) {
+      expect(helpPage(status, l.code)).toContain(`<a href="${l.prefix}/help/" aria-current="page">`);
+      expect(landing(status, l.code)).toContain(`<a href="${l.prefix}/help/">`);
+      expect(statusPage(l.code)).toContain(`<a href="${l.prefix}/help/">`);
+    }
+  });
+
+  it('uses no inline script or third-party code beyond what the other public pages use', () => {
+    const html = helpPage(status, 'en');
+    expect(html).not.toMatch(/<script(?![^>]*\b(?:src|type)=)/);
+    expect(html).not.toContain('onclick=');
+  });
+});
+

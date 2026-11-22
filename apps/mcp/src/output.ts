@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { ToolName } from '@postun/contracts';
 
 /**
- * Output schemas of the 8 tools, advertised in tools/list as `outputSchema` (OpenAI asks servers to declare one for
+ * Output schemas of the tools, advertised in tools/list as `outputSchema` (OpenAI asks servers to declare one for
  * every tool that returns structuredContent). They describe the stable shape of a successful result and stay
  * permissive: every object allows extra fields, so adding a field never breaks a client that validates. Error results
  * (isError) are not covered by them. A test runs every successful synthetic result through these schemas so the
@@ -91,5 +91,24 @@ export const TOOL_OUTPUT = {
       note: z.string()
     }),
     limits: limits.optional()
+  }),
+  get_help: z.looseObject({
+    topic: z.string().optional().describe('The topic id that was asked for'),
+    title: z.string().optional(),
+    when: z.array(z.string()).optional().describe('Situations in which this topic applies'),
+    cause: z.string().optional(),
+    steps: z.array(z.string()).optional().describe('What to do, in order; the user does these'),
+    more: z.string().optional().describe('Public help page for this topic'),
+    topics: z.array(z.looseObject({ id: z.string(), title: z.string() })).optional().describe('All topics (when none was asked for)'),
+    how_to_use: z.string().optional(),
+    support: z.looseObject({ report_tool: z.string(), review: z.string(), limit: z.string(), site: z.string() })
+  }),
+  report_problem: z.looseObject({
+    status: z.string().describe('received'),
+    ticket: z.string().describe('Ticket id to give the user'),
+    receivedAt: isoDateTime,
+    review: z.string().describe('When the report is read and what the user can expect'),
+    stored: z.looseObject({}).describe('Exactly what was stored: the category, the scrubbed summary and the optional fields'),
+    next: z.array(z.string()).describe('What to tell the user')
   })
 } as const satisfies Record<ToolName, z.ZodType>;
