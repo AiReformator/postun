@@ -9,6 +9,7 @@
  *   postun-admin --(binding CONTROL, entrypoint AdminControl)--> postun-auth  (suspend/resume only)
  */
 import type { AccountEventView, AdminProjection, GrantProps, UsageView } from './dto';
+import type { ProblemReport, ProblemReportReceipt } from './help';
 import type { SessionErrorCode } from './errors';
 import type { Scope } from './scopes';
 
@@ -94,4 +95,6 @@ export interface AdminControlRpc {
 export interface ProjectionSinkRpc {
   /** Idempotent upsert of absolute values guarded by revision. */
   upsert(p: AdminProjection): Promise<{ applied: boolean }>;
+  /** Stores one problem report sent by an AI client with the user's confirmation. Rejects when the backlog is full. */
+  submitReport(r: ProblemReport): Promise<ProblemReportReceipt>;
 }

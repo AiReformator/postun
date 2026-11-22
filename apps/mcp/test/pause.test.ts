@@ -57,10 +57,20 @@ describe('a pause is shown to the AI as a pause, not a refusal', () => {
     expect(duration(7260)).toBe('about 2 hours');
   });
   it('other errors keep the plain error shape', () => {
-    const { error } = parse(toolErrorResult({ code: 'NOT_FOUND', message: 'Not found' }));
-    expect(error).toEqual({ code: 'NOT_FOUND', message: 'Not found' });
+    const { error } = parse(toolErrorResult({ code: 'FORBIDDEN', message: 'Operation not permitted for this grant' }));
+    expect(error).toEqual({ code: 'FORBIDDEN', message: 'Operation not permitted for this grant' }); // nothing to add: no guide topic fits
     expect(isPause({ code: 'NOT_FOUND' })).toBe(false);
     expect(pauseSource({ reason: 'SLOWMODE_WAIT' })).toBe('telegram');
+  });
+  it('refusals point to get_help and carry a fixed hint when they had none', () => {
+    const nf = parse(toolErrorResult({ code: 'NOT_FOUND', message: 'Not found' })).error as Record<string, unknown>;
+    expect(nf).toMatchObject({ code: 'NOT_FOUND', help: { tool: 'get_help', topic: 'missing-dialogs' } });
+    expect(String(nf.hint)).toContain('get_help');
+    const ended = parse(toolErrorResult({ code: 'ACCOUNT_NOT_ACTIVE', message: 'x', reason: 'SESSION_ENDED', hint: 'own hint' })).error as Record<string, unknown>;
+    expect(ended).toMatchObject({ hint: 'own hint', help: { tool: 'get_help', topic: 'session-ended' } }); // an own hint is kept as is
+    const internal = parse(toolErrorResult({ code: 'INTERNAL', message: 'x' })).error as Record<string, unknown>;
+    expect(internal).toMatchObject({ help: { tool: 'get_help', topic: 'still-stuck' } });
+    expect(String(internal.hint)).toContain('report_problem');
   });
   it('server instructions explain pauses and never call them refusals', () => {
     expect(SERVER_INSTRUCTIONS).toContain('status "paused"');

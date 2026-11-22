@@ -15,10 +15,13 @@ describe('hourly cron purge', () => {
     await db.batch([k.bind('old', now - 1000), k.bind('live', now + 1e5)]);
     const s = db.prepare('INSERT INTO admin_sessions (id_hash, subject, issuer, roles, mfa, created_at, last_seen, last_revalidated, csrf_secret) VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?)');
     await db.batch([s.bind('dead', 'u', 'i', '[]', now - 2 * 3600_000, now - 3600_000, now, 'x'), s.bind('live', 'u', 'i', '[]', now, now, now, 'x')]);
+    const rep = db.prepare("INSERT INTO problem_reports (id, created_at, principal_ref, category, summary) VALUES (?, ?, 'ref_BBBBBBBBBBBBBBBBBBBB', 'other', 'a synthetic problem')");
+    await db.batch([rep.bind('PR-OLD00001', now - 91 * day), rep.bind('PR-NEW00001', now - 89 * day)]);
     await worker.scheduled(createScheduledController(), makeEnv());
     expect((await db.prepare('SELECT action_code FROM admin_audit').all()).results).toEqual([{ action_code: 'new' }]);
     expect((await db.prepare('SELECT state_hash FROM login_states').all()).results).toEqual([{ state_hash: 'c' }]);
     expect((await db.prepare('SELECT state_hash FROM consumed_login_states').all()).results).toEqual([{ state_hash: 'live' }]);
     expect((await db.prepare('SELECT id_hash FROM admin_sessions').all()).results).toEqual([{ id_hash: 'live' }]);
+    expect((await db.prepare('SELECT id FROM problem_reports').all()).results).toEqual([{ id: 'PR-NEW00001' }]); // reports: 90 days
   });
 });

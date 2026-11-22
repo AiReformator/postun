@@ -176,6 +176,7 @@ Guidelines for contributors: [CONTRIBUTING.md](CONTRIBUTING.md). Use synthetic d
 | [docs/06_ADMIN_OIDC.md](docs/06_ADMIN_OIDC.md) | Administrator sign-in and role matrix |
 | [docs/07_SOURCES.md](docs/07_SOURCES.md) | Official sources checked |
 | [docs/08_DESIGN_NOTES.md](docs/08_DESIGN_NOTES.md) | Design decisions and resolved contradictions |
+| [docs/09_SUPPORT_REPORTS.md](docs/09_SUPPORT_REPORTS.md) | Help page, get_help and problem reports: how they reach the operator |
 | [docs/DEPLOY_RUNBOOK.md](docs/DEPLOY_RUNBOOK.md) | Deployment runbook |
 | [docs/PUBLICATION_POLICY.md](docs/PUBLICATION_POLICY.md) | What is published where: code on GitHub, legal documents on the site, marketing never |
 

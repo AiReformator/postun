@@ -175,6 +175,7 @@ Guía para colaboradores: [CONTRIBUTING.md](CONTRIBUTING.md). Usa datos sintéti
 | [docs/06_ADMIN_OIDC.md](docs/06_ADMIN_OIDC.md) | Acceso de administradores y matriz de roles |
 | [docs/07_SOURCES.md](docs/07_SOURCES.md) | Fuentes oficiales consultadas |
 | [docs/08_DESIGN_NOTES.md](docs/08_DESIGN_NOTES.md) | Decisiones de diseño y contradicciones resueltas |
+| [docs/09_SUPPORT_REPORTS.md](docs/09_SUPPORT_REPORTS.md) | Página de ayuda, get_help e informes de problemas: cómo llegan al operador |
 | [docs/DEPLOY_RUNBOOK.md](docs/DEPLOY_RUNBOOK.md) | Guía de despliegue |
 | [docs/PUBLICATION_POLICY.md](docs/PUBLICATION_POLICY.md) | Qué se publica y dónde: el código en GitHub, los documentos legales en el sitio, el material de marketing nunca |
 

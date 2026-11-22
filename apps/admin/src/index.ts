@@ -1,4 +1,4 @@
-import { clearHostCookie, hostCookie, originAllowed, randomToken, readCookie, timingSafeEqual, utf8, withSecurityHeaders } from '@postun/contracts';
+import { clearHostCookie, hostCookie, originAllowed, randomToken, readCookie, REPORT_RETENTION_DAYS, timingSafeEqual, utf8, withSecurityHeaders } from '@postun/contracts';
 import { loadCfg, type Cfg } from './config';
 import type { Env } from './env';
 import { authorizationUrl, completeLogin, Denied, discover, endSessionUrl, IdpUnavailable, newLoginParams } from './oidc';
@@ -204,14 +204,15 @@ export default {
     }
   },
 
-  /** Hourly retention purge: audit 30 days, expired consumed-state markers (and legacy login states) and sessions. */
+  /** Hourly retention purge: audit 30 days, problem reports 90 days, expired consumed-state markers (and legacy login states) and sessions. */
   async scheduled(_c: ScheduledController, env: Env): Promise<void> {
     const now = Date.now();
     await env.ADMIN_DB.batch([
       env.ADMIN_DB.prepare('DELETE FROM admin_audit WHERE ts < ?').bind(now - AUDIT_RETENTION_MS),
       env.ADMIN_DB.prepare('DELETE FROM login_states WHERE expires_at < ?').bind(now),
       env.ADMIN_DB.prepare('DELETE FROM consumed_login_states WHERE expires_at < ?').bind(now),
-      env.ADMIN_DB.prepare('DELETE FROM admin_sessions WHERE created_at < ? OR last_seen < ?').bind(now - 60 * 60_000, now - 15 * 60_000)
+      env.ADMIN_DB.prepare('DELETE FROM admin_sessions WHERE created_at < ? OR last_seen < ?').bind(now - 60 * 60_000, now - 15 * 60_000),
+      env.ADMIN_DB.prepare('DELETE FROM problem_reports WHERE created_at < ?').bind(now - REPORT_RETENTION_DAYS * 24 * 3600_000)
     ]);
   }
 } satisfies ExportedHandler<Env>;
