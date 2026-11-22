@@ -6,9 +6,10 @@
  */
 import { DurableObject } from 'cloudflare:workers';
 import {
-  AdminProjectionSchema, fromBase64Url, fromUtf8, hmac, HTTP_STATUS, jsonResponse, normalizeScopes, openSession, PostunError, randomToken,
-  retainedDays, retainedMonths, rewrapSession, sealSession, sha256, timingSafeEqual, toBase64Url, toSafeError, TOOL_SCOPE, utcDay, utcMonth, utf8,
-  type GrantRecord, type LinkState, type SafeError, type SessionEnvelope, type ToolName, type UsageView
+  AdminProjectionSchema, fromBase64Url, fromUtf8, hmac, HTTP_STATUS, isSessionErrorCode, jsonResponse, normalizeScopes, openSession, PostunError, randomToken,
+  retainedDays, retainedMonths, rewrapSession, sealSession, SESSION_EVENT_KINDS, sha256, timingSafeEqual, toBase64Url, toSafeError, TOOL_SCOPE, utcDay, utcMonth, utf8,
+  type AccountEventView, type GrantRecord, type LinkState, type SafeError, type SessionEnvelope, type SessionErrorCode, type SessionEventKind, type ToolName,
+  type UsageView
 } from '@postun/contracts';
 import { signFileCapability } from '../capability';
 import type { Config, Keys } from '../config';
@@ -40,6 +41,17 @@ const ALARM_PERIOD_MS = 30 * 60 * 1000;
 const SWEEP_PERIOD_MS = 6 * 60 * 60 * 1000;
 const MAX_REVOKE_BACKOFF_MS = 6 * 60 * 60 * 1000;
 const MAX_LIVE_INTENTS = 50;
+/** Connection journal limits (docs/03 section 4): newest events per account, and the longest any event is kept. */
+const MAX_EVENTS_PER_ACCOUNT = 100;
+const EVENT_RETENTION_MS = 180 * 24 * 60 * 60 * 1000;
+const EVENTS_DEFAULT_LIMIT = 50;
+/**
+ * A cheap "who am I" request per account about every sweep period, so a session Telegram ended is noticed (and shown as
+ * ended) before the next AI call stumbles on it. Not more often than this, even if the alarm fires early.
+ */
+const HEALTH_CHECK_PERIOD_MS = SWEEP_PERIOD_MS - ALARM_PERIOD_MS;
+/** After AUTH_KEY_DUPLICATED the key may already be dead: check it soon instead of waiting for the next AI call. */
+const DUPLICATE_RECHECK_MS = 2 * 60 * 1000;
 /** Tools whose results are lists of messages; their size is counted against the hourly message budget. */
 const MESSAGE_TOOLS: ReadonlySet<ToolName> = new Set<ToolName>(['get_history', 'get_channel_posts', 'search_messages']);
 const FLOOD_HINT = 'Telegram asked this account to pause requests. Wait retryAfterSeconds, then repeat the same call (same cursor).';
@@ -164,6 +176,12 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
       this.ctx.storage.sql.exec('ALTER TABLE accounts ADD COLUMN ended_at INTEGER');
     } catch (e) {
       if (!/duplicate column/i.test(String(e))) throw e; // only "already present" is expected
+    }
+    try {
+      // Which Telegram error ended the session (closed vocabulary, see SESSION_ERROR_CODES); null for rows ended before this existed.
+      this.ctx.storage.sql.exec('ALTER TABLE accounts ADD COLUMN ended_code TEXT');
+    } catch (e) {
+      if (!/duplicate column/i.test(String(e))) throw e;
     }
     this.schemaReady = true;
   }
@@ -588,7 +606,7 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
         this.authorize(auth);
         await this.waitOutCooldown(accId, cfg, deadline); // a call queued behind a flooded one must not reconnect early
         try {
-          data = await this.withSession(accId, keys, async (session) => {
+          data = await this.withSession(accId, keys, req.tool, async (session) => {
             try {
               return await runTool(
                 {
@@ -638,8 +656,11 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
     };
   }
 
-  /** Opens the decrypted session for one operation; re-seals only if the SDK changed it. */
-  private async withSession<T>(accountId: string, keys: Keys, fn: (s: TelegramSession) => Promise<T>): Promise<T> {
+  /**
+   * Opens the decrypted session for one operation; re-seals only if the SDK changed it. `source` (a tool name or
+   * 'health_check') is recorded in the connection journal if this operation finds the session ended or duplicated.
+   */
+  private async withSession<T>(accountId: string, keys: Keys, source: string, fn: (s: TelegramSession) => Promise<T>): Promise<T> {
     const acc = this.account(accountId);
     if (isEnded(acc)) throw sessionEnded();
     if (!acc?.envelope || acc.status !== 'active') throw new PostunError('ACCOUNT_NOT_ACTIVE');
@@ -658,12 +679,12 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
     try {
       session = await adapter.open(payload.s);
     } catch (e) {
-      throw this.noteEnded(accountId, used, mapTelegramError(e));
+      throw this.noteEnded(accountId, used, mapTelegramError(e), source);
     }
     try {
       return await fn(session);
     } catch (e) {
-      throw this.noteEnded(accountId, used, e);
+      throw this.noteEnded(accountId, used, e, source);
     } finally {
       await this.finishSession(accountId, session, payload.tid, keys);
     }
@@ -673,17 +694,83 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
    * Telegram said the session is gone (terminated in Telegram, or expired): mark the account ended so every client
    * and the dashboard see it and the owner can reconnect it. The envelope is kept: it holds the Telegram user id that a
    * reconnect must match, and the dead session in it can no longer be used by anyone. Returns the error for rethrow.
+   * Also writes the connection journal: why the session ended (closed-vocabulary Telegram error) and, for a duplicated
+   * key, that it happened, with a prompt health check, because Telegram may have invalidated the key.
    */
-  private noteEnded<E>(accountId: string, envelope: string, err: E): E {
+  private noteEnded<E>(accountId: string, envelope: string, err: E, source: string): E {
+    const code = err instanceof PostunError ? err.sessionError : undefined;
     if (isSessionEnded(err)) {
+      const acc = this.account(accountId);
       // Only the session this call used: a call that started before a reconnect must not end the new session.
-      this.run(
-        "UPDATE accounts SET ended_at = ? WHERE account_id = ? AND status = 'active' AND ended_at IS NULL AND envelope = ?",
-        Date.now(), accountId, envelope
-      );
+      if (acc && acc.status === 'active' && acc.ended_at === null && acc.envelope === envelope) {
+        this.run(
+          "UPDATE accounts SET ended_at = ?, ended_code = ? WHERE account_id = ? AND status = 'active' AND ended_at IS NULL AND envelope = ?",
+          Date.now(), code ?? null, accountId, envelope
+        );
+        this.recordEvent(accountId, 'session_ended', code ?? null, source);
+      }
       this.emitProjection();
+    } else if (code === 'AUTH_KEY_DUPLICATED') {
+      this.recordEvent(accountId, 'key_duplicate', code, source);
+      this.setMeta(`probe:${accountId}`, '0'); // due now
+      this.ensureAlarm(DUPLICATE_RECHECK_MS);
     }
     return err;
+  }
+
+  // ------------------------------------------------------------------ connection journal
+
+  /**
+   * Appends one event to the connection journal. Fixed vocabulary only (see SESSION_EVENT_KINDS, SESSION_ERROR_CODES);
+   * `source` is a tool name or one of 'health_check' / 'link' / 'relink', never user content. Never throws: the journal
+   * must not break the operation it describes.
+   */
+  private recordEvent(accountId: string, event: SessionEventKind, code: SessionErrorCode | null, source: string | null): void {
+    try {
+      this.run('INSERT INTO account_events(account_id, at, event, code, source) VALUES(?, ?, ?, ?, ?)', accountId, Date.now(), event, code, source);
+      this.run(
+        'DELETE FROM account_events WHERE account_id = ? AND id NOT IN (SELECT id FROM account_events WHERE account_id = ? ORDER BY id DESC LIMIT ?)',
+        accountId, accountId, MAX_EVENTS_PER_ACCOUNT
+      );
+    } catch {
+      // advisory: swallow without logging
+    }
+  }
+
+  private purgeEvents(accountId: string): void {
+    try {
+      this.run('DELETE FROM account_events WHERE account_id = ?', accountId);
+      this.run('DELETE FROM meta WHERE k = ?', `probe:${accountId}`);
+    } catch {
+      // advisory
+    }
+  }
+
+  /** Accounts whose Telegram session ended, with when and (if recorded) why. */
+  async endedDetails(principalId: string): Promise<{ accountId: string; endedAt: number; code: SessionErrorCode | null }[]> {
+    this.bind(principalId);
+    return this.q<{ account_id: string; ended_at: number; ended_code: string | null }>(
+      "SELECT account_id, ended_at, ended_code FROM accounts WHERE status = 'active' AND ended_at IS NOT NULL ORDER BY created_at"
+    ).map((r) => ({ accountId: r.account_id, endedAt: r.ended_at, code: isSessionErrorCode(r.ended_code) ? r.ended_code : null }));
+  }
+
+  /** Newest-first connection journal of one account. Unknown or disconnected accounts have none. */
+  async accountEvents(principalId: string, accountId: string, limit: number = EVENTS_DEFAULT_LIMIT): Promise<AccountEventView[]> {
+    this.bind(principalId);
+    if (!UUID_RE.test(accountId)) throw new PostunError('INVALID_INPUT');
+    const n = Number.isSafeInteger(limit) ? Math.min(Math.max(limit, 1), MAX_EVENTS_PER_ACCOUNT) : EVENTS_DEFAULT_LIMIT;
+    const kinds: readonly string[] = SESSION_EVENT_KINDS;
+    return this.q<{ at: number; event: string; code: string | null; source: string | null }>(
+      'SELECT at, event, code, source FROM account_events WHERE account_id = ? ORDER BY id DESC LIMIT ?',
+      accountId, n
+    )
+      .filter((r) => kinds.includes(r.event))
+      .map((r) => ({
+        at: new Date(r.at).toISOString(),
+        event: r.event as SessionEventKind,
+        code: isSessionErrorCode(r.code) ? r.code : null,
+        source: r.source
+      }));
   }
 
   private async finishSession(accountId: string, session: TelegramSession, tid: string, keys: Keys): Promise<void> {
@@ -806,7 +893,7 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
       try {
         session = await adapter.open(payload.s);
       } catch (e) {
-        throw this.noteEnded(floodAccount, acc?.envelope ?? '', mapTelegramError(e));
+        throw this.noteEnded(floodAccount, acc?.envelope ?? '', mapTelegramError(e), 'file_download');
       }
       let media;
       try {
@@ -1085,13 +1172,14 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
           if (r.telegramId !== previousTid) {
             // A different Telegram user scanned the code: refuse, and do not leave that new authorisation behind.
             await adapter.logOut(r.session).catch(() => undefined);
+            this.recordEvent(accountId, 'relink_refused', null, 'relink');
             fail('NOT_ALLOWED');
             return;
           }
           const envelope = await this.seal(accountId, { s: r.session, tid: r.telegramId }, keys);
           const initial = Array.from(r.firstName.trim())[0]?.toUpperCase() ?? 'T';
           this.run(
-            "UPDATE accounts SET envelope = ?, label = ?, ended_at = NULL, status_at = ? WHERE account_id = ? AND status = 'active' AND ended_at IS NOT NULL",
+            "UPDATE accounts SET envelope = ?, label = ?, ended_at = NULL, ended_code = NULL, status_at = ? WHERE account_id = ? AND status = 'active' AND ended_at IS NOT NULL",
             envelope, `${initial}•••`, Date.now(), accountId
           );
           const now = this.account(accountId);
@@ -1100,6 +1188,7 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
             fail('CANCELLED');
             return;
           }
+          this.recordEvent(accountId, 'relinked', null, 'relink');
           this.setLinkState(rec, { state: 'authorized', telegramId: r.telegramId, label: `${initial}•••` });
           this.emitProjection();
         } catch {
@@ -1130,7 +1219,8 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
     if (!acc) throw new PostunError('NOT_FOUND');
     if (acc.status === 'active') return { ok: true };
     if (acc.status !== 'pending' || !acc.envelope) throw new PostunError('ACCOUNT_NOT_ACTIVE');
-    this.run("UPDATE accounts SET status = 'active', ended_at = NULL, status_at = ? WHERE account_id = ?", Date.now(), accountId);
+    this.run("UPDATE accounts SET status = 'active', ended_at = NULL, ended_code = NULL, status_at = ? WHERE account_id = ?", Date.now(), accountId);
+    this.recordEvent(accountId, 'linked', null, 'link');
     this.links.delete(accountId);
     this.emitProjection();
     return { ok: true };
@@ -1155,6 +1245,7 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
       if (!acc || acc.status === 'disconnected') return { telegramLoggedOut: false };
       if (!acc.envelope) {
         this.run("UPDATE accounts SET status = 'disconnected', status_at = ? WHERE account_id = ?", Date.now(), accountId);
+        this.purgeEvents(accountId);
         return { telegramLoggedOut: false };
       }
       const out = await this.tryLogout(accountId, acc.envelope);
@@ -1192,6 +1283,7 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
       return false;
     }
     this.run("UPDATE accounts SET envelope = NULL, status = 'disconnected', status_at = ? WHERE account_id = ?", Date.now(), accountId);
+    this.purgeEvents(accountId);
     return true;
   }
 
@@ -1284,6 +1376,7 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
       this.run('DELETE FROM idem');
       this.run('DELETE FROM transfers');
       this.run('DELETE FROM pacing');
+      this.run('DELETE FROM account_events');
       this.run('DELETE FROM accounts WHERE envelope IS NULL');
       this.run("UPDATE accounts SET label = '' WHERE envelope IS NOT NULL");
       this.run("DELETE FROM meta WHERE k NOT IN ('principal', 'deleted', 'revision', 'revoke_attempts')");
@@ -1314,6 +1407,44 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
     };
   }
 
+  // ------------------------------------------------------------------ health check
+
+  /**
+   * One cheap authenticated request per usable account per period ("who am I": no chat content is read), so a session
+   * Telegram has ended is marked ended, and journaled with its reason, before an AI call stumbles on it. Runs under the
+   * account lock like every other use of the session, so it can never overlap a call; an account in a Telegram cooldown
+   * is skipped. Any failure other than "session ended" / "key duplicated" is ignored: the next period tries again.
+   */
+  private async healthChecks(keys: Keys, now: number): Promise<void> {
+    this.principal ??= this.getMeta('principal');
+    if (this.principal === null) return;
+    const rows = this.q<AccountRow>(
+      "SELECT account_id, status, label, envelope, created_at, status_at, ended_at FROM accounts WHERE status = 'active' AND ended_at IS NULL AND envelope IS NOT NULL ORDER BY created_at"
+    );
+    for (const r of rows) {
+      const last = Number(this.getMeta(`probe:${r.account_id}`) ?? '0');
+      if (Number.isFinite(last) && now - last < HEALTH_CHECK_PERIOD_MS) continue;
+      const cooling = (this.q<{ cooldown_until: number }>('SELECT cooldown_until FROM pacing WHERE account_id = ?', r.account_id)[0]?.cooldown_until ?? 0) > now;
+      if (cooling) continue;
+      const unlock = await this.locks.acquire(r.account_id, 5000).catch(() => null);
+      if (!unlock) continue; // busy with a real call: that call finds out by itself
+      try {
+        this.setMeta(`probe:${r.account_id}`, String(now));
+        await this.withSession(r.account_id, keys, 'health_check', async (session) => {
+          try {
+            await session.ping();
+          } catch (e) {
+            throw mapTelegramError(e);
+          }
+        });
+      } catch {
+        // noteEnded has already marked and journaled an ended or duplicated session; anything else is transient
+      } finally {
+        unlock();
+      }
+    }
+  }
+
   // ------------------------------------------------------------------ retention
 
   override async alarm(): Promise<void> {
@@ -1322,6 +1453,7 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
     this.run('DELETE FROM idem WHERE expires_at <= ?', now);
     this.run('DELETE FROM transfers WHERE expires_at <= ?', now);
     this.run('DELETE FROM pacing WHERE cooldown_until <= ? AND updated_at <= ?', now, now - COOLDOWN_STALE_MS);
+    this.run('DELETE FROM account_events WHERE at < ?', now - EVENT_RETENTION_MS);
     this.run("DELETE FROM accounts WHERE status = 'pending' AND envelope IS NULL AND created_at <= ?", now - PENDING_TTL_MS);
     const keep = retainedMonths(new Date(now));
     this.run(`DELETE FROM usage WHERE month NOT IN (${keep.map(() => '?').join(',')})`, ...keep);
@@ -1361,6 +1493,7 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
         const ok = await this.tryLogout(r.account_id, cur.envelope);
         if (!ok && r.status_at + REVOCATION_GIVE_UP_MS <= now) {
           this.run("UPDATE accounts SET envelope = NULL, status = 'disconnected', status_at = ? WHERE account_id = ?", now, r.account_id);
+          this.purgeEvents(r.account_id);
         }
       } finally {
         unlock();
@@ -1371,6 +1504,7 @@ export class SessionAndQuotaDO extends DurableObject<Env> {
       await this.finalizeDeletion();
       return;
     }
+    if (!deleted && keys && this.getMeta('suspended') !== '1') await this.healthChecks(keys, now);
     const revoking = (this.q<{ n: number }>("SELECT COUNT(*) AS n FROM accounts WHERE status = 'revocation_pending'")[0]?.n ?? 0) > 0;
     if (revoking) {
       // Exponential backoff between logout retries, capped.

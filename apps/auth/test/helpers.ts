@@ -2,7 +2,7 @@ import { env } from 'cloudflare:workers';
 import { exportJWK, generateKeyPair, SignJWT } from 'jose';
 import type { JWK } from 'jose';
 import { vi } from 'vitest';
-import type { GrantRecord, LinkState, UsageView, VaultControlRpc } from '@postun/contracts';
+import type { AccountEventView, GrantRecord, LinkState, SessionErrorCode, UsageView, VaultControlRpc } from '@postun/contracts';
 import { handleRequest } from '../src/app';
 import type { Env } from '../src/env';
 
@@ -68,6 +68,17 @@ export class FakeVault implements VaultControlRpc {
   async endedAccounts(_p: string): Promise<string[]> {
     await this.rec('endedAccounts');
     return this.ended;
+  }
+  endedInfo: { accountId: string; endedAt: number; code: SessionErrorCode | null }[] = [];
+  events: AccountEventView[] = [];
+  async endedDetails(_p: string): Promise<{ accountId: string; endedAt: number; code: SessionErrorCode | null }[]> {
+    await this.rec('endedDetails');
+    // Tests that only set `ended` (ids) see those accounts as ended with no recorded reason.
+    return this.endedInfo.length ? this.endedInfo : this.ended.map((accountId) => ({ accountId, endedAt: 0, code: null }));
+  }
+  async accountEvents(_p: string, a: string): Promise<AccountEventView[]> {
+    await this.rec('accountEvents', a);
+    return this.events;
   }
   async startRelink(_p: string, a: string): Promise<LinkState> {
     await this.rec('startRelink', a);

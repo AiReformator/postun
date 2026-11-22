@@ -24,6 +24,24 @@ export const ERROR_CODES = {
 export type ErrorCode = keyof typeof ERROR_CODES;
 
 /**
+ * The Telegram errors that decide whether an account's session is usable. A closed vocabulary: only these names (never
+ * Telegram's free text) are kept, so the connection journal can say why a session ended without storing anything else.
+ * AUTH_KEY_DUPLICATED is journaled but does not end the account by itself (see telegram/errors.ts).
+ */
+export const SESSION_ERROR_CODES = [
+  'AUTH_KEY_UNREGISTERED',
+  'SESSION_REVOKED',
+  'USER_DEACTIVATED',
+  'SESSION_EXPIRED',
+  'AUTH_KEY_DUPLICATED'
+] as const;
+export type SessionErrorCode = (typeof SESSION_ERROR_CODES)[number];
+
+export function isSessionErrorCode(v: unknown): v is SessionErrorCode {
+  return typeof v === 'string' && (SESSION_ERROR_CODES as readonly string[]).includes(v);
+}
+
+/**
  * Machine-readable refinement of a code (for example why RATE_LIMITED). Fixed vocabulary, never derived from
  * Telegram or user content.
  */
@@ -47,6 +65,8 @@ export interface ErrorDetail {
   hint?: string;
   /** Replaces the default message of the code (still a fixed text). */
   message?: string;
+  /** Which Telegram session error caused this; kept server-side for the connection journal, never sent to clients. */
+  sessionError?: SessionErrorCode;
 }
 
 export class PostunError extends Error {
@@ -54,6 +74,8 @@ export class PostunError extends Error {
   readonly retryAfterSeconds: number | undefined;
   readonly reason: ErrorReason | undefined;
   readonly hint: string | undefined;
+  /** Server-side only (not part of SafeError): the closed-vocabulary Telegram error behind this refusal, if any. */
+  readonly sessionError: SessionErrorCode | undefined;
   constructor(code: ErrorCode, retryAfterSeconds?: number, detail?: ErrorDetail) {
     super(detail?.message ?? ERROR_CODES[code]);
     this.name = 'PostunError';
@@ -61,6 +83,7 @@ export class PostunError extends Error {
     this.retryAfterSeconds = retryAfterSeconds;
     this.reason = detail?.reason;
     this.hint = detail?.hint;
+    this.sessionError = detail?.sessionError;
   }
 }
 

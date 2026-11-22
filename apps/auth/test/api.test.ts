@@ -217,9 +217,51 @@ describe('account linking', () => {
     vault.ended = [acc];
     const list = (await (await get(e, '/api/accounts', who)).json()) as { accounts: { accountId: string; status: string }[] };
     expect(list.accounts).toEqual([expect.objectContaining({ accountId: acc, status: 'ended' })]);
+    vault.failOn.add('endedDetails');
     vault.failOn.add('endedAccounts');
     const fallback = (await (await get(e, '/api/accounts', who)).json()) as { accounts: { status: string }[] };
     expect(fallback.accounts[0]?.status).toBe('active');
+  });
+
+  it('an ended account carries when and why (closed vocabulary); an older vault without the journal still marks it ended', async () => {
+    const vault = new FakeVault();
+    const e = makeEnv({}, vault);
+    const who = await login(e, tg);
+    await acceptTerms(e, who);
+    const acc = await linkAccount(e, vault, who, '111');
+    vault.endedInfo = [{ accountId: acc, endedAt: Date.parse('2026-11-22T18:03:00Z'), code: 'SESSION_REVOKED' }];
+    const list = (await (await get(e, '/api/accounts', who)).json()) as { accounts: Record<string, unknown>[] };
+    expect(list.accounts[0]).toMatchObject({ accountId: acc, status: 'ended', endedAt: '2026-11-22T18:03:00.000Z', endedCode: 'SESSION_REVOKED' });
+    // An active account never shows a reason, and the Telegram id stays out of the view.
+    vault.endedInfo = [];
+    vault.ended = [];
+    const active = (await (await get(e, '/api/accounts', who)).json()) as { accounts: Record<string, unknown>[] };
+    expect(active.accounts[0]).not.toHaveProperty('endedCode');
+    expect(JSON.stringify(active)).not.toContain('111');
+    // A vault that does not know endedDetails yet: the account is still ended, just without a reason.
+    vault.ended = [acc];
+    vault.failOn.add('endedDetails');
+    const old = (await (await get(e, '/api/accounts', who)).json()) as { accounts: Record<string, unknown>[] };
+    expect(old.accounts[0]).toMatchObject({ status: 'ended' });
+    expect(old.accounts[0]).not.toHaveProperty('endedCode');
+  });
+
+  it('the owner reads the connection journal of an account; nobody else can, and a vault outage gives an empty list', async () => {
+    const vault = new FakeVault();
+    const e = makeEnv({}, vault);
+    const a = await login(e, tg, { claims: { sub: 'a', id: 1 } });
+    await acceptTerms(e, a);
+    const acc = await linkAccount(e, vault, a, '111');
+    vault.events = [{ at: '2026-11-22T18:03:00.000Z', event: 'session_ended', code: 'SESSION_REVOKED', source: 'list_dialogs' }];
+    const r = await get(e, `/api/accounts/${acc}/events`, a);
+    expect(r.status).toBe(200);
+    expect(await r.json()).toEqual({ events: vault.events });
+    const b = await login(e, tg, { claims: { sub: 'b', id: 2 } });
+    await acceptTerms(e, b);
+    expect((await get(e, `/api/accounts/${acc}/events`, b)).status).toBe(404);
+    expect(vault.calls.filter((c) => c.startsWith('accountEvents'))).toEqual([`accountEvents:${acc}`]); // the other user never reached the vault
+    vault.failOn.add('accountEvents');
+    expect(await (await get(e, `/api/accounts/${acc}/events`, a)).json()).toEqual({ events: [] });
   });
 
   it('reconnect keeps the account id: QR, 2FA and success go through the vault, D1 stays active with the same reservation', async () => {

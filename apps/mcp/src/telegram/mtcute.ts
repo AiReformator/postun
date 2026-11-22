@@ -329,6 +329,10 @@ export class MtcuteSession implements TelegramSession {
     };
   }
 
+  async ping(): Promise<void> {
+    await this.tg.getMe();
+  }
+
   async close(): Promise<string | null> {
     let updated: string | null = null;
     try {
