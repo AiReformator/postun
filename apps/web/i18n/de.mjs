@@ -119,7 +119,7 @@ export default {
     chatgpt: "In privaten Tarifen unterstützt ChatGPT eigene MCP-Server nur teilweise, und das ändert sich laufend; wenn Sie Plugins → + haben, füllen Sie das Formular wie unten aus. In Business, Enterprise und Edu fügt ein Owner oder Admin des Workspace das Plugin einmal hinzu, wie unten beschrieben.",
     chatgptTeamTitle: "ChatGPT Business, Enterprise und Edu: Schritte für Admins",
     chatgptTeam1: "<strong>Plugin anlegen.</strong> Plugins → + → Eigenen MCP-Server hinzufügen. Füllen Sie das Formular nach den Hinweisen unten aus, bestätigen Sie den Risikohinweis und wählen Sie Erstellen. Melden Sie sich dann selbst bei Postun an: Über die Verbindung des Admins liest ChatGPT die Tools und kann sie später aktualisieren. Ein leeres Anmeldefenster für bis zu eine halbe Minute ist die Vorbereitung auf Seiten von ChatGPT.",
-    chatgptTeam2: "<strong>Prüfen und veröffentlichen.</strong> Wählen Sie auf der Plugin-Seite App prüfen. Es sollten 8 Tools angezeigt werden, alle nur lesend; die Bestätigungen können auf dem Standard bleiben. Lesen Sie beide Punkte „Mögliches Risiko bewerten“, markieren Sie sie als geprüft und wählen Sie Veröffentlichen. Die Meldung „Diese App ist kein privater Entwurf mehr… werden nicht erneut ausgeführt“ ist normal: Das Plugin steht jetzt dem Workspace zur Verfügung, und die Veröffentlichung wird nicht wiederholt.",
+    chatgptTeam2: "<strong>Prüfen und veröffentlichen.</strong> Wählen Sie auf der Plugin-Seite App prüfen. Es sollten 10 Tools angezeigt werden: 8 lesen Telegram, <code>get_help</code> liefert Hilfetext und <code>report_problem</code> sendet eine Meldung an Postun erst nach Ihrer Bestätigung; die Bestätigungen können auf dem Standard bleiben. Lesen Sie beide Punkte „Mögliches Risiko bewerten“, markieren Sie sie als geprüft und wählen Sie Veröffentlichen. Die Meldung „Diese App ist kein privater Entwurf mehr… werden nicht erneut ausgeführt“ ist normal: Das Plugin steht jetzt dem Workspace zur Verfügung, und die Veröffentlichung wird nicht wiederholt.",
     chatgptTeam3: "<strong>Einstellungen.</strong> Postun liest nur, daher passen die strengsten Optionen. Berechtigungen (wann ChatGPT nachfragt): Workspace-Standard behalten oder Leseaktionen erlauben, damit ChatGPT nicht vor jedem Lesen fragt. Neue Tools: sicherer ist es, nur neue Lese-Tools oder gar keine automatisch zu aktivieren, Sie sehen sie beim Aktualisieren. In Business steht das Plugin dem ganzen Workspace zur Verfügung (Rollen gibt es nur in Enterprise und Edu). Bietet die Installationseinstellung „Installiert“, wählen Sie sie, damit Mitglieder das Plugin nicht selbst installieren müssen.",
     chatgptTeam4: "<strong>Nach Postun-Updates.</strong> ChatGPT speichert die Tools und ihre Beschreibungen beim Veröffentlichen und aktualisiert sie nicht selbst. Wenn Postun seine Tools ändert, öffnen Sie das Plugin, wählen Sie Aktualisieren, prüfen Sie die Änderungen und starten Sie einen neuen Chat.",
     chatgptTeam5: "<strong>Jedes Mitglied meldet sich selbst an.</strong> Wählen Sie in einem neuen Chat + oder tippen Sie @ und wählen Sie Postun Telegram. Beim ersten Mal öffnet ChatGPT die Postun-Anmeldung: Melden Sie sich mit Ihrem eigenen Telegram an, verknüpfen Sie Ihr Konto per QR-Code (direkt im Anmeldefenster) und wählen Sie, welche Konten und Daten gelesen werden dürfen.",
@@ -244,6 +244,118 @@ export default {
   legal: {
     translationNote: 'Dies ist eine Übersetzung zur Orientierung. Bei Abweichungen gilt die englische Fassung.'
   },
+  help: {
+    navLabel: "Hilfe",
+    title: "Postun: Hilfe bei Telegram-Problemen",
+    metaDescription: "Was tun, wenn Ihre KI Telegram über Postun nicht lesen kann: Sitzung beendet, keine Schaltfläche Wiederverbinden, QR-Code lässt sich nicht scannen, Chat oder Bot fehlt, Pausen und Limits. Schritt-für-Schritt-Antworten und Meldung eines Problems.",
+    eyebrow: "Hilfe",
+    h1: "Wenn etwas nicht funktioniert",
+    lead: "Antworten auf die häufigsten Probleme beim Verbinden von Telegram mit Ihrer KI über Postun. Ihre KI kann dieselbe Anleitung selbst abrufen, indem sie das Werkzeug <code>get_help</code> aufruft. Wenn nichts hilft, können Sie direkt aus dem Chat eine Meldung senden.",
+    tocLabel: "Hilfethemen",
+    breadcrumbLabel: "Brotkrumen-Navigation",
+    breadcrumbHome: "Startseite",
+    whenLabel: "So sieht es aus",
+    causeLabel: "Warum das passiert",
+    stepsLabel: "Was zu tun ist",
+    reportPrivacy: "Was gespeichert wird: Eine Meldung (Kategorie, Werkzeugname, Fehlercode, Ihr Text mit bis zu 500 Zeichen und die Konto-ID in Postun) wird 90 Tage aufbewahrt und ist nur für den Betreiber des Dienstes sichtbar. Einzelheiten in der <a href=\"{privacy}\">Datenschutzerklärung</a>.",
+    topics: {
+      "session-ended": {
+        title: "Die Telegram-Sitzung wurde beendet: Chats lassen sich erst nach dem Wiederverbinden lesen",
+        when: "Ein Werkzeug antwortet mit „ACCOUNT_NOT_ACTIVE“ und dem Grund „SESSION_ENDED“; der Kontostatus ist „ended“; im Dashboard steht „Sitzung beendet“. Manchmal steht der Status noch auf „aktiv“, obwohl das Lesen schon fehlschlägt.",
+        cause: "Telegram hat die Sitzung beendet, die Postun für dieses Konto verwendet. Das Konto, seine ID und der Zugriff aller KI-Clients bleiben erhalten; es fehlt nur eine neue Anmeldung bei Telegram. Das kann nur der Kontoinhaber tun: ein KI-Client kann es nicht.",
+        s1: "Öffnen Sie das Dashboard unter <a href=\"{dashboard}\">app.postun.org</a> und melden Sie sich mit Telegram an.",
+        s2: "Tippen Sie neben dem Konto auf „Wiederverbinden“. Tippen Sie nicht auf „Trennen“: Das entfernt das Konto und den Zugriff.",
+        s3: "Scannen Sie den QR-Code in Telegram auf dem Handy: Einstellungen > Geräte > Desktop-Gerät verbinden. Verwenden Sie dasselbe Telegram-Konto wie zuvor; bei einem Cloud-Passwort geben Sie es ein, wenn das Dashboard danach fragt.",
+        s4: "Bitten Sie Ihre KI, den Lesevorgang zu wiederholen. Der KI-Client muss nicht erneut autorisiert werden."
+      },
+      "no-reconnect-button": {
+        title: "Das Konto wirkt aktiv, lässt sich aber nicht lesen, und es gibt keine Schaltfläche Wiederverbinden",
+        when: "Das Dashboard zeigt das Konto als „aktiv“, während das Lesen „ACCOUNT_NOT_ACTIVE“ liefert; es gibt nur „Trennen“ und „Konto per QR verbinden“.",
+        cause: "Die Schaltfläche Wiederverbinden erscheint, sobald Postun bemerkt hat, dass Telegram die Sitzung beendet hat. Postun bemerkt das bei einem fehlgeschlagenen Lesevorgang und bei seiner eigenen Prüfung etwa alle 6 Stunden, der Status kann also nachhinken.",
+        s1: "Bitten Sie Ihre KI, etwas von diesem Konto zu lesen (zum Beispiel die Chatliste): Ein fehlgeschlagener Lesevorgang markiert die Sitzung sofort als beendet.",
+        s2: "Laden Sie das Dashboard neu: Der Status wird „Sitzung beendet“ mit dem Grund, und die Schaltfläche Wiederverbinden erscheint. Folgen Sie dann den Schritten von „Die Telegram-Sitzung wurde beendet“.",
+        s3: "Bleibt der Status „aktiv“ und das Lesen schlägt weiter fehl, tippen Sie nicht auf „Trennen“, sondern senden Sie eine Meldung (siehe „Nichts hat geholfen“)."
+      },
+      "qr-not-scanning": {
+        title: "Der QR-Code lässt sich nicht scannen oder Telegram nimmt ihn nicht an",
+        when: "Das Handy erkennt den QR-Code im Dashboard nicht; Telegram meldet, der Code sei ungültig oder abgelaufen.",
+        cause: "Der QR-Code ist ein Anmeldecode von Telegram. Er funktioniert nur, wenn er in Telegram gescannt wird, nur mit dem richtigen Konto, und er wechselt etwa alle 30 Sekunden.",
+        s1: "Scannen Sie ihn in Telegram: Einstellungen > Geräte > Desktop-Gerät verbinden. Die Kamera-App oder andere Scanner funktionieren oft nicht.",
+        s2: "Prüfen Sie, ob auf dem Handy dasselbe Telegram-Konto angemeldet ist, das mit Postun verbunden ist (die Bezeichnung steht im Dashboard). Ein anderes Konto ist der häufigste Grund.",
+        s3: "Der Code erneuert sich etwa alle 30 Sekunden von selbst, scannen Sie also den aktuellen. Vergrößern Sie die Seite auf 150–200 % und halten Sie das Handy 20–30 cm von einem hellen Bildschirm entfernt.",
+        s4: "Fragt Telegram nach dem Cloud-Passwort (Zwei-Schritt-Bestätigung), geben Sie es im Dashboard ein, wenn es danach fragt.",
+        s5: "Immer noch ohne Erfolg: Laden Sie die Seite neu und tippen Sie erneut auf „Wiederverbinden“ (oder „Verbinden“), um einen frischen Code zu erhalten."
+      },
+      "other-account": {
+        title: "Beim Wiederverbinden heißt es, der QR-Code sei von einem anderen Konto gescannt worden",
+        when: "Das Wiederverbinden endet mit der Meldung, dass ein anderes Telegram-Konto den Code gescannt hat.",
+        cause: "Es kann nur dasselbe Telegram-Konto wiederverbunden werden, damit der Zugriff nie zu fremden Chats wechselt.",
+        s1: "Wechseln Sie in Telegram auf dem Handy zu dem Konto, das ursprünglich verbunden wurde (vergleichen Sie mit der Kontobezeichnung im Dashboard).",
+        s2: "Tippen Sie erneut auf „Wiederverbinden“ und scannen Sie den neuen QR-Code mit diesem Konto.",
+        s3: "Um ein anderes Telegram-Konto zu nutzen, verbinden Sie es separat über „Konto per QR verbinden“: Es wird ein eigenes Konto."
+      },
+      "missing-dialogs": {
+        title: "Es werden nur einige Chats angezeigt, oder ein Chat oder Bot fehlt",
+        when: "Die KI sieht weniger Chats, als Sie haben; ein Chat oder Bot, den es sicher gibt, wird nicht gefunden.",
+        cause: "Die Chatliste ist seitenweise und zeigt nur die Chats des verbundenen Kontos. Postun ist nur lesend: Es kann keinen Chat beginnen und in einem Bot nicht auf Start tippen.",
+        s1: "Lassen Sie die KI mit <code>nextCursor</code> bis zum Ende weiterblättern (bis zu 100 Chats pro Seite), statt auf der ersten Seite aufzuhören.",
+        s2: "Prüfen Sie, ob der Chat oder Bot in demselben Telegram-Konto existiert, das mit Postun verbunden ist (Kontobezeichnung vergleichen). Ein Bot, der von einem anderen Konto gestartet wurde, erscheint nicht.",
+        s3: "Ein Chat ohne Nachrichten oder ein archivierter Chat wird möglicherweise nicht angezeigt: Öffnen Sie ihn in Telegram (tippen Sie beim Bot selbst auf Start) und bitten Sie die KI, die Chats erneut aufzulisten.",
+        s4: "Um etwas in einem bekannten Chat zu finden, lassen Sie die KI in diesem Chat suchen; die Suche über alle Chats ist langsamer und begrenzt."
+      },
+      "why-ended": {
+        title: "Warum wurde die Telegram-Sitzung beendet?",
+        when: "Sie möchten verstehen, was mit der Verbindung passiert ist; das Dashboard zeigt neben „Sitzung beendet“ einen Grund.",
+        cause: "Telegram teilt Postun mit, warum es eine Sitzung beendet hat. Postun speichert diesen Grund und die Zeit in einem technischen Verbindungsprotokoll (ohne Nachrichteninhalte) und zeigt sie im Dashboard an.",
+        s1: "Die Sitzung wurde unter Einstellungen > Geräte in Telegram geschlossen oder „Alle anderen Sitzungen beenden“ wurde gewählt: Verbinden Sie das Konto neu.",
+        s2: "Telegram hat den Sitzungsschlüssel für ungültig erklärt: Verbinden Sie das Konto neu; wiederholt es sich, melden Sie das Problem (siehe „Nichts hat geholfen“).",
+        s3: "Das Telegram-Konto wurde gelöscht oder deaktiviert: Wiederverbinden hilft erst, wenn das Konto wieder funktioniert.",
+        s4: "Die Sitzung ist abgelaufen: Verbinden Sie das Konto neu.",
+        s5: "Derselbe Sitzungsschlüssel wurde gleichzeitig von zwei Orten genutzt (ein Problem auf Seiten von Postun): Postun protokolliert das und prüft die Sitzung erneut; wird das Konto weiter beendet, melden Sie das Problem."
+      },
+      paused: {
+        title: "Die KI meldet, Telegram habe die Suche begrenzt, oder ein Aufruf ist „pausiert“",
+        when: "Ein Ergebnis mit Status „paused“, Code RATE_LIMITED oder CONFLICT mit dem Grund ACCOUNT_BUSY.",
+        cause: "Telegram hat das Konto gebeten, langsamer zu machen (FLOOD_WAIT), oder Postun verteilt die Anfragen zeitlich. Nichts wird abgelehnt oder eingeschränkt: Dieselbe Anfrage funktioniert nach der Pause.",
+        s1: "Warten Sie die genannte Zeit ab und wiederholen Sie denselben Aufruf mit denselben Argumenten oder demselben Cursor.",
+        s2: "Rufen Sie Aufrufe für ein Konto nacheinander auf, nicht parallel.",
+        s3: "Betrachten Sie es nicht als Ablehnung. Ist die Wartezeit lang, genügt es zu sagen, bis wann die Suche pausiert ist."
+      },
+      quota: {
+        title: "Das kostenlose Beta-Kontingent ist aufgebraucht",
+        when: "Ein Werkzeug liefert QUOTA_EXCEEDED.",
+        cause: "Die kostenlose Beta hat ein Limit erfolgreicher Operationen pro Tag und Inhaber (derzeit {quota}). Der Tag wird in UTC gezählt und beginnt um 00:00 UTC neu.",
+        s1: "Warten Sie bis zum nächsten UTC-Tag.",
+        s2: "Bitten Sie die KI, ganze Seiten zu lesen (bis zu 100) und im richtigen Chat zu suchen: Dasselbe Ergebnis braucht weniger Aufrufe.",
+        s3: "Dienstanfragen und Fehler zählen nicht."
+      },
+      "channels-ok-dialogs-fail": {
+        title: "Öffentliche Kanäle lassen sich lesen, Chats aber nicht (oder umgekehrt)",
+        when: "Das Lesen eines Kanals funktioniert, während Chatliste oder Verlauf fehlschlagen; manche Anfragen gehen durch, andere nicht.",
+        cause: "Jeder Lesevorgang nutzt dieselbe Telegram-Sitzung; lässt sich irgendetwas lesen, lebt die Sitzung. Die Ursache liegt dann woanders: falsches Konto, ein Chat, der nicht in diesem Konto ist, Seitenweise-Abruf oder eine Telegram-Wartezeit.",
+        s1: "Vergleichen Sie die Kontobezeichnung in der Kontoliste mit dem Telegram-Konto, das Sie meinen.",
+        s2: "Ist ein Chat oder Bot nicht sichtbar, gehen Sie „Es werden nur einige Chats angezeigt“ durch.",
+        s3: "Bleibt ein Fehler bestehen und kein Thema beschreibt ihn, senden Sie eine Meldung (siehe „Nichts hat geholfen“)."
+      },
+      "read-only": {
+        title: "Die KI soll etwas schreiben, in einem Bot auf Start tippen oder eine Nachricht löschen",
+        when: "Sie bitten die KI, eine Nachricht zu senden, einen Bot zu starten, zu antworten, eine Nachricht zu ändern oder zu löschen.",
+        cause: "Postun ist von Grund auf nur lesend: Kein Werkzeug kann in Telegram schreiben.",
+        s1: "Tun Sie es selbst in Telegram (bei einem Bot: öffnen und auf Start tippen).",
+        s2: "Bitten Sie die KI danach, das Ergebnis zu lesen: Chatliste, Verlauf oder Suche."
+      },
+      "still-stuck": {
+        title: "Nichts hat geholfen: So melden Sie ein Problem",
+        when: "Ein Fehler wird von keinem Thema beschrieben; die Schritte wurden befolgt, und das Problem bleibt.",
+        cause: "Manche Probleme brauchen einen Menschen bei Postun. Sie können eine kurze Meldung direkt aus dem Chat mit Ihrer KI senden.",
+        s1: "Bitten Sie Ihre KI: „Melde dieses Problem an Postun“. Sie beschreibt kurz, was Sie versucht haben und was passiert ist, einschließlich des Fehlercodes.",
+        s2: "Die KI zeigt Ihnen den genauen Text der Meldung und sendet ihn erst nach Ihrem klaren „Ja“. Der Text darf keine Nachrichten, Chat- oder Personennamen, Telefonnummern, Anmeldecodes oder Links enthalten: Links, @Namen und lange Zahlen werden in jedem Fall entfernt.",
+        s3: "Nach dem Senden erhalten Sie eine Ticketnummer. Höchstens 5 Meldungen pro Tag.",
+        s4: "Neue Meldungen werden mindestens einmal täglich gelesen; wir bemühen uns, innerhalb von 48 Stunden zu antworten oder die Lösung auf dieser Seite zu veröffentlichen (es ist eine Beta, ohne Gewähr). Wir können Sie nicht direkt kontaktieren, schauen Sie daher in ein bis zwei Tagen wieder hier vorbei.",
+        s5: "Andere Wege: <a href=\"{issues}\">GitHub Issues</a> (öffentlich: keine privaten Daten posten) oder Telegram <a href=\"{support}\">@postun_org</a>."
+      }
+    }
+  },
   privacy: {
     title: 'Datenverarbeitung – Postun Beta',
     h1: 'Datenverarbeitung in Postun Beta',
@@ -268,6 +380,10 @@ export default {
     r8b: 'Werden nicht gespeichert',
     r9a: 'Telefonnummer, Username, Dateinamen',
     r9b: 'Standardmäßig nicht gespeichert',
+    r10a: "Verbindungsprotokoll des Kontos",
+    r10b: "Bis zu 100 neueste Ereignisse pro Konto und höchstens 180 Tage: Zeit, Art des Ereignisses (verbunden, Sitzung beendet, wiederverbunden), Name des Telegram-Fehlers und Quelle. Keine Nachrichten, Chats, Suchanfragen oder Namen. Wird beim Trennen des Kontos und beim Löschen des Profils gelöscht.",
+    r11a: "Problemmeldungen",
+    r11b: "Nur wenn Sie das Senden im Chat mit Ihrer KI bestätigt haben: Kategorie, Werkzeugname, Fehlercode, Ihr kurzer Text mit bis zu 500 Zeichen (Links, @Namen und lange Zahlen werden entfernt) und die Konto-ID in Postun. 90 Tage, nur für den Betreiber des Dienstes sichtbar.",
     p1: 'Die Telegram-ID wird nur als HMAC-Index und als verschlüsselter Wert gespeichert. Sitzungen sind mit AES-256-GCM verschlüsselt, mit einem eigenen Schlüssel pro Konto. Die Schlüssel liegen in den Cloudflare-Secrets, nicht im Repository.',
     p2: 'Cloudflare und der Anbieter der Administrator-Anmeldung können eigene Infrastruktur-Metadaten führen; Postun sagt nicht zu, dass keine anfallen. Der Produktadministrator hat keinen Zugriff auf Nachrichten und Sitzungen; der Infrastrukturadministrator bleibt technisch Teil des Vertrauensmodells.',
     p3: 'Die Protokollierung von Cloudflare Workers (observability, logs, tail, logpush) ist für alle Postun-Dienste deaktiviert und wird bei jedem Build automatisch geprüft. Der Code schreibt niemals Inhalte in Logs: Erlaubt sind nur konstante Dienstmeldungen ohne Daten.',
@@ -324,6 +440,11 @@ export default {
     accPending: 'wird verbunden',
     accEnded: 'Sitzung beendet',
     accEndedNote: 'Telegram hat die Postun-Sitzung für dieses Konto beendet (unter „Geräte“ in Telegram geschlossen oder abgelaufen), daher können KI-Clients es gerade nicht lesen. Tippen Sie auf „Neu verbinden“ und scannen Sie den QR-Code mit demselben Telegram-Konto: Alle KI-Clients behalten ihren Zugriff.',
+    endWhy_SESSION_REVOKED: 'Grund: Die Sitzung wurde unter „Geräte“ in Telegram geschlossen.',
+    endWhy_AUTH_KEY_UNREGISTERED: 'Grund: Telegram hat den Schlüssel dieser Sitzung für ungültig erklärt.',
+    endWhy_USER_DEACTIVATED: 'Grund: Telegram meldet, dass das Konto gelöscht oder deaktiviert wurde. Erneutes Verbinden hilft erst, wenn das Konto wieder funktioniert.',
+    endWhy_SESSION_EXPIRED: 'Grund: Die Sitzung ist abgelaufen.',
+    endWhen: 'Beendet: {when}.',
     reconnect: 'Neu verbinden',
     reconnected: 'Das Konto ist wieder verbunden. KI-Clients arbeiten damit wie zuvor.',
     reconnectOther: 'Der QR-Code wurde mit einem anderen Telegram-Konto gescannt. Neu verbinden lässt sich nur dasselbe Konto; ein anderes Konto verbinden Sie separat über „Konto per QR-Code verbinden“.',

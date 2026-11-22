@@ -4,7 +4,7 @@ import { USE_CASE_COUNT } from './pages.mjs';
 
 const REPO = 'https://github.com/AiReformator/postun';
 /** Indexable pages (the cabinet /app/ is intentionally excluded). */
-const PAGES = ['/', '/use-cases/', '/status/', '/privacy/', '/terms/'];
+const PAGES = ['/', '/use-cases/', '/help/', '/status/', '/privacy/', '/terms/'];
 
 export const robotsTxt = () => `User-agent: *\nAllow: /\n\nSitemap: ${SITE}/sitemap.xml\n`;
 
@@ -61,6 +61,7 @@ Ask your AI to summarize Telegram channels and long chats, build a digest of the
 
 ${LOCALES.map((l) => `- [${names[l.code]}](${SITE}${l.prefix}/)`).join('\n')}
 - [Use cases](${SITE}/use-cases/)
+- [Help and troubleshooting](${SITE}/help/)
 - [Service status](${SITE}/status/)
 - [Data handling](${SITE}/privacy/)
 - [Beta terms](${SITE}/terms/)

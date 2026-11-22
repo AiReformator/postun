@@ -7,7 +7,7 @@ const REPO = 'https://github.com/AiReformator/postun';
 const SUPPORT = 'https://t.me/postun_org';
 
 /** Page ids and their path below a locale prefix. */
-export const PAGES = { home: '/', useCases: '/use-cases/', status: '/status/', privacy: '/privacy/', terms: '/terms/', cabinet: '/app/' };
+export const PAGES = { home: '/', useCases: '/use-cases/', help: '/help/', status: '/status/', privacy: '/privacy/', terms: '/terms/', cabinet: '/app/' };
 
 const DASHBOARD = (L) => `https://app.postun.org${L.prefix}/app/`;
 
@@ -64,14 +64,14 @@ ${head}</head>
 <a class="skip-link" href="#main">${t('nav.skip')}</a>
 <header class="site-header"><div class="wrap">
 <a class="brand" href="${home}">${BRAND_MARK}Postun <span class="badge">Beta</span></a>
-<nav class="site-nav"><a href="${home}#how">${t('nav.how')}</a><a href="${L.prefix}/use-cases/"${page === 'useCases' ? ' aria-current="page"' : ''}>${t('useCases.navLabel')}</a><a href="${home}#connect">${t('nav.connect')}</a><a href="${home}#security">${t('nav.security')}</a><a href="${home}#features">${t('nav.features')}</a><a href="${L.prefix}/status/"${page === 'status' ? ' aria-current="page"' : ''}>${t('nav.status')}</a><a href="${home}#faq">${t('nav.faq')}</a><a class="nav-repo" href="${REPO}">GitHub</a></nav>
+<nav class="site-nav"><a href="${home}#how">${t('nav.how')}</a><a href="${L.prefix}/use-cases/"${page === 'useCases' ? ' aria-current="page"' : ''}>${t('useCases.navLabel')}</a><a href="${home}#connect">${t('nav.connect')}</a><a href="${home}#security">${t('nav.security')}</a><a href="${home}#features">${t('nav.features')}</a><a href="${L.prefix}/status/"${page === 'status' ? ' aria-current="page"' : ''}>${t('nav.status')}</a><a href="${L.prefix}/help/"${page === 'help' ? ' aria-current="page"' : ''}>${t('help.navLabel')}</a><a href="${home}#faq">${t('nav.faq')}</a><a class="nav-repo" href="${REPO}">GitHub</a></nav>
 <details class="lang"><summary aria-label="${esc(t('nav.language'))}: ${esc(L.dict.meta.languageName)}">${icon('globe')}${L.short}${icon('chevron')}</summary>
 <nav class="langs" aria-label="${esc(t('nav.language'))}">${switcher}</nav></details>
 ${headerCta}</div></header>
 <main id="main" class="wrap">${body}</main>
 <footer class="site-footer"><div class="wrap foot-grid">
 <div class="foot-brand"><a class="brand" href="${home}">${BRAND_MARK}Postun</a><p>${t('footer.about')}</p></div>
-<div class="foot-col"><h2>${t('footer.product')}</h2><ul><li><a href="${home}#how">${t('nav.how')}</a></li><li><a href="${L.prefix}/use-cases/">${t('useCases.navLabel')}</a></li><li><a href="${home}#features">${t('nav.features')}</a></li><li><a href="${home}#faq">${t('nav.faq')}</a></li><li><a href="${L.prefix}/status/">${t('footer.statusPage')}</a></li><li><a href="${DASHBOARD(L)}">${t('nav.app')}</a></li></ul></div>
+<div class="foot-col"><h2>${t('footer.product')}</h2><ul><li><a href="${home}#how">${t('nav.how')}</a></li><li><a href="${L.prefix}/use-cases/">${t('useCases.navLabel')}</a></li><li><a href="${home}#features">${t('nav.features')}</a></li><li><a href="${home}#faq">${t('nav.faq')}</a></li><li><a href="${L.prefix}/help/">${t('help.navLabel')}</a></li><li><a href="${L.prefix}/status/">${t('footer.statusPage')}</a></li><li><a href="${DASHBOARD(L)}">${t('nav.app')}</a></li></ul></div>
 <div class="foot-col"><h2>${t('footer.project')}</h2><ul><li><a href="${REPO}">${t('footer.source')}</a></li><li><a href="${REPO}/blob/main/SECURITY.md">${t('footer.vuln')}</a></li><li><a href="${REPO}/issues">${t('footer.issues')}</a></li><li><a href="${SUPPORT}">${t('footer.support')}</a></li></ul></div>
 <div class="foot-col"><h2>${t('footer.legal')}</h2><ul><li><a href="${L.prefix}/terms/">${t('footer.terms')}</a></li><li><a href="${L.prefix}/privacy/">${t('footer.privacy')}</a></li></ul></div>
 <p class="foot-note">${t('footer.issuesNote', { repo: REPO })}</p>
@@ -543,6 +543,69 @@ ${cta}
   });
 }
 
+/**
+ * Help topics: the ids are the anchors of the page and the topic ids of the MCP tool get_help (packages/contracts/src/help.ts);
+ * `steps` is how many steps the topic has in every locale. A test keeps the ids in step with the contracts.
+ */
+export const HELP_TOPICS = [
+  { id: 'session-ended', steps: 4 },
+  { id: 'no-reconnect-button', steps: 3 },
+  { id: 'qr-not-scanning', steps: 5 },
+  { id: 'other-account', steps: 3 },
+  { id: 'missing-dialogs', steps: 4 },
+  { id: 'why-ended', steps: 5 },
+  { id: 'paused', steps: 3 },
+  { id: 'quota', steps: 3 },
+  { id: 'channels-ok-dialogs-fail', steps: 3 },
+  { id: 'read-only', steps: 2 },
+  { id: 'still-stuck', steps: 5 }
+];
+
+export function helpPage(status, code = 'en') {
+  const L = locale(code);
+  const t = translator(L.dict);
+  const home = `${L.prefix}/`;
+  const open = connectAvailable(status);
+  const vars = {
+    dashboard: DASHBOARD(L),
+    issues: `${REPO}/issues`,
+    support: SUPPORT,
+    quota: Number(status.quota_daily_success ?? 10000).toLocaleString(L.htmlLang),
+    privacy: `${L.prefix}/privacy/`
+  };
+  const toc = HELP_TOPICS.map((h) => `<li><a href="#${h.id}">${t(`help.topics.${h.id}.title`, vars)}</a></li>`).join('');
+  const topic = (h) => `<section id="${h.id}" class="section help-topic">
+<h2>${t(`help.topics.${h.id}.title`, vars)}</h2>
+<dl class="help-facts">
+<dt>${t('help.whenLabel')}</dt><dd>${t(`help.topics.${h.id}.when`, vars)}</dd>
+<dt>${t('help.causeLabel')}</dt><dd>${t(`help.topics.${h.id}.cause`, vars)}</dd>
+</dl>
+<h3>${t('help.stepsLabel')}</h3>
+<ol class="help-steps">
+${Array.from({ length: h.steps }, (_, i) => `<li>${t(`help.topics.${h.id}.s${i + 1}`, vars)}</li>`).join('\n')}
+</ol>
+</section>`;
+  return layout(L, 'help', {
+    title: t('help.title'),
+    description: t('help.metaDescription'),
+    headerCta: open ? `<a class="btn header-cta" href="${DASHBOARD(L)}">${t('nav.app')}</a>` : '',
+    body: `
+<header class="uc-head">
+<nav class="crumbs" aria-label="${esc(plainText(t('help.breadcrumbLabel')))}"><ol><li><a href="${home}">${t('help.breadcrumbHome')}</a></li><li><span aria-current="page">${t('help.eyebrow')}</span></li></ol></nav>
+<p class="eyebrow">${t('help.eyebrow')}</p>
+<h1>${t('help.h1')}</h1>
+<p class="lead">${t('help.lead')}</p>
+<nav class="uc-toc" aria-label="${esc(plainText(t('help.tocLabel')))}"><ul>${toc}</ul></nav>
+</header>
+
+${HELP_TOPICS.map(topic).join('\n\n')}
+
+<section class="section">
+<p class="note">${t('help.reportPrivacy', vars)}</p>
+</section>`
+  });
+}
+
 /** JSON for a <script type="application/json"> data block: "<" is escaped so it can never close the tag. */
 const dataBlock = (id, obj) => `<script type="application/json" id="${id}">${JSON.stringify(obj).replace(/</g, '\\u003c')}</script>`;
 
@@ -602,7 +665,7 @@ function translationNote(t) {
 export function privacy(code = 'en') {
   const L = locale(code);
   const t = translator(L.dict);
-  const rows = [1, 2, 3, 4, 5, 6, 7, 8, 9].map((i) => `<tr><td>${t(`privacy.r${i}a`)}</td><td>${t(`privacy.r${i}b`)}</td></tr>`).join('\n');
+  const rows = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((i) => `<tr><td>${t(`privacy.r${i}a`)}</td><td>${t(`privacy.r${i}b`)}</td></tr>`).join('\n');
   return layout(L, 'privacy', {
     title: t('privacy.title'),
     body: `<article class="doc">

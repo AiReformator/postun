@@ -1,5 +1,5 @@
 import { jsonResponse, PostunError, UuidSchema } from '@postun/contracts';
-import { disconnectAccount, linkStatus, listAccounts, relinkPassword, relinkStatus, startLink, startRelink, submitPassword } from './accounts';
+import { accountEvents, disconnectAccount, linkStatus, listAccounts, relinkPassword, relinkStatus, startLink, startRelink, submitPassword } from './accounts';
 import type { Config, Env } from './env';
 import { now } from './env';
 import { apiError, readJson } from './http';
@@ -12,7 +12,7 @@ export const DELETE_PHRASE = 'УДАЛИТЬ ПРОФИЛЬ';
 /** The cabinet is localized; non-Russian locales ask for the English phrase. */
 export const DELETE_PHRASES: readonly string[] = [DELETE_PHRASE, 'DELETE PROFILE'];
 
-const ACCOUNT_ROUTE = /^\/api\/accounts\/([0-9a-fA-F-]{36})\/(link-status|password|disconnect|reconnect|reconnect-status|reconnect-password)$/;
+const ACCOUNT_ROUTE = /^\/api\/accounts\/([0-9a-fA-F-]{36})\/(link-status|password|disconnect|reconnect|reconnect-status|reconnect-password|events)$/;
 const GRANT_ROUTE = /^\/api\/grants\/([0-9a-fA-F-]{36})\/revoke$/;
 
 /** Creating new access (linking, grants) needs an active profile that accepted the current beta terms. */
@@ -90,6 +90,11 @@ export async function handleApi(env: Env, cfg: Config, req: Request, url: URL): 
       if (denied) return denied;
       const body = await readJson(req);
       return jsonResponse(await relinkPassword(env, pid, accountId, body['password'])); // never stored or logged
+    }
+    // Why and when this account's Telegram session ended or misbehaved: technical events only, newest first.
+    if (action === 'events' && method === 'GET') {
+      const d = assertNotDeleting(session);
+      return d ?? jsonResponse({ events: await accountEvents(env, pid, accountId) });
     }
     if (action === 'disconnect' && method === 'POST') {
       const d = assertNotDeleting(session);

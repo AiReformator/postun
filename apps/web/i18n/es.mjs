@@ -119,7 +119,7 @@ export default {
     chatgpt: "En los planes personales, ChatGPT admite servidores MCP propios solo en parte, y esto cambia a menudo; si tienes Plugins → +, rellena el formulario como se indica abajo. En Business, Enterprise y Edu, un propietario o administrador del espacio de trabajo añade el plugin una vez, con los pasos de abajo.",
     chatgptTeamTitle: "ChatGPT Business, Enterprise y Edu: pasos del administrador",
     chatgptTeam1: "<strong>Crea el plugin.</strong> Plugins → + → Añadir servidor MCP personalizado. Rellena el formulario según las indicaciones de abajo, marca la confirmación de riesgos y selecciona Crear. Después inicia sesión en Postun tú mismo: con la conexión del administrador ChatGPT lee las herramientas y puede actualizarlas más tarde. Una ventana de acceso en blanco hasta medio minuto es la preparación por parte de ChatGPT.",
-    chatgptTeam2: "<strong>Revisa y publica.</strong> En la página del plugin, selecciona Revisar app. Deben aparecer 8 herramientas, todas de solo lectura; las confirmaciones pueden quedarse por defecto. Lee los dos puntos «Evaluar el riesgo potencial», márcalos como revisados y selecciona Publicar. El mensaje «Esta app ya no es un borrador privado… no se volverán a ejecutar» es normal: el plugin ya está disponible para el espacio de trabajo y la publicación no se repite.",
+    chatgptTeam2: "<strong>Revisa y publica.</strong> En la página del plugin, selecciona Revisar app. Deben aparecer 10 herramientas: 8 leen Telegram, <code>get_help</code> devuelve ayuda y <code>report_problem</code> envía un informe a Postun solo tras tu confirmación; las confirmaciones pueden quedarse por defecto. Lee los dos puntos «Evaluar el riesgo potencial», márcalos como revisados y selecciona Publicar. El mensaje «Esta app ya no es un borrador privado… no se volverán a ejecutar» es normal: el plugin ya está disponible para el espacio de trabajo y la publicación no se repite.",
     chatgptTeam3: "<strong>Ajustes.</strong> Postun solo lee, así que sirven las opciones más estrictas. Permisos (cuándo ChatGPT pide confirmación): deja el valor por defecto del espacio de trabajo o permite las acciones de lectura, para que ChatGPT no pregunte antes de cada lectura. Herramientas nuevas: es más seguro activar automáticamente solo las nuevas de lectura o ninguna; las verás al actualizar. En Business el plugin está disponible para todo el espacio de trabajo (los roles solo existen en Enterprise y Edu). Si el ajuste de instalación ofrece «Instalado», elígelo para que los miembros no tengan que instalarlo.",
     chatgptTeam4: "<strong>Tras las actualizaciones de Postun.</strong> ChatGPT guarda las herramientas y sus descripciones al publicar y no las actualiza por sí solo. Cuando Postun cambie sus herramientas, abre el plugin, selecciona Actualizar, revisa los cambios y empieza un chat nuevo.",
     chatgptTeam5: "<strong>Cada miembro inicia sesión por su cuenta.</strong> En un chat nuevo, selecciona + o escribe @ y elige Postun Telegram. La primera vez, ChatGPT abre el acceso a Postun: entra con tu propio Telegram, vincula tu cuenta con el código QR (desde la misma ventana) y elige qué cuentas y datos se pueden leer.",
@@ -244,6 +244,118 @@ export default {
   legal: {
     translationNote: 'Esta es una traducción de conveniencia. En caso de discrepancia, prevalece la versión en inglés.'
   },
+  help: {
+    navLabel: "Ayuda",
+    title: "Postun: ayuda para problemas con Telegram",
+    metaDescription: "Qué hacer si tu IA no puede leer Telegram con Postun: sesión finalizada, sin botón Reconectar, el código QR no se escanea, falta un chat o un bot, pausas y límites. Respuestas paso a paso y cómo informar de un problema.",
+    eyebrow: "Ayuda",
+    h1: "Si algo no funciona",
+    lead: "Respuestas a los problemas más habituales al conectar Telegram con tu IA mediante Postun. Tu IA puede obtener esta misma guía llamando a la herramienta <code>get_help</code>. Si nada ayuda, puedes enviar un informe directamente desde el chat.",
+    tocLabel: "Temas de ayuda",
+    breadcrumbLabel: "Ruta de navegación",
+    breadcrumbHome: "Inicio",
+    whenLabel: "Cómo se ve",
+    causeLabel: "Por qué ocurre",
+    stepsLabel: "Qué hacer",
+    reportPrivacy: "Qué se guarda: un informe (categoría, nombre de la herramienta, código de error, tu texto de hasta 500 caracteres y el id de la cuenta en Postun) se conserva 90 días y solo lo ve el operador del servicio. Más detalles en la <a href=\"{privacy}\">política de privacidad</a>.",
+    topics: {
+      "session-ended": {
+        title: "La sesión de Telegram finalizó: no se pueden leer chats hasta reconectar la cuenta",
+        when: "Una herramienta devuelve «ACCOUNT_NOT_ACTIVE» con el motivo «SESSION_ENDED»; el estado de la cuenta es «ended»; el panel dice «sesión finalizada». A veces el estado sigue siendo «activo» aunque la lectura ya falle.",
+        cause: "Telegram cerró la sesión que Postun usa para esta cuenta. La cuenta, su id y el acceso de todos los clientes de IA se conservan; solo falta un nuevo inicio de sesión en Telegram. Solo el titular de la cuenta puede hacerlo: un cliente de IA no puede.",
+        s1: "Abre el panel en <a href=\"{dashboard}\">app.postun.org</a> e inicia sesión con Telegram.",
+        s2: "Junto a la cuenta pulsa «Reconectar». No pulses «Desconectar»: elimina la cuenta y su acceso.",
+        s3: "Escanea el código QR dentro de Telegram en el teléfono: Ajustes > Dispositivos > Vincular dispositivo de escritorio. Usa la misma cuenta de Telegram de antes; si tienes contraseña en la nube, introdúcela cuando el panel la pida.",
+        s4: "Pide a tu IA que repita la lectura. No hace falta autorizar de nuevo al cliente de IA."
+      },
+      "no-reconnect-button": {
+        title: "La cuenta figura como activa pero no se puede leer, y no hay botón Reconectar",
+        when: "El panel muestra la cuenta como «activa» mientras la lectura devuelve «ACCOUNT_NOT_ACTIVE»; los únicos botones son «Desconectar» y «Conectar una cuenta por QR».",
+        cause: "El botón Reconectar aparece cuando Postun ha detectado que Telegram finalizó la sesión. Postun lo detecta cuando falla una lectura y en su propia comprobación cada unas 6 horas, así que el estado puede ir con retraso.",
+        s1: "Pide a tu IA que lea algo de esa cuenta (por ejemplo, la lista de chats): una lectura fallida marca la sesión como finalizada al instante.",
+        s2: "Recarga el panel: el estado pasa a «sesión finalizada» con el motivo y aparece el botón Reconectar. Después sigue los pasos de «La sesión de Telegram finalizó».",
+        s3: "Si el estado sigue «activo» y la lectura sigue fallando, no pulses «Desconectar»; envía un informe (ver «Nada ayudó»)."
+      },
+      "qr-not-scanning": {
+        title: "El código QR no se escanea o Telegram no lo acepta",
+        when: "El teléfono no reconoce el código QR del panel; Telegram dice que el código no es válido o caducó.",
+        cause: "El código QR es un código de inicio de sesión de Telegram. Solo funciona si se escanea dentro de Telegram, solo con la cuenta correcta, y cambia cada unos 30 segundos.",
+        s1: "Escanéalo dentro de Telegram: Ajustes > Dispositivos > Vincular dispositivo de escritorio. La cámara del teléfono u otros escáneres suelen no funcionar.",
+        s2: "Comprueba que el teléfono tiene la misma cuenta de Telegram que está conectada a Postun (su etiqueta aparece en el panel). Otra cuenta es el motivo más habitual.",
+        s3: "El código se renueva solo cada unos 30 segundos, así que escanea el actual. Amplía la página al 150-200 % y sostén el teléfono a 20-30 cm de una pantalla brillante.",
+        s4: "Si Telegram pide la contraseña en la nube (verificación en dos pasos), introdúcela en el panel cuando la pida.",
+        s5: "Si sigue fallando: recarga la página y pulsa «Reconectar» (o «Conectar») de nuevo para obtener un código nuevo."
+      },
+      "other-account": {
+        title: "Al reconectar dice que el QR lo escaneó otra cuenta",
+        when: "La reconexión termina con un mensaje de que otra cuenta de Telegram escaneó el código.",
+        cause: "Solo se puede reconectar la misma cuenta de Telegram, para que el acceso nunca pase a chats de otra persona.",
+        s1: "En Telegram, en el teléfono, cambia a la cuenta que se conectó al principio (compárala con la etiqueta de la cuenta en el panel).",
+        s2: "Pulsa «Reconectar» de nuevo y escanea el nuevo QR con esa cuenta.",
+        s3: "Para usar otra cuenta de Telegram, conéctala por separado con «Conectar una cuenta por QR»: será una cuenta distinta."
+      },
+      "missing-dialogs": {
+        title: "Solo aparecen algunos chats, o falta un chat o un bot",
+        when: "La IA ve menos chats de los que tienes; un chat o bot que seguro existe no se encuentra.",
+        cause: "La lista de chats está paginada y muestra solo los chats de la cuenta conectada. Postun es de solo lectura: no puede iniciar un chat ni pulsar Iniciar en un bot.",
+        s1: "Haz que la IA siga paginando con <code>nextCursor</code> hasta el final (hasta 100 chats por página) en lugar de parar en la primera página.",
+        s2: "Comprueba que el chat o bot existe en la misma cuenta de Telegram que está conectada a Postun (compara la etiqueta de la cuenta). Un bot iniciado desde otra cuenta no aparecerá.",
+        s3: "Un chat sin mensajes todavía, o archivado, puede no mostrarse: ábrelo en Telegram (pulsa Iniciar en el bot tú mismo) y pide a la IA que vuelva a listar los chats.",
+        s4: "Para buscar algo en un chat conocido, haz que la IA busque dentro de ese chat; buscar en todos los chats es más lento y limitado."
+      },
+      "why-ended": {
+        title: "¿Por qué finalizó la sesión de Telegram?",
+        when: "Quieres entender qué pasó con la conexión; el panel muestra un motivo junto a «sesión finalizada».",
+        cause: "Telegram le dice a Postun por qué finalizó una sesión. Postun guarda ese motivo y la hora en un registro técnico de la conexión (sin ningún contenido de mensajes) y los muestra en el panel.",
+        s1: "La sesión se cerró en Ajustes > Dispositivos de Telegram, o se pulsó «Cerrar todas las otras sesiones»: reconecta la cuenta.",
+        s2: "Telegram invalidó la clave de la sesión: reconecta la cuenta; si se repite, informa del problema (ver «Nada ayudó»).",
+        s3: "La cuenta de Telegram fue eliminada o desactivada: reconectar solo ayuda cuando la cuenta vuelva a funcionar.",
+        s4: "La sesión caducó: reconecta la cuenta.",
+        s5: "La misma clave de sesión se usó desde dos lugares a la vez (un problema del lado de Postun): Postun lo registra y vuelve a comprobar la sesión; si la cuenta sigue finalizando, informa del problema."
+      },
+      paused: {
+        title: "La IA dice que Telegram limitó la búsqueda, o una llamada está «en pausa»",
+        when: "Un resultado con estado «paused», código RATE_LIMITED, o CONFLICT con el motivo ACCOUNT_BUSY.",
+        cause: "Telegram pidió a la cuenta que reduzca el ritmo (FLOOD_WAIT) o Postun espacia las solicitudes. No se rechaza ni se limita nada: la misma solicitud funciona tras la pausa.",
+        s1: "Espera el tiempo indicado y repite la misma llamada con los mismos argumentos o cursor.",
+        s2: "Haz las llamadas de una cuenta una tras otra, no en paralelo.",
+        s3: "No lo trates como un rechazo. Si la espera es larga, basta con decir hasta cuándo está en pausa la búsqueda."
+      },
+      quota: {
+        title: "Se agotó la cuota gratuita de la beta",
+        when: "Una herramienta devuelve QUOTA_EXCEEDED.",
+        cause: "La beta gratuita tiene un límite de operaciones correctas por día y titular (ahora {quota}). El día se cuenta en UTC y se reinicia a las 00:00 UTC.",
+        s1: "Espera al siguiente día UTC.",
+        s2: "Pide a la IA que lea páginas completas (hasta 100) y que busque dentro del chat adecuado: el mismo resultado requiere menos llamadas.",
+        s3: "Las solicitudes de servicio y los errores no cuentan."
+      },
+      "channels-ok-dialogs-fail": {
+        title: "Los canales públicos se leen pero los chats no (o al revés)",
+        when: "La lectura de un canal funciona mientras la lista de chats o el historial fallan; algunas solicitudes pasan y otras no.",
+        cause: "Toda lectura usa la misma sesión de Telegram, así que si algo se puede leer la sesión está viva. La causa es otra: la cuenta equivocada, un chat que no está en esta cuenta, la paginación o una espera de Telegram.",
+        s1: "Compara la etiqueta de la cuenta en la lista de cuentas con la cuenta de Telegram que quieres decir.",
+        s2: "Si no se ve un chat o bot, repasa «Solo aparecen algunos chats».",
+        s3: "Si el error persiste y ningún tema lo describe, envía un informe (ver «Nada ayudó»)."
+      },
+      "read-only": {
+        title: "Quieres que la IA escriba algo, pulse Iniciar en un bot o borre un mensaje",
+        when: "Pides a la IA que envíe un mensaje, inicie un bot, responda, edite o borre un mensaje.",
+        cause: "Postun es de solo lectura por diseño: ninguna herramienta puede escribir en Telegram.",
+        s1: "Hazlo tú mismo en Telegram (en un bot: ábrelo y pulsa Iniciar).",
+        s2: "Después pide a la IA que lea el resultado: la lista de chats, el historial o una búsqueda."
+      },
+      "still-stuck": {
+        title: "Nada ayudó: cómo informar de un problema",
+        when: "Un error no está descrito en ningún tema; seguiste los pasos y el problema continúa.",
+        cause: "Algunos problemas requieren a una persona de Postun. Puedes enviar un informe breve directamente desde el chat con tu IA.",
+        s1: "Pide a tu IA: «Informa de este problema a Postun». Describirá brevemente lo que probaste y lo que pasó, incluido el código de error.",
+        s2: "La IA te muestra el texto exacto del informe y lo envía solo después de tu «sí» claro. El texto no debe contener mensajes, nombres de chats ni de personas, teléfonos, códigos de acceso ni enlaces: los enlaces, los @nombres y los números largos se eliminan de todos modos.",
+        s3: "Tras el envío recibes un número de ticket. Como máximo 5 informes al día.",
+        s4: "Los informes nuevos se leen al menos una vez al día; intentamos responder o publicar la solución en esta página en 48 horas (es una beta, sin garantía). No podemos contactarte directamente, así que vuelve a esta página en uno o dos días.",
+        s5: "Otras vías: <a href=\"{issues}\">GitHub Issues</a> (público: no publiques datos privados) o Telegram <a href=\"{support}\">@postun_org</a>."
+      }
+    }
+  },
   privacy: {
     title: 'Tratamiento de datos — Postun Beta',
     h1: 'Tratamiento de datos en Postun Beta',
@@ -268,6 +380,10 @@ export default {
     r8b: 'No se guardan',
     r9a: 'Número de teléfono, nombre de usuario, nombres de archivo',
     r9b: 'No se guardan por defecto',
+    r10a: "Registro de conexión de la cuenta",
+    r10b: "Hasta 100 eventos recientes por cuenta y no más de 180 días: hora, tipo de evento (conectada, sesión finalizada, reconectada), nombre del error de Telegram y origen. Sin mensajes, chats, consultas ni nombres. Se elimina al desconectar la cuenta y al borrar el perfil.",
+    r11a: "Informes de problemas",
+    r11b: "Solo si confirmaste el envío en el chat con tu IA: categoría, nombre de la herramienta, código de error, tu texto breve de hasta 500 caracteres (se eliminan enlaces, @nombres y números largos) y el id de la cuenta en Postun. 90 días, visibles solo para el operador del servicio.",
     p1: 'El ID de Telegram se almacena únicamente como índice HMAC y como valor cifrado. Las sesiones se cifran con AES-256-GCM, con una clave distinta por cuenta. Las claves se guardan en los secretos de Cloudflare, no en el repositorio.',
     p2: 'Cloudflare y el proveedor de inicio de sesión del administrador pueden mantener sus propios metadatos de infraestructura; Postun no promete que no existan. El administrador del producto no tiene acceso a las conversaciones ni a las sesiones; el administrador de la infraestructura sigue formando técnicamente parte del modelo de confianza.',
     p3: 'El registro de Cloudflare Workers (observability, logs, tail, logpush) está desactivado en todos los servicios de Postun y se verifica automáticamente en cada compilación. El código nunca escribe contenido en los registros: solo se permiten mensajes de servicio constantes, sin datos.',
@@ -324,6 +440,11 @@ export default {
     accPending: 'conectando',
     accEnded: 'sesión finalizada',
     accEndedNote: 'Telegram finalizó la sesión de Postun para esta cuenta (se cerró en «Dispositivos» de Telegram o caducó), así que los clientes de IA no pueden leerla ahora. Pulsa «Reconectar» y escanea el código QR con la misma cuenta de Telegram: todos los clientes de IA conservan su acceso.',
+    endWhy_SESSION_REVOKED: 'Motivo: la sesión se cerró en «Dispositivos» de Telegram.',
+    endWhy_AUTH_KEY_UNREGISTERED: 'Motivo: Telegram invalidó la clave de esta sesión.',
+    endWhy_USER_DEACTIVATED: 'Motivo: Telegram indica que la cuenta fue eliminada o desactivada. Volver a conectar solo ayuda cuando la cuenta vuelva a funcionar.',
+    endWhy_SESSION_EXPIRED: 'Motivo: la sesión caducó.',
+    endWhen: 'Finalizada: {when}.',
     reconnect: 'Reconectar',
     reconnected: 'La cuenta está conectada de nuevo. Los clientes de IA funcionan con ella como antes.',
     reconnectOther: 'El código QR se escaneó con otra cuenta de Telegram. Solo se puede reconectar la misma cuenta; conecta otra cuenta por separado con «Conectar una cuenta mediante QR».',

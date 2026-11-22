@@ -240,6 +240,13 @@ async function renderDashboard() {
         : st === 'ended'
           ? el('span', { class: 'pill pill-bad' }, T('accEnded'))
           : el('span', { class: 'pill' }, String(st));
+  /** Why and when Telegram ended the session (a closed vocabulary from the vault); empty for older records without a reason. */
+  const endedWhy = (a) => {
+    const reason = a.endedCode && typeof S['endWhy_' + a.endedCode] === 'string' ? T('endWhy_' + a.endedCode) : '';
+    const t = a.endedAt ? new Date(a.endedAt) : null;
+    const when = t && !Number.isNaN(t.getTime()) ? T('endWhen', { when: t.toLocaleString(document.documentElement.lang || 'en', { dateStyle: 'medium', timeStyle: 'short' }) }) : '';
+    return [reason, when].filter(Boolean).join(' ');
+  };
   const accList = el('ul', { class: 'rows' });
   for (const a of acc.accounts || []) {
     const label = String(a.label ?? '');
@@ -247,7 +254,7 @@ async function renderDashboard() {
       el('li', {},
         el('div', { class: 'row-main' },
           el('div', { class: 'row-title' }, el('span', { class: 'avatar', 'aria-hidden': 'true' }, label.trim().charAt(0) || '·'), el('span', {}, label), statusPill(a.status)),
-          a.status === 'ended' ? el('p', { class: 'note' }, T('accEndedNote')) : ''
+          a.status === 'ended' ? el('p', { class: 'note' }, [T('accEndedNote'), endedWhy(a)].filter(Boolean).join(' ')) : ''
         ),
         a.status === 'ended'
           ? el('div', { class: 'btn-row' },

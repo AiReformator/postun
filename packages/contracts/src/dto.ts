@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { SessionErrorCode } from './errors';
 import { SCOPES } from './scopes';
 
 export const GrantPropsSchema = z.object({
@@ -20,6 +21,27 @@ export interface LinkedAccountView {
   status: AccountStatus;
   label: string; // user-chosen or masked label; never the phone number
   createdAt: string;
+  /** Only for status 'ended': when Telegram ended the session and, if known, the closed-vocabulary reason. */
+  endedAt?: string;
+  endedCode?: SessionErrorCode;
+}
+
+/**
+ * Connection journal (docs/03 section 4). Technical events about one account's Telegram session, from a closed
+ * vocabulary. Never message text, peers, search queries, file names, Telegram free text or identifiers of other people.
+ */
+export const SESSION_EVENT_KINDS = ['linked', 'session_ended', 'key_duplicate', 'relinked', 'relink_refused'] as const;
+export type SessionEventKind = (typeof SESSION_EVENT_KINDS)[number];
+
+/** What triggered the event: an AI tool call (by tool name), the periodic health check, or the link flow. */
+export type SessionEventSource = 'health_check' | 'link' | 'relink' | (string & {});
+
+export interface AccountEventView {
+  at: string; // ISO time
+  event: SessionEventKind;
+  code: SessionErrorCode | null;
+  /** Tool name, 'health_check', 'link' or 'relink'. */
+  source: SessionEventSource | null;
 }
 
 export interface UsageView {

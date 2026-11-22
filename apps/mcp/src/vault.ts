@@ -1,5 +1,5 @@
 import { WorkerEntrypoint } from 'cloudflare:workers';
-import { PostunError, type GrantRecord, type LinkState, type UsageView, type VaultControlRpc } from '@postun/contracts';
+import { PostunError, type AccountEventView, type GrantRecord, type LinkState, type SessionErrorCode, type UsageView, type VaultControlRpc } from '@postun/contracts';
 import type { Env } from './env';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -46,6 +46,12 @@ export class VaultControl extends WorkerEntrypoint<Env> implements VaultControlR
   }
   endedAccounts(principalId: string): Promise<string[]> {
     return this.stub(principalId).endedAccounts(principalId);
+  }
+  endedDetails(principalId: string): Promise<{ accountId: string; endedAt: number; code: SessionErrorCode | null }[]> {
+    return this.stub(principalId).endedDetails(principalId);
+  }
+  accountEvents(principalId: string, accountId: string, limit?: number): Promise<AccountEventView[]> {
+    return this.stub(principalId).accountEvents(principalId, accountId, limit);
   }
   startRelink(principalId: string, accountId: string): Promise<LinkState> {
     return this.stub(principalId).startRelink(principalId, accountId);

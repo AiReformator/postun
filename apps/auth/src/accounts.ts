@@ -1,5 +1,5 @@
 import { importHmacKey, newId, PostunError, telegramIdIndex } from '@postun/contracts';
-import type { LinkedAccountView, LinkState, Scope } from '@postun/contracts';
+import type { AccountEventView, LinkedAccountView, LinkState, Scope, SessionErrorCode } from '@postun/contracts';
 import type { Config, Env } from './env';
 import { now } from './env';
 
@@ -33,20 +33,41 @@ export async function listAccounts(env: Env, principalId: string, fallbackLabel 
   const rs = await env.CONTROL_DB.prepare(`SELECT ${ROW} FROM linked_accounts WHERE principal_id = ?1 AND status != 'disconnected' ORDER BY created_at`)
     .bind(principalId)
     .all<AccountRow>();
-  let ended = new Set<string>();
+  const ended = new Map<string, { endedAt: number | null; code: SessionErrorCode | null }>();
   if (rs.results.some((r) => r.status === 'active')) {
     try {
-      ended = new Set(await env.VAULT.endedAccounts(principalId));
+      for (const d of await env.VAULT.endedDetails(principalId)) ended.set(d.accountId, { endedAt: d.endedAt, code: d.code });
     } catch {
-      console.warn('vault_ended_accounts_failed');
+      try {
+        // A vault that predates the connection journal only knows which accounts ended, not when or why.
+        for (const id of await env.VAULT.endedAccounts(principalId)) ended.set(id, { endedAt: null, code: null });
+      } catch {
+        console.warn('vault_ended_accounts_failed');
+      }
     }
   }
-  return rs.results.map((r) => ({
-    accountId: r.account_id,
-    status: r.status === 'active' && ended.has(r.account_id) ? 'ended' : r.status,
-    label: r.label ?? fallbackLabel,
-    createdAt: new Date(r.created_at * 1000).toISOString()
-  }));
+  return rs.results.map((r) => {
+    const e = r.status === 'active' ? ended.get(r.account_id) : undefined;
+    return {
+      accountId: r.account_id,
+      status: e ? 'ended' : r.status,
+      label: r.label ?? fallbackLabel,
+      createdAt: new Date(r.created_at * 1000).toISOString(),
+      ...(e?.endedAt ? { endedAt: new Date(e.endedAt).toISOString() } : {}),
+      ...(e?.code ? { endedCode: e.code } : {})
+    };
+  });
+}
+
+/** Connection journal of one of the principal's accounts (closed vocabulary, no content); empty if the vault cannot be asked. */
+export async function accountEvents(env: Env, principalId: string, accountId: string): Promise<AccountEventView[]> {
+  await getAccount(env, principalId, accountId); // NOT_FOUND unless it belongs to this principal
+  try {
+    return await env.VAULT.accountEvents(principalId, accountId);
+  } catch {
+    console.warn('vault_account_events_failed');
+    return [];
+  }
 }
 
 export function cleanLabel(raw: unknown): string | null {

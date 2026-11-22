@@ -176,6 +176,7 @@ Orientações para colaboradores: [CONTRIBUTING.md](CONTRIBUTING.md). Use dados 
 | [docs/06_ADMIN_OIDC.md](docs/06_ADMIN_OIDC.md) | Login de administradores e matriz de papéis |
 | [docs/07_SOURCES.md](docs/07_SOURCES.md) | Fontes oficiais verificadas |
 | [docs/08_DESIGN_NOTES.md](docs/08_DESIGN_NOTES.md) | Decisões de projeto e contradições resolvidas |
+| [docs/09_SUPPORT_REPORTS.md](docs/09_SUPPORT_REPORTS.md) | Página de ajuda, get_help e relatos de problemas: como chegam ao operador |
 | [docs/DEPLOY_RUNBOOK.md](docs/DEPLOY_RUNBOOK.md) | Guia de implantação |
 | [docs/PUBLICATION_POLICY.md](docs/PUBLICATION_POLICY.md) | O que é publicado e onde: código no GitHub, documentos jurídicos no site, material de marketing nunca |
 

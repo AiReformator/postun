@@ -66,6 +66,11 @@ const passThrough: jsonSchemaValidator = {
 };
 
 const ANNOTATIONS = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true } as const;
+/** get_help only returns Postun's own static text: read-only and closed-world (it never reaches Telegram or the web). */
+const HELP_ANNOTATIONS = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false } as const;
+/** report_problem stores one report with the operator, never anything in Telegram: it writes, but destroys nothing. */
+const REPORT_ANNOTATIONS = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false } as const;
+const annotationsFor = (tool: ToolName) => (tool === 'get_help' ? HELP_ANNOTATIONS : tool === 'report_problem' ? REPORT_ANNOTATIONS : ANNOTATIONS);
 
 /**
  * Each tool also carries:
@@ -81,7 +86,7 @@ const TOOL_DEFS = TOOLS.map((tool) => ({
     description: TOOL_DESCRIPTION[tool],
     inputSchema: fromJsonSchema(TOOL_INPUT[tool]['~standard'].jsonSchema.input({ target: 'draft-2020-12' }) as JsonSchemaType, passThrough),
     outputSchema: fromJsonSchema(TOOL_OUTPUT[tool]['~standard'].jsonSchema.output({ target: 'draft-2020-12' }) as JsonSchemaType, passThrough),
-    annotations: ANNOTATIONS,
+    annotations: annotationsFor(tool),
     // get_media also names the card that renders its result in MCP Apps / ChatGPT (widget.ts).
     _meta: { securitySchemes: [{ type: 'oauth2', scopes: [TOOL_SCOPE[tool]] }], ...(tool === 'get_media' ? MEDIA_TOOL_UI_META : {}) }
   }
@@ -148,7 +153,7 @@ export const SERVER_INFO = {
  * One MCP server per request. The SDK binds a server instance to a single transport (a per-request transport in
  * stateless mode) and its factory contract is one instance per request, so an instance is not shared between concurrent
  * requests; instead everything expensive (schemas, JSON Schema, descriptions) is cached above and registration is cheap.
- * All 8 tools are read-only; none writes to Telegram.
+ * No tool writes to Telegram: seven read it, get_help answers from static text and report_problem stores one support report.
  */
 export function createMcpServer(env: Env, props: GrantProps): McpServer {
   const server = new McpServer(SERVER_INFO, { instructions: SERVER_INSTRUCTIONS });

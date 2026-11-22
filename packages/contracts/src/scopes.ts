@@ -1,4 +1,7 @@
-/** OAuth scopes granted to AI clients. Read-only by construction: no write scope exists. */
+/**
+ * OAuth scopes granted to AI clients. Read-only by construction: no scope can write to Telegram. The two support tools
+ * (get_help, report_problem) need no Telegram access, so they use accounts:read and work for every existing grant.
+ */
 export const SCOPES = ['accounts:read', 'dialogs:read', 'messages:read', 'channels:read', 'media:read'] as const;
 export type Scope = (typeof SCOPES)[number];
 
@@ -10,7 +13,9 @@ export const TOOLS = [
   'search_channels',
   'get_channel_posts',
   'get_media_info',
-  'get_media'
+  'get_media',
+  'get_help',
+  'report_problem'
 ] as const;
 export type ToolName = (typeof TOOLS)[number];
 
@@ -23,7 +28,9 @@ export const TOOL_SCOPE: Readonly<Record<ToolName, Scope>> = {
   search_channels: 'channels:read',
   get_channel_posts: 'channels:read',
   get_media_info: 'media:read',
-  get_media: 'media:read'
+  get_media: 'media:read',
+  get_help: 'accounts:read',
+  report_problem: 'accounts:read'
 };
 
 export function isScope(value: string): value is Scope {

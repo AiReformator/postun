@@ -8,7 +8,8 @@ export const SCHEMA: readonly string[] = [
      envelope TEXT,
      created_at INTEGER NOT NULL,
      status_at INTEGER NOT NULL,
-     ended_at INTEGER
+     ended_at INTEGER,
+     ended_code TEXT
    )`,
   `CREATE TABLE IF NOT EXISTS grants(
      grant_id TEXT PRIMARY KEY,
@@ -53,5 +54,17 @@ export const SCHEMA: readonly string[] = [
      state TEXT NOT NULL,
      cooldown_until INTEGER NOT NULL DEFAULT 0,
      updated_at INTEGER NOT NULL
-   )`
+   )`,
+  // Connection journal (docs/03 section 4): technical events about one account's Telegram session, from a closed
+  // vocabulary (see SESSION_EVENT_KINDS / SESSION_ERROR_CODES). No message text, peers, queries, file names or Telegram
+  // free text. Capped per account and aged out by the alarm; deleted with the account and with the profile.
+  `CREATE TABLE IF NOT EXISTS account_events(
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     account_id TEXT NOT NULL,
+     at INTEGER NOT NULL,
+     event TEXT NOT NULL,
+     code TEXT,
+     source TEXT
+   )`,
+  'CREATE INDEX IF NOT EXISTS account_events_by_account ON account_events(account_id, id)'
 ];

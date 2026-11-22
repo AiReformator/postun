@@ -64,6 +64,8 @@ export interface TelegramSession {
   getChannelPosts(q: { peerId: string; limit: number; offset: string | null }): Promise<Page<MessageDto>>;
   getMediaInfo(peerId: string, messageId: number): Promise<MediaInfoDto | null>;
   openMediaStream(peerId: string, messageId: number, range: { start: number; end: number }): Promise<MediaStream>;
+  /** Cheapest authenticated request ("who am I"): proves the session is still valid without reading any chat content. */
+  ping(): Promise<void>;
   /** Closes the connection. Returns a new session string only when auth key / DC changed. */
   close(): Promise<string | null>;
 }

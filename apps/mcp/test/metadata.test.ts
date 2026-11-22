@@ -63,14 +63,16 @@ describe('ChatGPT plugin metadata', () => {
       search_channels: { account_id: acc, query: 'news' },
       get_channel_posts: { account_id: acc, channel, limit: 3 },
       get_media_info: { account_id: acc, peer: 'c:1000:7', message_id: 10 },
-      get_media: { account_id: acc, peer: 'c:1000:7', message_id: 10 }
+      get_media: { account_id: acc, peer: 'c:1000:7', message_id: 10 },
+      get_help: { topic: 'session-ended' },
+      report_problem: { category: 'other', summary: 'A synthetic problem for the output schema check.', user_confirmed: true }
     };
     for (const tool of TOOLS) {
       const r = await callTool(w.token, tool, calls[tool]);
       expect(r.isError, `${tool}: ${r.raw}`).toBe(false);
       const parsed = TOOL_OUTPUT[tool].safeParse(r.data);
       expect(parsed.success, `${tool}: ${parsed.error?.message}`).toBe(true);
-      if (tool !== 'list_accounts') expect(r.data.limits, tool).toBeDefined();
+      if (!['list_accounts', 'get_help', 'report_problem'].includes(tool)) expect(r.data.limits, tool).toBeDefined();
     }
   });
 });

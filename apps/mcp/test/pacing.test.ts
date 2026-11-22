@@ -238,7 +238,7 @@ describe('AI contract', () => {
 
   it('every Telegram tool description carries a pacing line', () => {
     for (const [tool, d] of Object.entries(TOOL_DESCRIPTION)) {
-      if (tool === 'list_accounts') continue;
+      if (tool === 'list_accounts' || tool === 'get_help' || tool === 'report_problem') continue; // these never reach Telegram
       expect(d, tool).toMatch(/pacing|spaces these out/i);
     }
   });

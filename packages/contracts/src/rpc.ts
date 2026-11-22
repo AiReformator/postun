@@ -8,7 +8,9 @@
  *   postun-mcp   --(binding ADMIN_SINK, entrypoint ProjectionSink)--> postun-admin
  *   postun-admin --(binding CONTROL, entrypoint AdminControl)--> postun-auth  (suspend/resume only)
  */
-import type { AdminProjection, GrantProps, UsageView } from './dto';
+import type { AccountEventView, AdminProjection, GrantProps, UsageView } from './dto';
+import type { ProblemReport, ProblemReportReceipt } from './help';
+import type { SessionErrorCode } from './errors';
 import type { Scope } from './scopes';
 
 // ---------- postun-mcp: VaultControl (called by postun-auth only) ----------
@@ -48,6 +50,10 @@ export interface VaultControlRpc {
   getUsage(principalId: string): Promise<UsageView>;
   /** Accounts whose Telegram session ended (status 'ended' in the vault); the dashboard offers to reconnect them. */
   endedAccounts(principalId: string): Promise<string[]>;
+  /** Same accounts with when and why Telegram ended the session (code null: ended before reasons were recorded). */
+  endedDetails(principalId: string): Promise<{ accountId: string; endedAt: number; code: SessionErrorCode | null }[]>;
+  /** Newest-first connection journal of one account (closed vocabulary, no content). Empty for an unknown account. */
+  accountEvents(principalId: string, accountId: string, limit?: number): Promise<AccountEventView[]>;
   /**
    * Starts a new QR login for an account whose session ended. It keeps the account id and every grant: on success the
    * new session replaces the old one only if it belongs to the same Telegram user, otherwise it fails with NOT_ALLOWED.
@@ -89,4 +95,6 @@ export interface AdminControlRpc {
 export interface ProjectionSinkRpc {
   /** Idempotent upsert of absolute values guarded by revision. */
   upsert(p: AdminProjection): Promise<{ applied: boolean }>;
+  /** Stores one problem report sent by an AI client with the user's confirmation. Rejects when the backlog is full. */
+  submitReport(r: ProblemReport): Promise<ProblemReportReceipt>;
 }

@@ -244,6 +244,10 @@ class SyntheticSession implements TelegramSession {
     };
   }
 
+  async ping(): Promise<void> {
+    await this.tick();
+  }
+
   async close(): Promise<string | null> {
     return null;
   }
