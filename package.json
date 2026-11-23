@@ -23,14 +23,14 @@
     "ci": "npm run lint && npm run typecheck && npm run test && npm run test:scripts && npm run build && npm run check:secrets && npm run check:logging && npm run check:docs"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "5.20261109.1",
+    "@cloudflare/workers-types": "5.20261116.1",
     "@eslint/js": "10.0.1",
-    "eslint": "10.14.0",
+    "eslint": "10.15.0",
     "typescript": "6.0.3",
     "typescript-eslint": "8.72.2",
-    "vitest": "5.1.0",
-    "wrangler": "4.158.0",
-    "@cloudflare/vitest-plugin": "1.6.0",
+    "vitest": "5.1.1",
+    "wrangler": "4.162.0",
+    "@cloudflare/vitest-plugin": "1.8.2",
     "@types/node": "26.6.6"
   },
   "overrides": {
