@@ -58,6 +58,7 @@ export const TOOL_OUTPUT = {
   }),
   list_dialogs: z.looseObject({
     notice,
+    archived: z.boolean().optional().describe('Which list this is: false the main chat list, true the archive'),
     dialogs: z.array(
       z.looseObject({
         peerId: z.string().describe('Peer reference for get_history, search_messages and get_media_info'),

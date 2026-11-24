@@ -300,8 +300,16 @@ export default {
         cause: "Die Chatliste ist seitenweise und zeigt nur die Chats des verbundenen Kontos. Postun ist nur lesend: Es kann keinen Chat beginnen und in einem Bot nicht auf Start tippen.",
         s1: "Lassen Sie die KI mit <code>nextCursor</code> bis zum Ende weiterblättern (bis zu 100 Chats pro Seite), statt auf der ersten Seite aufzuhören.",
         s2: "Prüfen Sie, ob der Chat oder Bot in demselben Telegram-Konto existiert, das mit Postun verbunden ist (Kontobezeichnung vergleichen). Ein Bot, der von einem anderen Konto gestartet wurde, erscheint nicht.",
-        s3: "Ein Chat ohne Nachrichten oder ein archivierter Chat wird möglicherweise nicht angezeigt: Öffnen Sie ihn in Telegram (tippen Sie beim Bot selbst auf Start) und bitten Sie die KI, die Chats erneut aufzulisten.",
+        s3: "Ein Chat ohne Nachrichten wird möglicherweise nicht angezeigt: Öffnen Sie ihn in Telegram (tippen Sie beim Bot selbst auf Start) und bitten Sie die KI, die Chats erneut aufzulisten. Chats im Telegram-Archiv werden getrennt aufgelistet: siehe „Archivierte Chats fehlen in der Liste“.",
         s4: "Um etwas in einem bekannten Chat zu finden, lassen Sie die KI in diesem Chat suchen; die Suche über alle Chats ist langsamer und begrenzt."
+      },
+      "archived-chats": {
+        title: "Archivierte Chats fehlen in der Liste",
+        when: "Ein Chat oder Bot ist nach dem Archivieren in Telegram aus der Liste verschwunden; die KI sieht einige Chats weniger als Telegram; ein archivierter Bot wird nur über die Suche gefunden.",
+        cause: "Telegram führt das Archiv in einem eigenen Ordner, den die normale Chatliste nicht enthält. Postun zeigt standardmäßig die Hauptliste und liefert das Archiv auf Anfrage mit dem Parameter archived=true. Verlauf und Suche funktionieren in archivierten Chats, sobald die Chat-ID bekannt ist.",
+        s1: "Bitten Sie die KI, <code>list_dialogs</code> mit <code>archived=true</code> aufzurufen und wie bei der normalen Liste mit <code>nextCursor</code> weiterzublättern: Sie liefert nur die archivierten Chats.",
+        s2: "Mit der ID aus dieser Liste liest die KI den Verlauf und durchsucht Nachrichten wie in jedem anderen Chat.",
+        s3: "Postun ist nur lesend und ändert das Archiv nicht. Möchten Sie den Chat in der Hauptliste sehen, holen Sie ihn in Telegram aus dem Archiv.",
       },
       "why-ended": {
         title: "Warum wurde die Telegram-Sitzung beendet?",

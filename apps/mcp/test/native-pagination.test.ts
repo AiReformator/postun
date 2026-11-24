@@ -35,7 +35,8 @@ describe('list_dialogs pagination (mtcute adapter)', () => {
     const { s, calls } = session(1000);
     const page = await s.listDialogs(100, null);
     expect(page.items).toHaveLength(100);
-    expect(calls).toEqual([{ pinned: 'only' }, { limit: 100, chunkSize: 100, pinned: 'exclude' }]);
+    // The main list is requested explicitly without the archive folder (folder 0).
+    expect(calls).toEqual([{ pinned: 'only', archived: 'exclude' }, { limit: 100, chunkSize: 100, pinned: 'exclude', archived: 'exclude' }]);
     expect(page.next).toBe(encodeDialogOffset({ date: 2_000_000_000 - 100, id: 1100, peer: 'c:100:7' }));
   });
 
@@ -61,6 +62,12 @@ describe('list_dialogs pagination (mtcute adapter)', () => {
     const second = await s.listDialogs(100, (await s.listDialogs(100, null)).next);
     expect(second.items).toHaveLength(30);
     expect(second.next).toBeNull();
+  });
+
+  it('reads the archive folder (archived: only) for both the pinned block and the pages, and never mixes it with the main list', async () => {
+    const { s, calls } = session(5);
+    await s.listDialogs(100, null, true);
+    expect(calls).toEqual([{ pinned: 'only', archived: 'only' }, { limit: 100, chunkSize: 100, pinned: 'exclude', archived: 'only' }]);
   });
 
   it('returns the whole pinned block on the first page and never anchors on a pinned dialog', async () => {

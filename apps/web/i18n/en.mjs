@@ -300,8 +300,16 @@ export default {
         cause: "The chat list is paged and shows only the chats of the connected account. Postun is read-only: it cannot start a chat or press Start in a bot.",
         s1: "Have the AI keep paging with <code>nextCursor</code> until the end (up to 100 chats per page) instead of stopping at the first page.",
         s2: "Check that the chat or bot exists in the same Telegram account that is connected to Postun (compare the account label). A bot started from another account will not appear.",
-        s3: "A chat with no messages yet, or an archived chat, may not be shown: open it in Telegram (press Start in the bot yourself), then ask the AI to list the chats again.",
+        s3: "A chat with no messages yet may not be shown: open it in Telegram (press Start in the bot yourself), then ask the AI to list the chats again. Chats in the Telegram archive are listed separately: see \"Archived chats are not in the list\".",
         s4: "To find something in a known chat, have the AI search inside that chat; searching all chats is slower and limited."
+      },
+      "archived-chats": {
+        title: "Archived chats are not in the list",
+        when: "A chat or bot vanished from the list after it was archived in Telegram; the AI sees a few chats fewer than Telegram shows; an archived bot is found only by search.",
+        cause: "Telegram keeps the archive in a separate folder and the normal chat list does not include it. By default Postun shows the main list and returns the archive on request with the parameter archived=true. History and search work for archived chats once the chat id is known.",
+        s1: "Ask the AI to call <code>list_dialogs</code> with <code>archived=true</code> and to page through <code>nextCursor</code> the same way: it returns only the archived chats.",
+        s2: "With the id from that list the AI reads the history and searches messages as in any other chat.",
+        s3: "Postun is read-only and does not change the archive. If you want the chat in the main list, move it out of the archive in Telegram.",
       },
       "why-ended": {
         title: "Why did the Telegram session end?",

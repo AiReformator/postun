@@ -300,8 +300,16 @@ export default {
         cause: "A lista de chats é paginada e mostra só os chats da conta conectada. O Postun é somente leitura: não pode iniciar um chat nem tocar em Iniciar em um bot.",
         s1: "Faça a IA continuar paginando com <code>nextCursor</code> até o fim (até 100 chats por página) em vez de parar na primeira página.",
         s2: "Verifique se o chat ou bot existe na mesma conta do Telegram conectada ao Postun (compare o rótulo da conta). Um bot iniciado de outra conta não aparece.",
-        s3: "Um chat ainda sem mensagens, ou arquivado, pode não aparecer: abra-o no Telegram (toque em Iniciar no bot você mesmo) e peça à IA para listar os chats de novo.",
+        s3: "Um chat ainda sem mensagens pode não aparecer: abra-o no Telegram (toque em Iniciar no bot você mesmo) e peça à IA para listar os chats de novo. Os chats do arquivo do Telegram são listados à parte: veja «Chats arquivados não aparecem na lista».",
         s4: "Para achar algo em um chat conhecido, faça a IA buscar dentro desse chat; buscar em todos os chats é mais lento e limitado."
+      },
+      "archived-chats": {
+        title: "Chats arquivados não aparecem na lista",
+        when: "Um chat ou bot sumiu da lista depois de ser arquivado no Telegram; a IA vê alguns chats a menos que o Telegram; um bot arquivado só é encontrado pela busca.",
+        cause: "O Telegram guarda o arquivo em uma pasta separada e a lista normal de chats não a inclui. Por padrão o Postun mostra a lista principal e devolve o arquivo sob demanda com o parâmetro archived=true. O histórico e a busca funcionam em chats arquivados quando o id do chat é conhecido.",
+        s1: "Peça à IA para chamar <code>list_dialogs</code> com <code>archived=true</code> e paginar com <code>nextCursor</code> como na lista normal: ela devolve só os chats arquivados.",
+        s2: "Com o id dessa lista a IA lê o histórico e busca mensagens como em qualquer outro chat.",
+        s3: "O Postun é somente leitura e não altera o arquivo. Se quiser ver o chat na lista principal, tire-o do arquivo no Telegram.",
       },
       "why-ended": {
         title: "Por que a sessão do Telegram foi encerrada?",
