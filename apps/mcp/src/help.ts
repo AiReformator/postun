@@ -79,7 +79,7 @@ export const HELP: Readonly<Record<HelpTopicId, HelpTopic>> = {
       'Continue with nextCursor until it is null (limit up to 100 per page); do not stop at the first page.',
       'Check that the chat or bot exists in the same Telegram account that is connected to Postun (compare the account label). A bot started from another account does not appear.',
       'A chat with no messages yet may be missing: ask the user to open it in Telegram (send /start to a bot themselves), then list again. Archived chats are listed separately: see "archived-chats".',
-      'To find something in a known chat use search_messages with its peer; global search is slower and limited.'
+      'To find a person or chat by name, look under both the Cyrillic and the Latin spelling (for example "Зотов" and "Zotov"): Telegram keeps the title as it was written. To find something inside a known chat use search_messages with its peer; global search is slower and limited.'
     ]
   },
   'archived-chats': {

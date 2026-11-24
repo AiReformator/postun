@@ -301,7 +301,7 @@ export default {
         s1: "Haz que la IA siga paginando con <code>nextCursor</code> hasta el final (hasta 100 chats por página) en lugar de parar en la primera página.",
         s2: "Comprueba que el chat o bot existe en la misma cuenta de Telegram que está conectada a Postun (compara la etiqueta de la cuenta). Un bot iniciado desde otra cuenta no aparecerá.",
         s3: "Un chat sin mensajes todavía puede no mostrarse: ábrelo en Telegram (pulsa Iniciar en el bot tú mismo) y pide a la IA que vuelva a listar los chats. Los chats del archivo de Telegram se listan aparte: ver «Los chats archivados no aparecen en la lista».",
-        s4: "Para buscar algo en un chat conocido, haz que la IA busque dentro de ese chat; buscar en todos los chats es más lento y limitado."
+        s4: "Para encontrar a una persona o un chat por el nombre, prueba tanto la escritura cirílica como la latina (por ejemplo «Зотов» y «Zotov»): Telegram guarda el título tal como se escribió. Para buscar algo en un chat conocido, haz que la IA busque dentro de ese chat; buscar en todos los chats es más lento y limitado.",
       },
       "archived-chats": {
         title: "Los chats archivados no aparecen en la lista",

@@ -301,7 +301,7 @@ export default {
         s1: "Lassen Sie die KI mit <code>nextCursor</code> bis zum Ende weiterblättern (bis zu 100 Chats pro Seite), statt auf der ersten Seite aufzuhören.",
         s2: "Prüfen Sie, ob der Chat oder Bot in demselben Telegram-Konto existiert, das mit Postun verbunden ist (Kontobezeichnung vergleichen). Ein Bot, der von einem anderen Konto gestartet wurde, erscheint nicht.",
         s3: "Ein Chat ohne Nachrichten wird möglicherweise nicht angezeigt: Öffnen Sie ihn in Telegram (tippen Sie beim Bot selbst auf Start) und bitten Sie die KI, die Chats erneut aufzulisten. Chats im Telegram-Archiv werden getrennt aufgelistet: siehe „Archivierte Chats fehlen in der Liste“.",
-        s4: "Um etwas in einem bekannten Chat zu finden, lassen Sie die KI in diesem Chat suchen; die Suche über alle Chats ist langsamer und begrenzt."
+        s4: "Um eine Person oder einen Chat nach dem Namen zu finden, probieren Sie sowohl die kyrillische als auch die lateinische Schreibweise (zum Beispiel „Зотов“ und „Zotov“): Telegram speichert den Titel so, wie er geschrieben wurde. Um etwas in einem bekannten Chat zu finden, lassen Sie die KI in diesem Chat suchen; die Suche über alle Chats ist langsamer und begrenzt.",
       },
       "archived-chats": {
         title: "Archivierte Chats fehlen in der Liste",
