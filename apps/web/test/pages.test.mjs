@@ -467,5 +467,15 @@ describe('help page', () => {
     expect(html).not.toMatch(/<script(?![^>]*\b(?:src|type)=)/);
     expect(html).not.toContain('onclick=');
   });
+
+  it('the missing-chat topic tells to try the Cyrillic and the Latin spelling of a name, in every locale', () => {
+    const marks = { en: 'Latin', ru: 'латиниц', es: 'latina', pt: 'latina', de: 'lateinische' };
+    for (const l of LOCALES) {
+      const html = helpPage(status, l.code);
+      const section = html.split('<section id="missing-dialogs"')[1].split('</section>')[0];
+      expect(section, l.code).toContain(marks[l.code]);
+      expect(section, l.code).toContain('Zotov');
+    }
+  });
 });
 

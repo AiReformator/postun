@@ -301,7 +301,7 @@ export default {
         s1: "Have the AI keep paging with <code>nextCursor</code> until the end (up to 100 chats per page) instead of stopping at the first page.",
         s2: "Check that the chat or bot exists in the same Telegram account that is connected to Postun (compare the account label). A bot started from another account will not appear.",
         s3: "A chat with no messages yet may not be shown: open it in Telegram (press Start in the bot yourself), then ask the AI to list the chats again. Chats in the Telegram archive are listed separately: see \"Archived chats are not in the list\".",
-        s4: "To find something in a known chat, have the AI search inside that chat; searching all chats is slower and limited."
+        s4: "To find a person or chat by name, try both the Cyrillic and the Latin spelling (for example \"Зотов\" and \"Zotov\"): Telegram keeps the title as it was written. To find something in a known chat, have the AI search inside that chat; searching all chats is slower and limited.",
       },
       "archived-chats": {
         title: "Archived chats are not in the list",

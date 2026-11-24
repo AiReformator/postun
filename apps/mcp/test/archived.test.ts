@@ -66,4 +66,8 @@ describe('list_dialogs archived', () => {
     expect(HELP['archived-chats'].steps.join(' ')).toContain('archived=true');
     expect(HELP['missing-dialogs'].steps.join(' ')).toContain('archived-chats');
   });
+
+  it('tells the AI to look for a person under both the Cyrillic and the Latin spelling (found a real miss: "Zotov" vs "Зотов")', () => {
+    expect(HELP['missing-dialogs'].steps.join(' ')).toMatch(/Cyrillic and the Latin spelling/);
+  });
 });
