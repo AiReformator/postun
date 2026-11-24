@@ -157,7 +157,9 @@ function boundedNumber(v: string | null): number | null {
 export class MtcuteSession implements TelegramSession {
   constructor(private readonly tg: TelegramClient, private readonly initial: string) {}
 
-  async listDialogs(limit: number, offset: string | null): Promise<Page<DialogDto>> {
+  async listDialogs(limit: number, offset: string | null, archived = false): Promise<Page<DialogDto>> {
+    // Telegram keeps archived chats in a separate folder (folder 1); mtcute's default 'exclude' reads only folder 0.
+    const folder = archived ? ('only' as const) : ('exclude' as const);
     const o = parseDialogOffset(offset);
     const items: DialogDto[] = [];
     const push = (d: Dialog) => {
@@ -175,13 +177,14 @@ export class MtcuteSession implements TelegramSession {
     // Pinned dialogs come ahead of date order and only with an empty offset, so a date anchor taken from a pinned
     // dialog would skip chats. The first page therefore returns the whole pinned block (one extra RPC, first page only),
     // and every page of the date-ordered list excludes pinned dialogs.
-    if (!o) for await (const d of this.tg.iterDialogs({ pinned: 'only' })) push(d);
+    if (!o) for await (const d of this.tg.iterDialogs({ pinned: 'only', archived: folder })) push(d);
     // One messages.getDialogs RPC per page (chunkSize = limit), anchored at Telegram's own offset: no re-iteration.
     const page: Dialog[] = [];
     for await (const d of this.tg.iterDialogs({
       limit,
       chunkSize: limit,
       pinned: 'exclude',
+      archived: folder,
       // mtcute treats a numeric offsetDate as milliseconds (normalizeDate divides by 1000); pass a Date so the
       // Telegram offset is the dialog's real unix time, not a 1970 date that returns an empty page.
       ...(o ? { offsetDate: new Date(o.date * 1000), offsetId: o.id, offsetPeer: decodePeer(o.peer) } : {})

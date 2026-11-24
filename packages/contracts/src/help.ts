@@ -19,6 +19,7 @@ export const HELP_TOPIC_IDS = [
   'qr-not-scanning',
   'other-account',
   'missing-dialogs',
+  'archived-chats',
   'why-ended',
   'paused',
   'quota',

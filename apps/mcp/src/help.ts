@@ -78,8 +78,22 @@ export const HELP: Readonly<Record<HelpTopicId, HelpTopic>> = {
     steps: [
       'Continue with nextCursor until it is null (limit up to 100 per page); do not stop at the first page.',
       'Check that the chat or bot exists in the same Telegram account that is connected to Postun (compare the account label). A bot started from another account does not appear.',
-      'A chat that was never started, or that is archived in Telegram, may be missing: ask the user to open it in Telegram (send /start to a bot themselves), then list again.',
+      'A chat with no messages yet may be missing: ask the user to open it in Telegram (send /start to a bot themselves), then list again. Archived chats are listed separately: see "archived-chats".',
       'To find something in a known chat use search_messages with its peer; global search is slower and limited.'
+    ]
+  },
+  'archived-chats': {
+    title: 'Archived chats are not in the list',
+    when: [
+      'A chat or bot vanished from list_dialogs after the user archived it in Telegram',
+      'The AI sees a few chats fewer than Telegram shows, or an archived bot is found only by search'
+    ],
+    cause:
+      'Telegram keeps the archive in a separate folder that the normal chat list does not include. By default list_dialogs returns the main list; with archived=true it returns the archive. History and search work for archived chats once the chat id (peer) is known.',
+    steps: [
+      'Call list_dialogs with archived=true and page through nextCursor exactly like the main list: it returns only the archived chats. Archive cursors are separate and cannot be mixed with main-list cursors.',
+      'Use the peer from that list with get_history and search_messages as for any chat.',
+      'Postun is read-only and does not change the archive. If the user wants the chat in the main list, they move it out of the archive in Telegram.'
     ]
   },
   'why-ended': {

@@ -57,7 +57,8 @@ export interface MediaStream {
 
 /** One authorised Telegram session, open for the duration of a single operation. */
 export interface TelegramSession {
-  listDialogs(limit: number, offset: string | null): Promise<Page<DialogDto>>;
+  /** `archived`: false lists the main chat list, true only the chats in Telegram's archive folder (a separate list with its own paging). */
+  listDialogs(limit: number, offset: string | null, archived?: boolean): Promise<Page<DialogDto>>;
   getHistory(q: { peerId: string; limit: number; offset: string | null; fromDate: number | null; toDate: number | null }): Promise<Page<MessageDto>>;
   searchMessages(q: { peerId: string | null; query: string; limit: number; offset: string | null }): Promise<Page<MessageDto>>;
   searchChannels(q: { query: string; limit: number }): Promise<ChannelDto[]>;

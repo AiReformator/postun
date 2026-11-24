@@ -13,6 +13,9 @@ const HISTORY_SIZE = 250;
 import { encodeDialogOffset, parseDialogOffset } from './cursors';
 
 const DIALOG_COUNT = 120;
+/** Synthetic archive: a few chats, numbered from a base that cannot collide with the main list. */
+const ARCHIVED_COUNT = 3;
+const ARCHIVED_BASE = 500;
 
 /** Test hooks. Shared by the test and the DO because both run in the same isolate. */
 export const syntheticControl = {
@@ -143,21 +146,24 @@ class SyntheticSession implements TelegramSession {
     return { items, next: exhausted || !last ? null : String(last.id) };
   }
 
-  async listDialogs(limit: number, offset: string | null): Promise<Page<DialogDto>> {
+  async listDialogs(limit: number, offset: string | null, archived = false): Promise<Page<DialogDto>> {
     await this.tick();
+    // The archive is a separate, small list with its own peers, so a main-list cursor can never point into it.
+    const base = archived ? ARCHIVED_BASE : 0;
+    const count = archived ? ARCHIVED_COUNT : DIALOG_COUNT;
     // Native-style continuation: the last dialog's (date, id, peer), parsed strictly like the real adapter does.
     const o = parseDialogOffset(offset);
     let start = 0;
     if (o) {
-      for (let i = 0; i < DIALOG_COUNT; i++) if (this.peer(i) === o.peer) start = i + 1;
+      for (let i = 0; i < count; i++) if (this.peer(base + i) === o.peer) start = i + 1;
     }
     const items: DialogDto[] = [];
-    for (let i = start; i < Math.min(DIALOG_COUNT, start + limit); i++) {
+    for (let i = start; i < Math.min(count, start + limit); i++) {
       items.push({
-        peerId: this.peer(i),
-        kind: kindOf(i),
-        title: `Synthetic Dialog ${i}`,
-        username: i % 4 === 0 ? `synth_dialog_${i}` : null,
+        peerId: this.peer(base + i),
+        kind: kindOf(base + i),
+        title: archived ? `Synthetic Archived Dialog ${i}` : `Synthetic Dialog ${i}`,
+        username: i % 4 === 0 ? (archived ? `synth_archived_${i}` : `synth_dialog_${i}`) : null,
         unread: i % 5,
         lastMessageDate: new Date((BASE_DATE - i * 3600) * 1000).toISOString()
       });
@@ -166,7 +172,7 @@ class SyntheticSession implements TelegramSession {
     const lastIdx = end - 1;
     return {
       items,
-      next: items.length === limit && end < DIALOG_COUNT ? encodeDialogOffset({ date: BASE_DATE - lastIdx * 3600, id: lastIdx + 1, peer: this.peer(lastIdx) }) : null
+      next: items.length === limit && end < count ? encodeDialogOffset({ date: BASE_DATE - lastIdx * 3600, id: lastIdx + 1, peer: this.peer(base + lastIdx) }) : null
     };
   }
 

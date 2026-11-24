@@ -300,8 +300,16 @@ export default {
         cause: "La lista de chats está paginada y muestra solo los chats de la cuenta conectada. Postun es de solo lectura: no puede iniciar un chat ni pulsar Iniciar en un bot.",
         s1: "Haz que la IA siga paginando con <code>nextCursor</code> hasta el final (hasta 100 chats por página) en lugar de parar en la primera página.",
         s2: "Comprueba que el chat o bot existe en la misma cuenta de Telegram que está conectada a Postun (compara la etiqueta de la cuenta). Un bot iniciado desde otra cuenta no aparecerá.",
-        s3: "Un chat sin mensajes todavía, o archivado, puede no mostrarse: ábrelo en Telegram (pulsa Iniciar en el bot tú mismo) y pide a la IA que vuelva a listar los chats.",
+        s3: "Un chat sin mensajes todavía puede no mostrarse: ábrelo en Telegram (pulsa Iniciar en el bot tú mismo) y pide a la IA que vuelva a listar los chats. Los chats del archivo de Telegram se listan aparte: ver «Los chats archivados no aparecen en la lista».",
         s4: "Para buscar algo en un chat conocido, haz que la IA busque dentro de ese chat; buscar en todos los chats es más lento y limitado."
+      },
+      "archived-chats": {
+        title: "Los chats archivados no aparecen en la lista",
+        when: "Un chat o bot desapareció de la lista tras archivarlo en Telegram; la IA ve algunos chats menos que Telegram; un bot archivado solo se encuentra con la búsqueda.",
+        cause: "Telegram guarda el archivo en una carpeta aparte y la lista normal de chats no la incluye. Por defecto Postun muestra la lista principal y devuelve el archivo a petición con el parámetro archived=true. El historial y la búsqueda funcionan en chats archivados cuando se conoce el id del chat.",
+        s1: "Pide a la IA que llame a <code>list_dialogs</code> con <code>archived=true</code> y que pagine con <code>nextCursor</code> igual que la lista normal: devuelve solo los chats archivados.",
+        s2: "Con el id de esa lista la IA lee el historial y busca mensajes como en cualquier otro chat.",
+        s3: "Postun es de solo lectura y no cambia el archivo. Si quieres ver el chat en la lista principal, sácalo del archivo en Telegram.",
       },
       "why-ended": {
         title: "¿Por qué finalizó la sesión de Telegram?",

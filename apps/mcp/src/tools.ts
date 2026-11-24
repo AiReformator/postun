@@ -52,7 +52,7 @@ export async function preflightCursor(env: Pick<ToolEnv, 'principalId' | 'accoun
   let strict: ((raw: string) => unknown) | null = null;
   if (tool === 'list_dialogs') {
     const a = parseToolArgs('list_dialogs', rawArgs);
-    [cursor, scope, strict] = [a.cursor, '*', parseDialogOffset];
+    [cursor, scope, strict] = [a.cursor, a.archived ? 'archived' : '*', parseDialogOffset];
   } else if (tool === 'get_history') {
     const a = parseToolArgs('get_history', rawArgs);
     [cursor, scope] = [a.cursor, a.peer];
@@ -95,8 +95,9 @@ export async function runTool(env: ToolEnv, tool: Exclude<ToolName, NonTelegramT
   switch (tool) {
     case 'list_dialogs': {
       const a = parseToolArgs('list_dialogs', rawArgs);
-      const r = await paged(env, tool, '*', a.cursor, (o) => s.listDialogs(a.limit, o));
-      return { notice: UNTRUSTED_NOTICE, dialogs: r.items as unknown as JsonValue, nextCursor: r.nextCursor };
+      // The archive is its own list: its cursors are bound to scope 'archived', so a main-list cursor is refused there.
+      const r = await paged(env, tool, a.archived ? 'archived' : '*', a.cursor, (o) => s.listDialogs(a.limit, o, a.archived));
+      return { notice: UNTRUSTED_NOTICE, archived: a.archived, dialogs: r.items as unknown as JsonValue, nextCursor: r.nextCursor };
     }
     case 'get_history': {
       const a = parseToolArgs('get_history', rawArgs);

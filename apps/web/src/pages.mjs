@@ -553,6 +553,7 @@ export const HELP_TOPICS = [
   { id: 'qr-not-scanning', steps: 5 },
   { id: 'other-account', steps: 3 },
   { id: 'missing-dialogs', steps: 4 },
+  { id: 'archived-chats', steps: 3 },
   { id: 'why-ended', steps: 5 },
   { id: 'paused', steps: 3 },
   { id: 'quota', steps: 3 },

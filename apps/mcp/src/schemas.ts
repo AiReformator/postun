@@ -10,7 +10,13 @@ const isoDate = z.iso.datetime({ offset: true });
 
 export const TOOL_INPUT = {
   list_accounts: z.object({ operation_id: operationId }),
-  list_dialogs: z.object({ account_id: accountId, limit: limit(50, 100), cursor, operation_id: operationId }),
+  list_dialogs: z.object({
+    account_id: accountId,
+    limit: limit(50, 100),
+    archived: z.boolean().default(false).describe('false (default): the main chat list. true: only the chats the user has archived in Telegram, a separate list with its own nextCursor'),
+    cursor,
+    operation_id: operationId
+  }),
   get_history: z.object({
     account_id: accountId, peer, from_date: isoDate.optional(), to_date: isoDate.optional(), limit: limit(50, 100), cursor, operation_id: operationId
   }),
@@ -63,7 +69,7 @@ export const TOOL_TITLE: Record<keyof typeof TOOL_INPUT, string> = {
 export const TOOL_DESCRIPTION: Record<keyof typeof TOOL_INPUT, string> = {
   list_accounts:
     '[Beta] Start here. Lists the Telegram accounts the user allowed this connection to read, with the account_id that every other tool needs; only accounts with status active can be read (others return ACCOUNT_NOT_ACTIVE); status ended means Telegram ended the session of that account, so ask the user to press Reconnect next to it in the Postun dashboard. Read-only; does not contact Telegram and does not count against pacing.',
-  list_dialogs: `[Beta] Lists the chats, groups and channels of one account (account_id from list_accounts), pinned chats first on the first page, then most recently active, with the peer reference that get_history, search_messages and get_media_info take. Use it to find a chat by its title before reading it. Paginated: limit up to 100 (default 50; the pinned chats come on top of it), continue with nextCursor, and stop after a few hundred dialogs. Read-only. ${PACE_PAGED}`,
+  list_dialogs: `[Beta] Lists the chats, groups and channels of one account (account_id from list_accounts), pinned chats first on the first page, then most recently active, with the peer reference that get_history, search_messages and get_media_info take. Use it to find a chat by its title before reading it. Telegram keeps archived chats in a separate folder that the default list does not include: when a chat or bot the user mentions is missing, call it again with archived=true (page it the same way); get_history and search_messages work for archived chats too. Paginated: limit up to 100 (default 50; the pinned chats come on top of it), continue with nextCursor, and stop after a few hundred dialogs. Read-only. ${PACE_PAGED}`,
   get_history: `[Beta] Reads the messages of one chat (peer from list_dialogs), optionally only between from_date and to_date (ISO 8601 with a time zone). Use it to read, quote or summarise a conversation. Up to 100 messages per page; continue with nextCursor. Messages with an attachment carry its metadata in media. Read-only. ${PACE_PAGED}`,
   search_messages: `[Beta] Finds messages that contain a word or phrase in one account. Pass peer to search inside one chat: this is the preferred, cheap form. Without peer it searches all chats of the account: a global lookup that Postun spaces out (about one per second); read only a few pages of it. Up to 100 results per page; continue with nextCursor. Read-only. ${PACE_PAGED}`,
   search_channels: `[Beta] Finds public Telegram channels whose title or username matches the query and returns their peer references for get_channel_posts. Returns up to limit channels (default 20, max 50), no pagination. Read-only. Returns FEATURE_DISABLED if channel tools are off on this server. ${PACE_LOOKUP}`,
