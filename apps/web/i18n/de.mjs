@@ -294,6 +294,15 @@ export default {
         s2: "Tippen Sie erneut auf „Wiederverbinden“ und scannen Sie den neuen QR-Code mit diesem Konto.",
         s3: "Um ein anderes Telegram-Konto zu nutzen, verbinden Sie es separat über „Konto per QR verbinden“: Es wird ein eigenes Konto."
       },
+      "chatgpt-no-tools": {
+        title: "ChatGPT zeigt das Postun-Plugin, aber keine Tools",
+        when: "ChatGPT meldet, dass die Postun-Tools fehlen oder der Connector nicht gefunden wird, obwohl andere Plugins funktionieren; die Plugin-Seite sagt, dass es für diese App keine Tools gibt oder die Tool-Informationen noch nicht verfügbar sind; das Anlegen des Plugins endet mit „Die Anfrage konnte nicht ausgeführt werden“.",
+        cause: "Das passiert in ChatGPT, nicht in Postun: Die Anmeldung hat geklappt, aber ChatGPT hat die Tool-Liste, die Postun liefert, nicht geladen. Beobachtet wurde es mit der Option „dynamische Tools“ bei eigenen Plugins in ChatGPT-Arbeitsbereichen und nach einem fehlgeschlagenen Anlegen des Plugins unter demselben Namen.",
+        s1: "Lege das Plugin in ChatGPT neu an: Server-URL <code>https://mcp.postun.org/mcp</code>, Authentifizierung OAuth, und lass „Dynamische Tools verwenden“ ausgeschaltet. Wenn die Arbeitsbereichseinstellungen dynamische Tools für Plugins einschalten, schalte sie dort aus und warte einige Minuten.",
+        s2: "Wenn das Anlegen fehlschlägt oder ChatGPT meldet, dass das Plugin vielleicht schon existiert, gib dem Plugin einen anderen Namen (zum Beispiel „Postun“ statt des alten) und entferne das alte Plugin ohne Tools.",
+        s3: "Schließe das Anmeldefenster ab: mit Telegram fortfahren, die Konten auswählen und den Zugriff erlauben. Der neue ChatGPT-Zugriff ersetzt den alten im <a href=\"{dashboard}\">Dashboard</a>.",
+        s4: "Öffne einen neuen Chat, schalte das Plugin ein und bitte um die Liste deiner Telegram-Konten. Das Plugin sollte 10 Tools anzeigen."
+      },
       "missing-dialogs": {
         title: "Es werden nur einige Chats angezeigt, oder ein Chat oder Bot fehlt",
         when: "Die KI sieht weniger Chats, als Sie haben; ein Chat oder Bot, den es sicher gibt, wird nicht gefunden.",

@@ -552,6 +552,7 @@ export const HELP_TOPICS = [
   { id: 'no-reconnect-button', steps: 3 },
   { id: 'qr-not-scanning', steps: 5 },
   { id: 'other-account', steps: 3 },
+  { id: 'chatgpt-no-tools', steps: 4 },
   { id: 'missing-dialogs', steps: 4 },
   { id: 'archived-chats', steps: 3 },
   { id: 'why-ended', steps: 5 },

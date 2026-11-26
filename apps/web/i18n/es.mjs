@@ -294,6 +294,15 @@ export default {
         s2: "Pulsa «Reconectar» de nuevo y escanea el nuevo QR con esa cuenta.",
         s3: "Para usar otra cuenta de Telegram, conéctala por separado con «Conectar una cuenta por QR»: será una cuenta distinta."
       },
+      "chatgpt-no-tools": {
+        title: "ChatGPT muestra el plugin de Postun pero sin herramientas",
+        when: "ChatGPT dice que faltan las herramientas de Postun o que no encuentra el conector, aunque otros plugins funcionan; la página del plugin indica que no hay herramientas para esta app o que la información aún no está disponible; crear el plugin termina con «no se pudo completar la solicitud».",
+        cause: "Ocurre en ChatGPT, no en Postun: el inicio de sesión funcionó, pero ChatGPT no cargó la lista de herramientas que Postun ofrece. Se ha visto con la opción «herramientas dinámicas» de los plugins personalizados en espacios de trabajo de ChatGPT y tras un intento fallido de crear el plugin con el mismo nombre.",
+        s1: "Crea de nuevo el plugin en ChatGPT: URL del servidor <code>https://mcp.postun.org/mcp</code>, autenticación OAuth y sin marcar «Usar herramientas dinámicas». Si la configuración del espacio de trabajo activa las herramientas dinámicas para los plugins, desactívalas allí y espera unos minutos.",
+        s2: "Si la creación falla o dice que el plugin quizá ya existe, ponle otro nombre (por ejemplo, «Postun» en lugar del anterior) y elimina el plugin antiguo sin herramientas.",
+        s3: "Completa la ventana de inicio de sesión: continúa con Telegram, elige las cuentas y permite el acceso. El nuevo acceso de ChatGPT sustituye al anterior en el <a href=\"{dashboard}\">panel</a>.",
+        s4: "Abre un chat nuevo, activa el plugin y pide la lista de tus cuentas de Telegram. El plugin debería mostrar 10 herramientas."
+      },
       "missing-dialogs": {
         title: "Solo aparecen algunos chats, o falta un chat o un bot",
         when: "La IA ve menos chats de los que tienes; un chat o bot que seguro existe no se encuentra.",

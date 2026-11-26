@@ -477,5 +477,16 @@ describe('help page', () => {
       expect(section, l.code).toContain('Zotov');
     }
   });
+
+  it('explains a ChatGPT plugin without tools: dynamic tools off, a new name, a new chat (found in a real ChatGPT workspace)', () => {
+    for (const l of LOCALES) {
+      const html = helpPage(status, l.code);
+      const section = html.split('<section id="chatgpt-no-tools"')[1].split('</section>')[0];
+      expect(section, l.code).toContain('https://mcp.postun.org/mcp');
+      expect(section, l.code).toContain('Postun');
+      expect(section.match(/<li>/g), l.code).toHaveLength(4);
+      expect(section, l.code).not.toContain('{dashboard}');
+    }
+  });
 });
 

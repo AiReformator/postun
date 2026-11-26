@@ -18,6 +18,7 @@ export const HELP_TOPIC_IDS = [
   'no-reconnect-button',
   'qr-not-scanning',
   'other-account',
+  'chatgpt-no-tools',
   'missing-dialogs',
   'archived-chats',
   'why-ended',

@@ -70,6 +70,22 @@ export const HELP: Readonly<Record<HelpTopicId, HelpTopic>> = {
       'To use a different Telegram account, connect it separately with "Connect an account via QR".'
     ]
   },
+  'chatgpt-no-tools': {
+    title: 'ChatGPT shows the Postun plugin but no tools',
+    when: [
+      'ChatGPT says the Postun tools are missing or the connector cannot be found, while other plugins work',
+      'The plugin page in ChatGPT says there are no tools for this app, or that tool information is not available yet',
+      'Creating the plugin ends with "the request could not be completed" or says the plugin may already exist'
+    ],
+    cause:
+      'This happens in ChatGPT, not in Postun: the sign-in succeeded, but ChatGPT did not load the tool list that Postun serves. It has been seen with the "dynamic tools" option of custom plugins in ChatGPT workspaces, and after a failed plugin creation under the same name.',
+    steps: [
+      'In ChatGPT create the plugin again: server URL https://mcp.postun.org/mcp, authentication OAuth, and leave "Use dynamic tools" off. If the workspace settings turn dynamic tools on for plugins, turn it off there and wait a few minutes.',
+      'If creation fails or says the plugin may already exist, give the plugin a different name (for example "Postun" instead of the old one) and remove the old plugin that shows no tools.',
+      'Finish the sign-in window: continue with Telegram, choose the accounts and allow access. The new ChatGPT access replaces the old one in the Postun dashboard.',
+      'Open a NEW chat, turn the plugin on and ask for the list of Telegram accounts. The plugin lists 10 tools, from list_accounts to report_problem.'
+    ]
+  },
   'missing-dialogs': {
     title: 'Only some chats are listed, or a chat or bot is missing',
     when: ['list_dialogs returns fewer chats than the user has', 'A chat or a bot the user is sure exists is not in the list'],

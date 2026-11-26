@@ -294,6 +294,15 @@ export default {
         s2: "Toque em «Reconectar» de novo e escaneie o novo QR com essa conta.",
         s3: "Para usar outra conta do Telegram, conecte-a separadamente com «Conectar uma conta por QR»: ela será uma conta distinta."
       },
+      "chatgpt-no-tools": {
+        title: "O ChatGPT mostra o plugin do Postun, mas sem ferramentas",
+        when: "O ChatGPT diz que as ferramentas do Postun não existem ou que o conector não foi encontrado, embora outros plugins funcionem; a página do plugin diz que não há ferramentas para este app ou que a informação ainda não está disponível; criar o plugin termina com «não foi possível concluir a solicitação».",
+        cause: "Isso acontece no ChatGPT, não no Postun: o login funcionou, mas o ChatGPT não carregou a lista de ferramentas que o Postun oferece. Já foi visto com a opção «ferramentas dinâmicas» dos plugins personalizados em espaços de trabalho do ChatGPT e após uma tentativa falha de criar o plugin com o mesmo nome.",
+        s1: "Crie o plugin de novo no ChatGPT: URL do servidor <code>https://mcp.postun.org/mcp</code>, autenticação OAuth e sem marcar «Usar ferramentas dinâmicas». Se as configurações do espaço de trabalho ativam ferramentas dinâmicas para plugins, desative-as lá e espere alguns minutos.",
+        s2: "Se a criação falhar ou disser que o plugin talvez já exista, dê outro nome ao plugin (por exemplo, «Postun» em vez do antigo) e remova o plugin antigo sem ferramentas.",
+        s3: "Conclua a janela de login: continue com o Telegram, escolha as contas e permita o acesso. O novo acesso do ChatGPT substitui o antigo no <a href=\"{dashboard}\">painel</a>.",
+        s4: "Abra um chat novo, ative o plugin e peça a lista das suas contas do Telegram. O plugin deve mostrar 10 ferramentas."
+      },
       "missing-dialogs": {
         title: "Só alguns chats aparecem, ou falta um chat ou bot",
         when: "A IA vê menos chats do que você tem; um chat ou bot que com certeza existe não é encontrado.",
