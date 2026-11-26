@@ -3,8 +3,9 @@
  *
  * Why: a sandboxed AI client (ChatGPT's code tool has no network) cannot fetch the download link itself. The card runs
  * in the user's browser, which can: it fetches the file from this server with the short-lived capability (Authorization
- * header only, never a query string) and, on the user's click, hands it to ChatGPT with window.openai.uploadFile. The
- * file then reaches the model as an attachment on the next turn (setWidgetState imageIds). Postun still keeps no copy:
+ * header only, never a query string) and, on the user's click, either attaches it to the conversation (MCP Apps
+ * ui/message) or saves it to the user's ChatGPT files (window.openai.uploadFile with library: true), which gives a file
+ * id that other ChatGPT tools can use. Postun still keeps no copy:
  * the bytes stream from Telegram through the Worker straight into the user's browser.
  *
  * The card only ever sends the capability to this server's own origin, which is pinned into the HTML when it is built
@@ -12,7 +13,7 @@
  * Telegram data and is written with textContent only.
  */
 
-export const MEDIA_WIDGET_URI = 'ui://postun/media-card-v3.html';
+export const MEDIA_WIDGET_URI = 'ui://postun/media-card-v4.html';
 /** Result _meta key that carries the download capability for the card (widget-only in ChatGPT). */
 export const DOWNLOAD_META_KEY = 'postun/download';
 export const MCP_APP_MIME = 'text/html;profile=mcp-app';
@@ -27,7 +28,7 @@ export function mediaWidgetResourceMeta(origin: string): Record<string, unknown>
     'openai/widgetCSP': { connect_domains: [origin], resource_domains: [] },
     'openai/widgetPrefersBorder': true,
     'openai/widgetDescription':
-      'A Postun card for one Telegram attachment. The user can attach the file to this chat (images and PDF) or download it; after attaching you receive the file on the next turn. Do not repeat the file details the card already shows.'
+      'A Postun card for one Telegram attachment. The user can attach the file to this chat (images and PDF), save the original to their ChatGPT files (any type; you then get its ChatGPT file id and SHA-256 in the next message, to pass to other tools such as a Google Drive upload), or download it. Do not repeat the file details the card already shows.'
   };
 }
 
@@ -53,6 +54,11 @@ const STRINGS = {
     failed: 'Could not get the file. Ask to get it again.',
     noUpload: 'This app cannot attach files to the chat; you can download it.',
     followUp: 'I attached the file "{name}" from Telegram. Continue with it.',
+    save: "Save to ChatGPT files",
+    saving: "Saving to your ChatGPT files…",
+    saved: "Saved to your ChatGPT files.",
+    saveFailed: "ChatGPT did not accept the file; you can download it.",
+    savedFollowUp: "I saved the file \"{name}\" from Telegram to my ChatGPT files: file id {id}, {size} bytes, SHA-256 {sha}. Continue with it; use this file id when another tool needs the file.",
     file: 'File'
   },
   ru: {
@@ -68,6 +74,11 @@ const STRINGS = {
     failed: 'Не удалось получить файл. Попросите получить его заново.',
     noUpload: 'Это приложение не умеет прикреплять файлы к чату, файл можно скачать.',
     followUp: 'Файл «{name}» из Telegram передан в чат. Продолжай с ним.',
+    save: "Сохранить в файлы ChatGPT",
+    saving: "Сохраняю в ваши файлы ChatGPT…",
+    saved: "Сохранено в ваши файлы ChatGPT.",
+    saveFailed: "ChatGPT не принял файл, его можно скачать.",
+    savedFollowUp: "Файл «{name}» из Telegram сохранён в мои файлы ChatGPT: file id {id}, {size} байт, SHA-256 {sha}. Продолжай с ним; если файл нужен другому инструменту, передай этот file id.",
     file: 'Файл'
   },
   de: {
@@ -83,6 +94,11 @@ const STRINGS = {
     failed: 'Die Datei konnte nicht geladen werden. Bitten Sie darum, sie erneut abzurufen.',
     noUpload: 'Diese App kann keine Dateien anhängen; Sie können die Datei herunterladen.',
     followUp: 'Ich habe die Datei „{name}“ aus Telegram angehängt. Mach damit weiter.',
+    save: "In ChatGPT-Dateien speichern",
+    saving: "Wird in deinen ChatGPT-Dateien gespeichert…",
+    saved: "In deinen ChatGPT-Dateien gespeichert.",
+    saveFailed: "ChatGPT hat die Datei nicht angenommen; du kannst sie herunterladen.",
+    savedFollowUp: "Ich habe die Datei „{name}“ aus Telegram in meinen ChatGPT-Dateien gespeichert: file id {id}, {size} Bytes, SHA-256 {sha}. Mach damit weiter; nutze diese file id, wenn ein anderes Tool die Datei braucht.",
     file: 'Datei'
   },
   es: {
@@ -98,6 +114,11 @@ const STRINGS = {
     failed: 'No se pudo obtener el archivo. Pide obtenerlo de nuevo.',
     noUpload: 'Esta app no puede adjuntar archivos al chat; puedes descargarlo.',
     followUp: 'He adjuntado el archivo «{name}» de Telegram. Continúa con él.',
+    save: "Guardar en archivos de ChatGPT",
+    saving: "Guardando en tus archivos de ChatGPT…",
+    saved: "Guardado en tus archivos de ChatGPT.",
+    saveFailed: "ChatGPT no aceptó el archivo; puedes descargarlo.",
+    savedFollowUp: "He guardado el archivo «{name}» de Telegram en mis archivos de ChatGPT: file id {id}, {size} bytes, SHA-256 {sha}. Continúa con él; usa este file id cuando otra herramienta necesite el archivo.",
     file: 'Archivo'
   },
   pt: {
@@ -113,6 +134,11 @@ const STRINGS = {
     failed: 'Não foi possível obter o arquivo. Peça para obtê-lo novamente.',
     noUpload: 'Este app não consegue anexar arquivos ao chat; você pode baixá-lo.',
     followUp: 'Anexei o arquivo "{name}" do Telegram. Continue com ele.',
+    save: "Salvar nos arquivos do ChatGPT",
+    saving: "Salvando nos seus arquivos do ChatGPT…",
+    saved: "Salvo nos seus arquivos do ChatGPT.",
+    saveFailed: "O ChatGPT não aceitou o arquivo; você pode baixá-lo.",
+    savedFollowUp: "Salvei o arquivo \"{name}\" do Telegram nos meus arquivos do ChatGPT: file id {id}, {size} bytes, SHA-256 {sha}. Continue com ele; use este file id quando outra ferramenta precisar do arquivo.",
     file: 'Arquivo'
   }
 };
@@ -134,6 +160,7 @@ let meta = null;
 let blob = null;
 let busy = false;
 let sent = false;
+let saved = false;
 
 function fmtSize(n) {
   if (typeof n !== 'number' || !isFinite(n) || n < 0) return '';
@@ -179,6 +206,7 @@ function download() {
 function setBusy(b) {
   busy = b;
   $('attach').disabled = b || sent;
+  $('save').disabled = b || saved;
   $('dl').disabled = b;
 }
 
@@ -217,6 +245,19 @@ async function toBase64(b) {
 function fail(e) {
   const k = e && e.message;
   status(k === 'expired' ? T.expired : k === 'busy' ? T.busy : T.failed, true);
+}
+
+/** Widget state keeps both flags, so attaching never forgets an earlier save and the other way round. */
+function writeState(extra) {
+  const api = oa();
+  if (!api || typeof api.setWidgetState !== 'function') return;
+  try { api.setWidgetState(Object.assign({}, extra, { privateContent: { attached: sent, saved: saved } })); } catch { /* optional */ }
+}
+async function sha256Hex(b) {
+  try {
+    const d = await crypto.subtle.digest('SHA-256', await b.arrayBuffer());
+    return Array.from(new Uint8Array(d), (x) => x.toString(16).padStart(2, '0')).join('');
+  } catch { return 'unavailable'; }
 }
 
 // ---------------------------------------------------------------- MCP Apps bridge
@@ -307,18 +348,57 @@ async function onAttach() {
       const fileId = up && (up.fileId || up.id);
       if (!fileId) throw new Error('failed');
       if (typeof api.setWidgetState === 'function') {
-        api.setWidgetState({ modelContent: 'The user attached the Telegram file "' + name + '" (' + mt + ').', privateContent: { attached: true }, imageIds: [fileId] });
+        api.setWidgetState({ modelContent: 'The user attached the Telegram file "' + name + '" (' + mt + ').', privateContent: { attached: true, saved: saved }, imageIds: [fileId] });
       }
       if (typeof api.sendFollowUpMessage === 'function') await api.sendFollowUpMessage({ prompt: text });
       way = 'uploadFile';
     }
     if (!way) { status(T.noUpload, true); diag(capsSummary()); return; }
     sent = true;
-    if (api && typeof api.setWidgetState === 'function' && way !== 'uploadFile') {
-      try { api.setWidgetState({ privateContent: { attached: true } }); } catch { /* optional */ }
-    }
+    if (way !== 'uploadFile') writeState({});
     status(T.attached);
     diag(way + ' · ' + capsSummary());
+  } catch (e) {
+    fail(e);
+  } finally {
+    setBusy(false);
+  }
+}
+
+// ---------------------------------------------------------------- save to ChatGPT files
+/**
+ * Saves the original file to the user's ChatGPT files (window.openai.uploadFile with library: true, any type) and tells
+ * the model its ChatGPT file id, size and SHA-256 in a follow-up message, so the model can hand the same file to another
+ * ChatGPT tool (for example a Google Drive upload) and check the copy. Only offered where ChatGPT provides uploadFile.
+ */
+async function onSave() {
+  if (busy || saved) return;
+  const api = oa();
+  if (!api || typeof api.uploadFile !== 'function') { status(T.saveFailed, true); return; }
+  setBusy(true);
+  try {
+    const b = await fetchBlob();
+    status(T.saving);
+    const name = fileName();
+    const mt = mime();
+    let fileId = '';
+    try {
+      const up = await api.uploadFile(new File([b], name, { type: mt }), { library: true });
+      fileId = String((up && (up.fileId || up.id)) || '');
+    } catch { fileId = ''; }
+    if (!fileId) { status(T.saveFailed, true); diag('uploadFile(library) failed'); return; }
+    const sha = await sha256Hex(b);
+    saved = true;
+    const facts = 'file id ' + fileId + ', ' + b.size + ' bytes, SHA-256 ' + sha;
+    const extra = { modelContent: 'The user saved the Telegram file "' + name + '" (' + mt + ') to their ChatGPT files: ' + facts + '.' };
+    if (ATTACHABLE.indexOf(mt) !== -1) extra.imageIds = [fileId];
+    writeState(extra);
+    const text = T.savedFollowUp.split('{name}').join(name).split('{id}').join(fileId).split('{size}').join(String(b.size)).split('{sha}').join(sha);
+    if (typeof api.sendFollowUpMessage === 'function') {
+      try { await api.sendFollowUpMessage({ prompt: text }); } catch { /* the state still carries the facts */ }
+    }
+    status(T.saved);
+    diag('uploadFile(library) · ' + fileId);
   } catch (e) {
     fail(e);
   } finally {
@@ -356,13 +436,17 @@ function render(sc, m) {
   $('name').textContent = fileName();
   $('meta').textContent = [mime(), fmtSize(sc.media.size)].filter(Boolean).join(' · ');
   $('attach').textContent = T.attach;
+  $('save').textContent = T.save;
   $('dl').textContent = T.download;
   const attachable = ATTACHABLE.indexOf(mime()) !== -1;
   const st = oa() && oa().widgetState;
   if (st && st.privateContent && st.privateContent.attached) sent = true;
+  if (st && st.privateContent && st.privateContent.saved) saved = true;
   $('attach').hidden = !attachable;
+  $('save').hidden = !(oa() && typeof oa().uploadFile === 'function');
   setBusy(false);
   if (!download()) status(T.failed, true);
+  else if (saved) status(T.saved);
   else if (sent) status(T.attached);
   else if (!attachable) status(T.notAttachable);
   reportSize();
@@ -405,10 +489,11 @@ function fromOpenAi() {
 window.addEventListener('openai:set_globals', fromOpenAi, { passive: true });
 
 $('attach').addEventListener('click', onAttach);
+$('save').addEventListener('click', onSave);
 $('dl').addEventListener('click', onDownload);
 $('label').textContent = T.file;
 fromOpenAi();
-post({ jsonrpc: '2.0', id: INIT_ID, method: 'ui/initialize', params: { appInfo: { name: 'postun-media-card', version: '1.2.0' }, appCapabilities: {}, protocolVersion: '2026-01-26' } });
+post({ jsonrpc: '2.0', id: INIT_ID, method: 'ui/initialize', params: { appInfo: { name: 'postun-media-card', version: '1.3.0' }, appCapabilities: {}, protocolVersion: '2026-01-26' } });
 if (typeof ResizeObserver === 'function') new ResizeObserver(reportSize).observe(document.documentElement);
 `;
 }
@@ -446,7 +531,7 @@ export function mediaWidgetHtml(origin: string): string {
       `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">` +
       `<style>${STYLE}</style></head><body>` +
       `<div class="card" id="card"><div class="label" id="label"></div><div class="name" id="name"></div><div class="meta" id="meta"></div>` +
-      `<div class="row" id="row" hidden><button class="primary" id="attach" type="button"></button><button id="dl" type="button"></button></div>` +
+      `<div class="row" id="row" hidden><button class="primary" id="attach" type="button"></button><button id="save" type="button" hidden></button><button id="dl" type="button"></button></div>` +
       `<div class="status" id="status" role="status" aria-live="polite"></div><div class="diag" id="diag"></div></div>` +
       `<script type="module">${escapeScript(script(origin))}</script></body></html>`;
     htmlCache.set(origin, html);

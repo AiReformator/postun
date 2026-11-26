@@ -5,6 +5,7 @@
 import { decodeCursor, encodeCursor, PostunError, type ToolName } from '@postun/contracts';
 import { z } from 'zod';
 import type { Config } from './config';
+import { INLINE_FILE_MAX_BYTES } from './files';
 import { TOOL_INPUT } from './schemas';
 import type { MediaInfoDto, Page, TelegramSession } from './telegram/adapter';
 import { parseDialogOffset } from './telegram/cursors';
@@ -84,7 +85,7 @@ export function parseToolArgs<T extends keyof typeof TOOL_INPUT>(tool: T, args: 
 /** Feature gates are checked before any quota reservation or Telegram call. */
 export function assertFeatureEnabled(tool: ToolName, cfg: Config): void {
   if ((tool === 'search_channels' || tool === 'get_channel_posts') && !cfg.channelsEnabled) throw new PostunError('FEATURE_DISABLED');
-  if (tool === 'get_media' && cfg.maxFileBytes <= 0) throw new PostunError('FEATURE_DISABLED');
+  if ((tool === 'get_media' || tool === 'get_media_file') && cfg.maxFileBytes <= 0) throw new PostunError('FEATURE_DISABLED');
 }
 
 /** Tools that never touch Telegram: answered by the Durable Object itself (session-do.ts). */
@@ -131,12 +132,19 @@ export async function runTool(env: ToolEnv, tool: Exclude<ToolName, NonTelegramT
       if (!info) throw new PostunError('NOT_FOUND');
       return { notice: UNTRUSTED_NOTICE, media: info as unknown as JsonValue };
     }
-    case 'get_media': {
-      const a = parseToolArgs('get_media', rawArgs);
+    case 'get_media':
+    case 'get_media_file': {
+      const a = parseToolArgs(tool, rawArgs);
       const info: MediaInfoDto | null = await s.getMediaInfo(a.peer, a.message_id);
       if (!info) throw new PostunError('NOT_FOUND');
       // Size is checked before any byte is requested (F-02). Unknown size cannot be bounded.
       if (info.size === null || info.size > env.cfg.maxFileBytes) throw new PostunError('FILE_TOO_LARGE');
+      // get_media_file embeds the bytes in the result (mcp.ts), so it has its own, smaller bound.
+      if (tool === 'get_media_file' && info.size > INLINE_FILE_MAX_BYTES) {
+        throw new PostunError('FILE_TOO_LARGE', undefined, {
+          hint: `get_media_file returns files up to ${Math.floor(INLINE_FILE_MAX_BYTES / (1024 * 1024))} MB in the result. For this file call get_media: in ChatGPT its card lets the user attach the file or save it to their ChatGPT files.`
+        });
+      }
       const issue = await env.issueMedia(a.peer, a.message_id, info.size);
       const base = new URL(env.cfg.resource);
       return {

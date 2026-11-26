@@ -81,6 +81,19 @@ export const TOOL_OUTPUT = {
     limits: limits.optional()
   }),
   get_media_info: z.looseObject({ notice, media, limits: limits.optional() }),
+  get_media_file: z.looseObject({
+    notice,
+    media,
+    file: z.looseObject({
+      name: z.string().describe('File name of the embedded resource'),
+      mimeType: z.string(),
+      size: z.number().int().describe('Bytes of the original file'),
+      sha256: z.string().describe('SHA-256 of the original bytes, to check a copy saved elsewhere'),
+      uri: z.string().describe('URI of the embedded resource in this result')
+    }),
+    note: z.string(),
+    limits: limits.optional()
+  }),
   get_media: z.looseObject({
     notice,
     media,

@@ -5,6 +5,11 @@ export const CHUNK_BYTES = 1024 * 1024;
 export const TRANSFER_STEP_BYTES = 8 * 1024 * 1024;
 export const CAPABILITY_TTL_MS = 10 * 60 * 1000;
 export const MAX_TRANSFERS_PER_PRINCIPAL = 2;
+/**
+ * get_media_file returns the original bytes inside the tool result (base64 embedded resource), so it is bounded well below
+ * the Worker's memory: bytes + base64 + JSON stay under ~30 MB. Larger files go through get_media (link or Postun card).
+ */
+export const INLINE_FILE_MAX_BYTES = 10 * 1024 * 1024;
 
 export type RangeResult = { ok: true; start: number; end: number; partial: boolean } | { ok: false };
 

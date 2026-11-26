@@ -64,6 +64,7 @@ describe('ChatGPT plugin metadata', () => {
       get_channel_posts: { account_id: acc, channel, limit: 3 },
       get_media_info: { account_id: acc, peer: 'c:1000:7', message_id: 10 },
       get_media: { account_id: acc, peer: 'c:1000:7', message_id: 10 },
+      get_media_file: { account_id: acc, peer: 'c:1000:7', message_id: 30 },
       get_help: { topic: 'session-ended' },
       report_problem: { category: 'other', summary: 'A synthetic problem for the output schema check.', user_confirmed: true }
     };

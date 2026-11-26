@@ -14,6 +14,7 @@ export const TOOLS = [
   'get_channel_posts',
   'get_media_info',
   'get_media',
+  'get_media_file',
   'get_help',
   'report_problem'
 ] as const;
@@ -29,6 +30,7 @@ export const TOOL_SCOPE: Readonly<Record<ToolName, Scope>> = {
   get_channel_posts: 'channels:read',
   get_media_info: 'media:read',
   get_media: 'media:read',
+  get_media_file: 'media:read',
   get_help: 'accounts:read',
   report_problem: 'accounts:read'
 };

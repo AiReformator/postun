@@ -85,6 +85,7 @@ All tools are **read-only**. There is no tool that sends, edits or deletes anyth
 | `get_channel_posts` | Reads posts of a public channel | `channels:read` |
 | `get_media_info` | Returns metadata of a file or media item | `media:read` |
 | `get_media` | Delivers a file or media item to the AI client | `media:read` |
+| `get_media_file` | Returns a file up to 10 MB as the original file inside the result (embedded resource with SHA-256) | `media:read` |
 
 ## Security and privacy model
 

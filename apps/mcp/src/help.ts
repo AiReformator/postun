@@ -83,7 +83,7 @@ export const HELP: Readonly<Record<HelpTopicId, HelpTopic>> = {
       'In ChatGPT create the plugin again: server URL https://mcp.postun.org/mcp, authentication OAuth, and leave "Use dynamic tools" off. If the workspace settings turn dynamic tools on for plugins, turn it off there and wait a few minutes.',
       'If creation fails or says the plugin may already exist, give the plugin a different name (for example "Postun" instead of the old one) and remove the old plugin that shows no tools.',
       'Finish the sign-in window: continue with Telegram, choose the accounts and allow access. The new ChatGPT access replaces the old one in the Postun dashboard.',
-      'Open a NEW chat, turn the plugin on and ask for the list of Telegram accounts. The plugin lists 10 tools, from list_accounts to report_problem.'
+      'Open a NEW chat, turn the plugin on and ask for the list of Telegram accounts. The plugin lists 11 tools, from list_accounts to report_problem.'
     ]
   },
   'missing-dialogs': {

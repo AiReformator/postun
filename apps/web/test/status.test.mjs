@@ -295,7 +295,7 @@ describe('ChatGPT workspace instructions', () => {
       for (let i = 1; i <= 5; i++) expect(block).toContain(l.dict.connect[`chatgptForm${i}`]);
       expect(block).toContain('href="/assets/postun-icon-256.png"');
       expect(block).toContain(l.dict.connect.chatgptTeamPrivacy);
-      expect(l.dict.connect.chatgptTeam2).toMatch(/8/);
+      expect(l.dict.connect.chatgptTeam2).toMatch(/11\D+9/);
     }
   });
 });
