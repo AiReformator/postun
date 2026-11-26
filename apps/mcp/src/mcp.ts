@@ -1,6 +1,8 @@
 import { fromJsonSchema, McpServer, type JsonSchemaType, type jsonSchemaValidator } from '@modelcontextprotocol/server';
-import { TOOLS, TOOL_SCOPE, mcpCallPoint, writeMetric, type GrantProps, type ToolName } from '@postun/contracts';
+import { ERROR_CODES, TOOLS, TOOL_SCOPE, mcpCallPoint, writeMetric, type ErrorCode, type GrantProps, type ToolName } from '@postun/contracts';
 import { loadConfig } from './config';
+import { INLINE_FILE_MAX_BYTES, safeContentType } from './files';
+import { handleFileGet } from './files-route';
 import type { Env } from './env';
 import { toolErrorResult } from './pause';
 import { DOWNLOAD_META_KEY, MCP_APP_MIME, MEDIA_TOOL_UI_META, MEDIA_WIDGET_URI, mediaWidgetHtml, mediaWidgetResourceMeta } from './widget';
@@ -100,7 +102,79 @@ export function isChatGptCall(meta: unknown): boolean {
   return typeof meta === 'object' && meta !== null && Object.keys(meta).some((k) => k.startsWith('openai/'));
 }
 
-type ToolResult = { content: { type: 'text'; text: string }[]; structuredContent?: Record<string, unknown>; _meta?: Record<string, unknown>; isError?: boolean };
+type ResourceBlock = { type: 'resource'; resource: { uri: string; mimeType: string; blob: string } };
+type ToolResult = { content: ({ type: 'text'; text: string } | ResourceBlock)[]; structuredContent?: Record<string, unknown>; _meta?: Record<string, unknown>; isError?: boolean };
+
+function base64(bytes: Uint8Array): string {
+  let s = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+
+function failure(code: ErrorCode): ToolResult {
+  return toolErrorResult({ code, message: ERROR_CODES[code] });
+}
+
+/**
+ * get_media_file: the Durable Object authorised the call and issued a capability exactly as for get_media (tools.ts);
+ * here the Worker fetches the bytes through the same /files path (capability check, per-account lock, byte accounting)
+ * and returns them as an MCP embedded resource with their SHA-256. The capability never leaves the server: the result
+ * has no link and no bearer. Bounded by INLINE_FILE_MAX_BYTES before (tools.ts) and while reading.
+ */
+export async function inlineFile(env: Env, r: ToolResult): Promise<ToolResult> {
+  const sc = r.structuredContent;
+  const d = sc?.download as Record<string, unknown> | undefined;
+  const media = (sc?.media ?? {}) as Record<string, unknown>;
+  if (r.isError || !sc || !d || typeof d.url !== 'string' || typeof d.authorization !== 'string') return r;
+  const intentId = new URL(d.url).pathname.split('/').pop() ?? '';
+  const res = await handleFileGet(new Request(d.url, { headers: { authorization: d.authorization } }), env, intentId);
+  if (!res.ok || !res.body) {
+    let code: ErrorCode = 'UPSTREAM_UNAVAILABLE';
+    try {
+      const body = (await res.json()) as { error?: { code?: string } };
+      if (body.error?.code && body.error.code in ERROR_CODES) code = body.error.code as ErrorCode;
+    } catch {
+      /* keep the generic code */
+    }
+    return failure(code);
+  }
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  const reader = res.body.getReader();
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > INLINE_FILE_MAX_BYTES) {
+      await reader.cancel().catch(() => undefined);
+      return failure('FILE_TOO_LARGE');
+    }
+    chunks.push(value);
+  }
+  const expected = typeof media.size === 'number' ? media.size : null;
+  if (size === 0 || (expected !== null && size !== expected)) return failure('UPSTREAM_UNAVAILABLE');
+  const bytes = new Uint8Array(size);
+  let at = 0;
+  for (const c of chunks) {
+    bytes.set(c, at);
+    at += c.byteLength;
+  }
+  const sha256 = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)), (x) => x.toString(16).padStart(2, '0')).join('');
+  const kind = typeof media.kind === 'string' ? media.kind : 'file';
+  const name = typeof media.fileName === 'string' && media.fileName ? media.fileName.slice(0, 200) : `telegram-${kind}`;
+  const mimeType = safeContentType(typeof media.mimeType === 'string' ? media.mimeType : null);
+  const uri = `postun://file/${intentId}/${encodeURIComponent(name)}`;
+  const { download: _d, ...rest } = sc;
+  const structuredContent = {
+    ...rest,
+    file: { name, mimeType, size, sha256, uri },
+    note: 'The original file is embedded in this result as a resource (same uri). Pass it on as a file, for example to save it to Google Drive; check a saved copy against sha256.'
+  };
+  return {
+    content: [{ type: 'text', text: JSON.stringify(structuredContent) }, { type: 'resource', resource: { uri, mimeType, blob: base64(bytes) } }],
+    structuredContent
+  };
+}
 
 /**
  * In ChatGPT the get_media card fetches the file, so the download capability goes only to the card (result `_meta`,
@@ -153,7 +227,7 @@ export const SERVER_INFO = {
  * One MCP server per request. The SDK binds a server instance to a single transport (a per-request transport in
  * stateless mode) and its factory contract is one instance per request, so an instance is not shared between concurrent
  * requests; instead everything expensive (schemas, JSON Schema, descriptions) is cached above and registration is cheap.
- * No tool writes to Telegram: seven read it, get_help answers from static text and report_problem stores one support report.
+ * No tool writes to Telegram: eight read it, get_help answers from static text and report_problem stores one support report.
  */
 export function createMcpServer(env: Env, props: GrantProps): McpServer {
   const server = new McpServer(SERVER_INFO, { instructions: SERVER_INSTRUCTIONS });
@@ -161,6 +235,7 @@ export function createMcpServer(env: Env, props: GrantProps): McpServer {
   for (const { tool, config } of TOOL_DEFS) {
     server.registerTool(tool, config, async (args: unknown, ctx?: { mcpReq?: { _meta?: unknown } }) => {
       const r = (await call(tool, (args ?? {}) as Record<string, unknown>)) as ToolResult;
+      if (tool === 'get_media_file') return inlineFile(env, r);
       return tool === 'get_media' && isChatGptCall(ctx?.mcpReq?._meta) ? cardOnlyCapability(r) : r;
     });
   }

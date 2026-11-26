@@ -75,7 +75,8 @@ function kindOf(i: number): PeerKind {
 const KIND_PREFIX: Record<PeerKind, string> = { user: 'u', group: 'g', channel: 'c' };
 
 function fileSize(id: number): number {
-  return id === 10 ? 2_500_000 : id === 20 ? 9_000_000 : 1000 + id;
+  // 40: 11 MB, just above get_media_file's 10 MiB inline bound (needs MAX_FILE_BYTES raised in a test).
+  return id === 10 ? 2_500_000 : id === 20 ? 9_000_000 : id === 40 ? 11_000_000 : 1000 + id;
 }
 
 class SyntheticSession implements TelegramSession {
