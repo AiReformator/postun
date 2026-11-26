@@ -114,7 +114,7 @@ export function cardOnlyCapability(r: ToolResult): ToolResult {
   const { authorization, ...rest } = d;
   const download = {
     ...rest,
-    note: 'In this chat only the Postun card holds the download capability and fetches the file for the user (Attach to chat / Download). Do not try to download the URL yourself or with another tool.'
+    note: 'In this chat only the Postun card holds the download capability and fetches the file for the user (Attach to chat / Save to ChatGPT files / Download). Do not try to download the URL yourself or with another tool.'
   };
   const structuredContent = { ...sc, download };
   return {

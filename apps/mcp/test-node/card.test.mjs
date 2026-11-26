@@ -25,10 +25,10 @@ function el(id) {
   };
 }
 
-function run({ output, meta = null, locale = 'ru', fetchImpl, openai = true, embedded = false, hostCapabilities, reply = () => ({}) }) {
+function run({ output, meta = null, locale = 'ru', fetchImpl, openai = true, embedded = false, hostCapabilities, reply = () => ({}), upload, widgetState = null }) {
   const html = mediaWidgetHtml(ORIGIN);
   const code = /<script type="module">([\s\S]*)<\/script>/.exec(html)[1];
-  const els = Object.fromEntries(['card', 'label', 'name', 'meta', 'row', 'attach', 'dl', 'status', 'diag'].map((i) => [i, el(i)]));
+  const els = Object.fromEntries(['card', 'label', 'name', 'meta', 'row', 'attach', 'save', 'dl', 'status', 'diag'].map((i) => [i, el(i)]));
   els.row.hidden = true; // the page starts with the buttons hidden
   const calls = { fetch: [], upload: [], state: [], followUp: [] };
   const api = openai
@@ -36,10 +36,10 @@ function run({ output, meta = null, locale = 'ru', fetchImpl, openai = true, emb
         locale,
         toolOutput: output,
         toolResponseMetadata: meta,
-        widgetState: null,
-        uploadFile: async (file) => {
-          calls.upload.push({ name: file.name, type: file.type, size: file.size });
-          return { fileId: 'file-synthetic-1' };
+        widgetState,
+        uploadFile: async (file, opts) => {
+          calls.upload.push({ name: file.name, type: file.type, size: file.size, ...(opts ? { opts } : {}) });
+          return upload ? upload(file, opts) : { fileId: 'file-synthetic-1' };
         },
         setWidgetState: (s) => calls.state.push(s),
         sendFollowUpMessage: async (m) => calls.followUp.push(m)
@@ -71,6 +71,7 @@ function run({ output, meta = null, locale = 'ru', fetchImpl, openai = true, emb
     },
     Blob,
     File,
+    crypto: globalThis.crypto,
     btoa,
     URL,
     setTimeout,
@@ -257,4 +258,67 @@ test('a PDF goes as an embedded resource block', async () => {
   assert.equal(msg.params.content[1].type, 'resource');
   assert.equal(msg.params.content[1].resource.mimeType, 'application/pdf');
   assert.equal(msg.params.content[1].resource.blob, 'AQIDBA==');
+});
+
+// sha256 of [1, 2, 3, 4]
+const SHA_1234 = '9f64a747e1b97f131fabb6b447296c9b6f0201e79fb3c5356e6c77e89b6a806a';
+const zip = () => ({ ...photo(), media: { kind: 'document', fileName: 'Полное досье.zip', mimeType: 'application/zip', size: 4 } });
+
+test('Save to ChatGPT files: any type, uploadFile with library: true, file id + size + SHA-256 to the model, once', async () => {
+  const { els, calls } = run({ output: zip(), fetchImpl: okFetch() });
+  assert.equal(els.save.hidden, false);
+  assert.equal(els.save.textContent, 'Сохранить в файлы ChatGPT');
+  assert.equal(els.attach.hidden, true, 'a zip still cannot be attached');
+  els.save.fire('click');
+  await flush();
+  assert.equal(JSON.stringify(calls.upload), JSON.stringify([{ name: 'Полное досье.zip', type: 'application/zip', size: 4, opts: { library: true } }]));
+  const st = calls.state.at(-1);
+  assert.match(st.modelContent, /file id file-synthetic-1, 4 bytes, SHA-256 [0-9a-f]{64}/);
+  assert.ok(st.modelContent.includes(SHA_1234));
+  assert.equal(st.imageIds, undefined, 'non-image types are not sent as imageIds');
+  assert.equal(JSON.stringify(st.privateContent), JSON.stringify({ attached: false, saved: true }));
+  assert.match(calls.followUp[0].prompt, /file id file-synthetic-1/);
+  assert.ok(calls.followUp[0].prompt.includes(SHA_1234));
+  assert.equal(els.status.textContent, 'Сохранено в ваши файлы ChatGPT.');
+  assert.equal(els.save.disabled, true);
+  els.save.fire('click');
+  await flush();
+  assert.equal(calls.upload.length, 1, 'no second upload');
+});
+
+test('a saved PDF also goes to the model as imageIds; attach after save keeps the saved flag', async () => {
+  const pdf = { ...photo(), media: { kind: 'document', fileName: 'scan.pdf', mimeType: 'application/pdf', size: 4 } };
+  const { els, calls, sent } = run({ output: pdf, embedded: true, hostCapabilities: { message: { text: {}, resource: {} } }, fetchImpl: okFetch() });
+  await flush();
+  els.save.fire('click');
+  await flush();
+  assert.equal(JSON.stringify(calls.state.at(-1).imageIds), JSON.stringify(['file-synthetic-1']));
+  els.attach.fire('click');
+  await flush();
+  assert.ok(sent.find((m) => m.method === 'ui/message'));
+  assert.equal(JSON.stringify(calls.state.at(-1).privateContent), JSON.stringify({ attached: true, saved: true }));
+  assert.equal(calls.fetch.length, 1, 'the file is fetched from Telegram once');
+});
+
+test('Save is not offered without ChatGPT uploadFile, and a refused upload says so', async () => {
+  const none = run({ output: photo(), openai: false, embedded: true, hostCapabilities: {}, fetchImpl: okFetch() });
+  none.fromHost({ jsonrpc: '2.0', method: 'ui/notifications/tool-result', params: { structuredContent: photo() } });
+  assert.equal(none.els.save.hidden, true);
+  const { els, calls } = run({ output: zip(), locale: 'en', fetchImpl: okFetch(), upload: async () => { throw new Error('too large'); } });
+  els.save.fire('click');
+  await flush();
+  assert.equal(calls.state.length, 0);
+  assert.equal(calls.followUp.length, 0);
+  assert.equal(els.status.textContent, 'ChatGPT did not accept the file; you can download it.');
+  assert.equal(els.status.className, 'status err');
+  assert.equal(els.save.disabled, false, 'the user can try again');
+});
+
+test('a card that was already saved shows it after a reload and does not upload again', async () => {
+  const { els, calls } = run({ output: zip(), locale: 'en', fetchImpl: okFetch(), widgetState: { privateContent: { saved: true } } });
+  assert.equal(els.status.textContent, 'Saved to your ChatGPT files.');
+  assert.equal(els.save.disabled, true);
+  els.save.fire('click');
+  await flush();
+  assert.equal(calls.upload.length, 0);
 });
