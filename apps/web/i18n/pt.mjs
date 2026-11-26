@@ -125,9 +125,9 @@ export default {
     chatgptTeam5: "<strong>Cada membro entra por conta própria.</strong> Em um novo chat, selecione + ou digite @ e escolha Postun Telegram. Na primeira vez, o ChatGPT abre o login do Postun: entre com o seu próprio Telegram, vincule a conta pelo código QR (na própria janela de login) e escolha quais contas e dados podem ser lidos.",
     chatgptFormTitle: "O que preencher no formulário do plugin",
     chatgptForm1: "<strong>Nome:</strong> “Postun Telegram”, um nome curto pelo qual os colegas acham o plugin na lista e com @.",
-    chatgptForm2: "<strong>Descrição:</strong> o ChatGPT e os colegas a usam para saber quando chamar o plugin. Descreva tarefas, não tecnologia, e não cole chaves nem dados pessoais. Pode copiar: “Lê os chats, canais e mensagens do Telegram do usuário: busca, histórico, anexos. Somente leitura; cada pessoa entra com o próprio Telegram e vê só as próprias contas.”",
+    chatgptForm2: "<strong>Descrição:</strong> o ChatGPT a usa para decidir quando chamar o plugin e em que ordem usar as ferramentas; os colegas também a veem. Recomendamos esta descrição em inglês, qualquer que seja o idioma da equipe: ela cobre os problemas comuns (chats arquivados, nomes escritos em alfabeto latino) e não contém chaves nem dados pessoais. Copie: <code>Read-only access to the user's own Telegram through Postun; each user signs in with their own Telegram. Use it to find or read a Telegram chat, group, channel, bot, message or attachment. Order: list_accounts, then list_dialogs (if a chat is missing, call it again with archived=true; look for names in both Cyrillic and Latin spelling), then get_history to read or search_messages to search (pass the chat peer when known). Public channels: search_channels and get_channel_posts. On any error call get_help. Cannot send, edit or delete anything in Telegram.</code>",
     chatgptForm3: "<strong>Ícone:</strong> <a href=\"/assets/postun-icon-256.png\" download>baixe o PNG 256×256</a> e envie. O Postun também fornece o ícone via MCP, mas nem todo cliente o exibe.",
-    chatgptForm4: "<strong>URL do servidor:</strong> o endereço acima. <strong>Autenticação:</strong> OAuth. Deixe o ID do cliente, o segredo e os outros campos avançados vazios: o ChatGPT se registra no Postun sozinho.",
+    chatgptForm4: "<strong>URL do servidor:</strong> o endereço acima. <strong>Autenticação:</strong> OAuth. Deixe o ID do cliente, o segredo e os outros campos avançados vazios: o ChatGPT se registra no Postun sozinho. Deixe desmarcado «Usar ferramentas dinâmicas»: com essa opção, o ChatGPT pode mostrar o plugin sem ferramentas.",
     chatgptForm5: "<strong>As ferramentas e suas descrições</strong> vêm do Postun automaticamente; não há nada a mudar.",
     chatgptTeamPrivacy: "Só o endereço do servidor é publicado. Cada membro entra no Postun com o próprio Telegram e vê apenas as contas que vinculou: colegas do workspace não conseguem ler o seu Telegram, nem pelo mesmo plugin. O que o ChatGPT lê fica no seu histórico de conversas; não compartilhe essas conversas se não quiser que o conteúdo seja visto.",
     claudeCode: "Execute o comando e depois digite <code>/mcp</code> no Claude Code, escolha postun e entre pelo navegador.",
@@ -293,6 +293,15 @@ export default {
         s1: "No Telegram do celular, troque para a conta que foi conectada originalmente (compare com o rótulo da conta no painel).",
         s2: "Toque em «Reconectar» de novo e escaneie o novo QR com essa conta.",
         s3: "Para usar outra conta do Telegram, conecte-a separadamente com «Conectar uma conta por QR»: ela será uma conta distinta."
+      },
+      "chatgpt-no-tools": {
+        title: "O ChatGPT mostra o plugin do Postun, mas sem ferramentas",
+        when: "O ChatGPT diz que as ferramentas do Postun não existem ou que o conector não foi encontrado, embora outros plugins funcionem; a página do plugin diz que não há ferramentas para este app ou que a informação ainda não está disponível; criar o plugin termina com «não foi possível concluir a solicitação».",
+        cause: "Isso acontece no ChatGPT, não no Postun: o login funcionou, mas o ChatGPT não carregou a lista de ferramentas que o Postun oferece. Já foi visto com a opção «ferramentas dinâmicas» dos plugins personalizados em espaços de trabalho do ChatGPT e após uma tentativa falha de criar o plugin com o mesmo nome.",
+        s1: "Crie o plugin de novo no ChatGPT: URL do servidor <code>https://mcp.postun.org/mcp</code>, autenticação OAuth e sem marcar «Usar ferramentas dinâmicas». Se as configurações do espaço de trabalho ativam ferramentas dinâmicas para plugins, desative-as lá e espere alguns minutos.",
+        s2: "Se a criação falhar ou disser que o plugin talvez já exista, dê outro nome ao plugin (por exemplo, «Postun» em vez do antigo) e remova o plugin antigo sem ferramentas.",
+        s3: "Conclua a janela de login: continue com o Telegram, escolha as contas e permita o acesso. O novo acesso do ChatGPT substitui o antigo no <a href=\"{dashboard}\">painel</a>.",
+        s4: "Abra um chat novo, ative o plugin e peça a lista das suas contas do Telegram. O plugin deve mostrar 10 ferramentas."
       },
       "missing-dialogs": {
         title: "Só alguns chats aparecem, ou falta um chat ou bot",
